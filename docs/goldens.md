@@ -66,11 +66,21 @@ of the row's canonical `{call, input}`:
 pip install -r ci/requirements.txt         # SymPy 1.13.3, mpmath 1.3.0, NetworkX as Pyodide ships them
 git clone https://github.com/Erasmus-CTM/math-exercise _ci/math-exercise
 git -C _ci/math-exercise checkout <math-exercise commit in tools/pins.json>
+git clone https://github.com/Erasmus-CTM/ctm-assessment _ci/ctm-assessment
+git -C _ci/ctm-assessment checkout <ctm-assessment commit in tools/pins.json>
 python tools/golden.py verify --adapter legacy --legacy _ci/math-exercise
 ```
 
 Any Python from 3.9 to 3.13 verifies every row; another version has no
 results of its own in the rows kept per version and says so once.
+
+Authored rows are recorded with the umbrella's own recorder,
+`integration/pyodide-parity/authored_record.py`: the harness records the
+capture with it, and `golden.py` loads the same file from the ctm-assessment
+checkout at the commit in `tools/pins.json` (which also pins its SHA-256), as
+`tools/pyodide/verify.cjs` loads the harness's `runtime.cjs` and
+`wheels.cjs`. `--umbrella DIR` or `CTM_UMBRELLA` name another checkout of
+that commit; by default it is `_ci/ctm-assessment`.
 
 Adapters: `legacy` (below); `wheel` (the built wheel, imported from the zip
 as builds import it; `--wheel` also takes a folder that contains
@@ -92,7 +102,8 @@ through `question-tests.py`; the rounding helpers of `variants.py` from that
 file.
 
 Inside Pyodide (Node 22; the umbrella's harness modules at the commit in
-`tools/pins.json`, after `npm ci` in its `integration/pyodide-parity`):
+`tools/pins.json`, after `npm ci` in its `integration/pyodide-parity`;
+`verify.cjs` mounts that checkout for `golden.py`):
 
 ```sh
 node tools/pyodide/verify.cjs --umbrella _ci/ctm-assessment --version 0.28.3 -- verify --adapter legacy --legacy _ci/math-exercise
@@ -165,11 +176,12 @@ legacy pin (`tools/pins.json`; the checkout must contain both commits),
 replaces the tables, copies the files that authored tests name, records the
 supplementary suites and every Python version's results with the legacy code,
 and writes `manifest.json` and `PROVENANCE.md`. The authored rows hold what
-the harness records around each `check()` call (worker.cjs, `AUTHORED`);
-`golden.py` records it the same way (`AUTHORED_WRAP`, `_ctm_plain`,
-`_ctm_page_shaped`), and recording with the legacy code during the import
-stops on any row it does not reproduce, so a change of the harness's
-recording shows there. A row that today's code grades
+the harness's recorder (`authored_record.py`, above) records around each
+`check()` call. Recording them again with the legacy code and the recorder at
+the pin stops the import on any row it does not reproduce, so a capture taken
+with another recorder shows there: move the pin (`tools/pins.json`, the
+commit and `authored_record_sha256`) to the capture's umbrella commit when its
+recorder changed. A row that today's code grades
 differently on another platform is kept per version and reported (a parity
 finding); a result that differs for a version already in the table stops the
 import.

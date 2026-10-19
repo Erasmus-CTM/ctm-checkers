@@ -3,7 +3,8 @@
 // the umbrella's harness modules (ctm-assessment integration/pyodide-parity at
 // the commit in tools/pins.json: runtime.cjs boots Pyodide, wheels.cjs loads
 // SymPy, mpmath and NetworkX as that Pyodide version builds them, checked
-// against its lock file), mounts this repository and runs
+// against its lock file), mounts this repository and the umbrella checkout
+// (golden.py records authored rows with its authored_record.py) and runs
 // `tools/golden.py verify` inside, with the same adapters as natively.
 //
 //   node tools/pyodide/verify.cjs --umbrella DIR --version 0.28.3 -- verify --adapter legacy --legacy DIR
@@ -64,8 +65,9 @@ function parse(argv) {
     console.log(`Installed ${checkers.wheel} (sha256 ${checkers.sha256}) with the payload's install code`);
   }
 
-  // This repository and every host path among the arguments, mounted.
-  const mounts = new Map([[ROOT, '/ctm-checkers']]);
+  // This repository, the umbrella checkout (golden.py records authored rows
+  // with its authored_record.py) and every host path among the arguments, mounted.
+  const mounts = new Map([[ROOT, '/ctm-checkers'], [fs.realpathSync(path.resolve(options.umbrella)), '/ctm-umbrella']]);
   const args = options.golden.map(arg => {
     if (arg.startsWith('-') || !fs.existsSync(arg)) return arg;
     const host = fs.realpathSync(arg);
@@ -81,7 +83,8 @@ function parse(argv) {
   }
   py.globals.set('_ctm_golden_args', py.toPy(args));
   const code = await py.runPythonAsync([
-    'import runpy, warnings',
+    'import os, runpy, warnings',
+    'os.environ["CTM_UMBRELLA"] = "/ctm-umbrella"',
     'warnings.simplefilter("ignore")',
     '_ctm_golden = runpy.run_path("/ctm-checkers/tools/golden.py", run_name="ctm_golden")',
     '_ctm_golden["main"](list(_ctm_golden_args))',

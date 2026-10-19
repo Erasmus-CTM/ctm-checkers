@@ -11,9 +11,9 @@ diff (docs/goldens.md).
 The checker code of math-exercise, moved verbatim from math-exercise 0.10.0
 (consolidation step 2, design in ctm-assessment
 `docs/consolidation/2026-10-step2.md`). No grading changes: the built wheel
-reproduces every golden row on Python 3.9, 3.12 and 3.13 and in Pyodide
-0.27.2 and 0.28.3, and so does math-exercise 0.10.0's own code. STACK's
-engine follows in 0.2.0.
+reproduces every golden row on Python 3.9 to 3.13 and in Pyodide 0.27.2 and
+0.28.3, and so does math-exercise 0.10.0's own code. STACK's engine follows
+in 0.2.0.
 
 - Golden verdict tables for math-exercise, recorded from math-exercise 0.10.0
   before any code moved: every grading call of math-exercise's own examples as
@@ -23,7 +23,9 @@ engine follows in 0.2.0.
   requests and the rounding rule (1020 rows, and 561 through variants.py),
   with results for every Python from 3.9 to 3.13. `tools/golden.py` verifies
   them against the legacy code or ctm-checkers, natively and in Pyodide
-  (`tools/pyodide/verify.cjs`), and imports a new capture with one command.
+  (`tools/pyodide/verify.cjs`), records authored rows with the harness's own
+  recorder (`authored_record.py` of the pinned umbrella commit), and imports
+  a new capture with one command.
   The captured tables alone fail on both numeric mutations of the step-2
   review (rounding half to even; tolerance `<`), and the tables fail on all
   21 mutations of the checks in `tests/test_mutations.py`.

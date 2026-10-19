@@ -53,6 +53,12 @@ design is ctm-assessment `docs/consolidation/2026-10-step2.md`.
 - `tools/build.py --check` in the builder's `--test`; the package copies
   `_extensions/ctm-checkers/` (wheel, script, `checkers.json`,
   `_extension.yml`).
+- `integration/pyodide-parity/authored_record.py` is the one copy of the
+  authored-question recorder: the harness's capture and ctm-checkers'
+  `golden.py` both use it (ctm-checkers pins the umbrella commit and the
+  file's SHA-256 in `tools/pins.json`, with `runtime.cjs` and `wheels.cjs`).
+  A change of the recorder is a change of the authored rows: ctm-checkers
+  moves its pin with the next capture it imports.
 
 ## Before the first grading-change pull request (fixes, B rows)
 

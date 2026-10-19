@@ -31,6 +31,10 @@ python tools/build.py                 # after changing src/: regenerate _extensi
 python tools/golden.py verify --adapter src --variants <math-exercise checkout>
 ```
 
+`verify` records authored rows with the umbrella's recorder: check out
+ctm-assessment at the commit in `tools/pins.json` into `_ci/ctm-assessment`
+first (docs/goldens.md).
+
 CI (`Tests`, `Pyodide`) checks the generated folder and the released
 versions (`tools/released.json`), runs the tests on `src/` and on the built
 wheel, verifies the golden tables with the built wheel and with math-exercise

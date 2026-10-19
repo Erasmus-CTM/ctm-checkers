@@ -2,9 +2,10 @@ name: Pyodide
 
 # Pyodide 0.27.2 (Python 3.12) and 0.28.3 (Python 3.13, the version ctm-libs
 # loads) in Node, with SymPy, mpmath and NetworkX as Pyodide builds them (the
-# umbrella's harness modules, tools/pins.json): the page script's install code
-# (through globals.set and runPythonAsync only), then the golden tables with
-# the wheel it installed and with the legacy code. Runs on every pull request
+# umbrella's harness modules, tools/pins.json; authored rows with its
+# authored_record.py): the page script's install code (through globals.set
+# and runPythonAsync only), then the golden tables with the wheel it
+# installed and with the legacy code. Runs on every pull request
 # and push to main (no path filter, so the checks can be required), weekly
 # and on demand; npm packages and the verified wheels are cached.
 on:
@@ -45,7 +46,7 @@ jobs:
           ref: ${{ steps.pins.outputs['math-exercise'] }}
           path: _ci/math-exercise
           persist-credentials: false
-      - name: The umbrella's Pyodide harness modules
+      - name: The umbrella's Pyodide harness modules and authored-question recorder
         uses: actions/checkout@v7
         with:
           repository: Erasmus-CTM/ctm-assessment

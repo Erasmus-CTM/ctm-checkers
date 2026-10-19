@@ -6,6 +6,10 @@
     python tools/golden.py record --legacy DIR
     python tools/golden.py import-capture CAPTURE --math-exercise CHECKOUT [--record-with PYTHON ...]
 
+Authored rows are recorded with the umbrella's parity-harness recorder
+(integration/pyodide-parity/authored_record.py at the commit in
+tools/pins.json; --umbrella DIR or CTM_UMBRELLA, by default _ci/ctm-assessment).
+
 The tables are tests/golden/<module>/<suite>.jsonl, one row per line,
 {"suite", "id", "call", "input", "output" | "by_python", "tags"}, in
 canonical JSON (sorted keys, compact separators, non-ASCII as is) and sorted
@@ -222,108 +226,52 @@ def python_value(value, sources=None):
 
 
 # ---------------------------------------------------------------------------
-# Authored question tests: recorded as the umbrella's harness records them
-# (integration/pyodide-parity/worker.cjs, AUTHORED, at the capture's commit):
-# the outcome, every check() result (Python's bool, int, float and str as
-# they are, other numbers with their type) and the response passed to each
-# check(), as the page would send it (text), taken when check() is called.
-# `random` is seeded per question.
+# Authored question tests: recorded by the umbrella's parity harness's own
+# recorder, integration/pyodide-parity/authored_record.py (the one copy; the
+# harness defines the capture), loaded from the ctm-assessment checkout at the
+# commit in tools/pins.json, as tools/pyodide/verify.cjs loads runtime.cjs and
+# wheels.cjs: --umbrella DIR or CTM_UMBRELLA, by default _ci/ctm-assessment.
 # ---------------------------------------------------------------------------
 
-AUTHORED_WRAP = '''
-import sys as _ctm_golden_sys
-_ctm_golden_record = _ctm_golden_sys.modules['_ctm_golden_record']
-_ctm_golden_check = check
-def check(*args, **kwargs):
-    # The response as it is now: a test may change its matrix after the call.
-    _ctm_golden_record.responses.append(_ctm_golden_record.page(args[0] if args else kwargs.get('response')))
-    result = _ctm_golden_check(*args, **kwargs)
-    _ctm_golden_record.calls.append(result)
-    return result
-'''
+RECORDER = 'integration/pyodide-parity/authored_record.py'
+_recorder = None
 
 
-def _ctm_plain(value):
-    # A checker result as JSON: Python's bool, int, float and str as they are;
-    # any other number keeps its type ({"$type": "Rational", "value": "1/3"}),
-    # so a change of the returned type shows in the goldens.
-    if isinstance(value, dict):
-        return {str(k): _ctm_plain(v) for k, v in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_ctm_plain(v) for v in value]
-    if value is None or isinstance(value, (bool, str)) or type(value) is int:
-        return value
-    if type(value) is float:   # NaN and infinities tagged as in the requests ({"$float": "NaN"})
-        return value if value == value and abs(value) != float('inf') else {'$float': 'NaN' if value != value else ('Infinity' if value > 0 else '-Infinity')}
-    return {'$type': type(value).__name__, 'value': str(value)}
+def umbrella_folder():
+    return Path(os.environ.get('CTM_UMBRELLA') or ROOT / '_ci' / 'ctm-assessment').resolve()
 
 
-def _ctm_text(value):
-    return value if isinstance(value, str) else str(value)
-
-
-def _ctm_response(value):
-    # The response as the page sends it: what the learner types, as text.
-    # Tests pass parsed values (SymPy expressions, matrices); the page sends
-    # strings ("raw", and per dynamic matrix its shape and entries) and parses
-    # them itself. A response that is not JSON then is left out (None); the
-    # test itself goes on either way.
-    try:
-        return _ctm_page_shaped(value)
-    except Exception:
-        return None
-
-
-def _ctm_page_shaped(value):
-    if isinstance(value, dict):
-        page = {k: v for k, v in value.items() if k not in ('expressions', 'raw', 'inputs')}
-        if 'raw' in value:
-            page['raw'] = value['raw']
-        elif isinstance(value.get('expressions'), (list, tuple)):
-            page['raw'] = [_ctm_text(e) for e in value['expressions']]
-        if isinstance(value.get('inputs'), dict):
-            inputs = {}
-            for name, item in value['inputs'].items():
-                if isinstance(item, dict) and 'raw' not in item and item.get('matrix') is not None:
-                    rows, cols = item['matrix'].shape
-                    inputs[name] = {'type': 'matrix', 'rows': int(rows), 'cols': int(cols), 'raw': [_ctm_text(e) for e in item['matrix']]}
-                elif isinstance(item, dict):
-                    inputs[name] = {k: v for k, v in item.items() if k not in ('expressions', 'matrix')}
-                else:
-                    inputs[name] = item
-            page['inputs'] = inputs
-        if 'raw' in page or 'inputs' in page:
-            page.setdefault('kind', 'expressions')
-            page.setdefault('raw', [])
-            page.setdefault('inputs', {})
-        value = page
-    try:
-        return json.loads(json.dumps(value, allow_nan=False))
-    except (TypeError, ValueError):
-        return None
+def recorder():
+    """The umbrella's authored_record module (checked against the pin's sha256)."""
+    global _recorder
+    if _recorder is None:
+        path = umbrella_folder() / RECORDER
+        pin = json.loads((ROOT / 'tools' / 'pins.json').read_text(encoding='utf-8'))['ctm-assessment']
+        if not path.is_file():
+            raise SystemExit(f'{path}: not found. Authored rows are recorded with the umbrella\'s {RECORDER}: check out '
+                             f'Erasmus-CTM/ctm-assessment at {pin["commit"][:12]} (tools/pins.json) into _ci/ctm-assessment, '
+                             f'or give its folder with --umbrella or CTM_UMBRELLA')
+        source = path.read_bytes()
+        if hashlib.sha256(source).hexdigest() != pin['authored_record_sha256']:
+            raise SystemExit(f'{path} is not the recorder of ctm-assessment {pin["commit"][:12]} (tools/pins.json): '
+                             f'check out that commit')
+        module = types.ModuleType('ctm_umbrella_authored_record')
+        module.__file__ = str(path)
+        exec(compile(source, str(path), 'exec'), module.__dict__)
+        _recorder = module
+    return _recorder
 
 
 def authored_output(run_question, options, base):
-    record = types.ModuleType('_ctm_golden_record')
-    record.calls, record.responses, record.page = [], [], _ctm_response
-    sys.modules['_ctm_golden_record'] = record
-    wrapped = dict(options, checker=options.get('checker', '') + AUTHORED_WRAP)
+    """An authored row's result: the umbrella's record() of the question, run
+    in its source folder (as the harness runs it) and in canonical form."""
     here = os.getcwd()
     if Path(base).is_dir():
         os.chdir(base)
-    random.seed(0)
     try:
-        run_question(wrapped, base)
-        outcome = 'pass'
-    except AssertionError as error:
-        outcome = 'assertion failed: ' + str(error)
-    except Exception as error:
-        outcome = 'error: ' + type(error).__name__ + ': ' + str(error)
+        result = recorder().record(run_question, options, base)
     finally:
         os.chdir(here)
-        del sys.modules['_ctm_golden_record']
-    result = {'outcome': outcome, 'calls': _ctm_plain(record.calls),
-              'responses': [r for r in record.responses if r is not None]}
     return loads(json.dumps(result, sort_keys=True, ensure_ascii=False, separators=(',', ':')))
 
 
@@ -1080,17 +1028,22 @@ def main(argv=None):
     check.add_argument('--legacy', help='math-exercise checkout (legacy adapter)')
     check.add_argument('--wheel', help='the wheel (adapter wheel; default: the one in _extensions/ctm-checkers/)')
     check.add_argument('--variants', help="math-exercise checkout whose variants.py runs the rounding rows of variants.py")
+    check.add_argument('--umbrella', help='ctm-assessment checkout at the commit in tools/pins.json (default: _ci/ctm-assessment)')
     check.add_argument('--suite', action='append', default=[], help='regular expression on the table path (repeatable)')
     check.add_argument('--max-diffs', type=int, default=20)
     rec = commands.add_parser('record', help="add this Python's results (legacy adapter)")
     rec.add_argument('--legacy', required=True)
+    rec.add_argument('--umbrella', help='ctm-assessment checkout at the commit in tools/pins.json (default: _ci/ctm-assessment)')
     imp = commands.add_parser('import-capture', help='replace the captured suites with a new capture')
     imp.add_argument('capture', help='folder written by run.cjs --capture, or the goldens-export artifact (zip)')
     imp.add_argument('--math-exercise', required=True, metavar='CHECKOUT',
                      help='a math-exercise Git checkout that contains the captured commit and the legacy pin (tools/pins.json)')
     imp.add_argument('--record-with', action='append', default=[], metavar='PYTHON',
                      help='also record with this interpreter (each Python version CI tests)')
+    imp.add_argument('--umbrella', help='ctm-assessment checkout at the commit in tools/pins.json (default: _ci/ctm-assessment)')
     options = parser.parse_args(argv)
+    if getattr(options, 'umbrella', None):
+        os.environ['CTM_UMBRELLA'] = str(Path(options.umbrella).resolve())   # for record's subprocesses too
     if options.command == 'verify':
         return 1 if verify(make_adapter(options), options.suite, options.max_diffs) else 0
     if options.command == 'record':

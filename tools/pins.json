@@ -1,11 +1,12 @@
 {
-  "comment": "Commits that CI and tools/golden.py use. math-exercise: the legacy sources of the goldens (math-exercise 0.10.0 on main; its checker library, question-tests.py and variants.py are byte-identical to the commit the capture was rendered with, which golden.py import-capture checks). ctm-assessment: the umbrella's Pyodide harness modules that tools/pyodide/verify.cjs uses (integration/pyodide-parity/runtime.cjs boots Pyodide in Node; wheels.cjs fetches SymPy, mpmath and NetworkX and checks them against Pyodide's lock file).",
+  "comment": "Commits that CI and tools/golden.py use. math-exercise: the legacy sources of the goldens (math-exercise 0.10.0's checker files on main; its checker library, question-tests.py and variants.py are byte-identical to the commit the capture was rendered with, which golden.py import-capture checks). ctm-assessment: the umbrella's parity harness (integration/pyodide-parity), which defines the capture: authored_record.py records authored rows (golden.py; its sha256 is pinned too), runtime.cjs boots Pyodide in Node and wheels.cjs fetches SymPy, mpmath and NetworkX checked against Pyodide's lock file (tools/pyodide/verify.cjs).",
   "math-exercise": {
     "repository": "Erasmus-CTM/math-exercise",
     "commit": "905d06fc89d173af224c6460139a32b12033867b"
   },
   "ctm-assessment": {
     "repository": "Erasmus-CTM/ctm-assessment",
-    "commit": "122d3ec967056639e776c2e882ecee9608c2e5b9"
+    "commit": "0cef2890b1280d4fd15e990dbc7abd70d298599a",
+    "authored_record_sha256": "6fca8b32de60c310f5c4220b0a052f1b5a0f252df58254f1e0b7cfc4d45ca3f4"
   }
 }

@@ -2,6 +2,8 @@
 import hashlib
 import json
 
+import pytest
+
 import golden
 
 PYTHONS_TESTED = ['3.9', '3.10', '3.11', '3.12', '3.13']   # every Python from the floor; Pyodide 0.27.2 is 3.12, 0.28.3 3.13
@@ -92,3 +94,36 @@ def test_messages_are_kept_per_version():
     assert golden.has_message({'outcome': 'assertion failed: x', 'calls': []})
     assert not golden.has_message({'outcome': 'pass', 'calls': [{'score': 1}]})
     assert golden.has_message({'outcome': 'pass', 'calls': [{'message': 'm'}]})
+
+
+def test_authored_rows_need_the_pinned_umbrella_recorder(tmp_path, monkeypatch):
+    # golden.py records authored rows with the umbrella's authored_record.py
+    # (the one copy), and only with the file of the pinned commit.
+    monkeypatch.setenv('CTM_UMBRELLA', str(tmp_path))
+    monkeypatch.setattr(golden, '_recorder', None)
+    with pytest.raises(SystemExit, match='not found'):
+        golden.recorder()
+    other = tmp_path / golden.RECORDER
+    other.parent.mkdir(parents=True)
+    other.write_text('def record(run_question, options, base):\n    return {}\n')
+    with pytest.raises(SystemExit, match='is not the recorder of ctm-assessment'):
+        golden.recorder()
+
+
+@pytest.mark.skipif(not (golden.umbrella_folder() / golden.RECORDER).is_file(),
+                    reason='needs ctm-assessment at the commit in tools/pins.json in _ci/ctm-assessment')
+def test_the_pinned_recorder_records_check_calls(tmp_path, monkeypatch):
+    monkeypatch.setattr(golden, '_recorder', None)
+
+    def run_question(options, base):   # a question whose test fails on its second check() call
+        scope = {}
+        exec(options['checker'], scope)
+        scope['check']({'raw': ['2/4']})
+        if scope['check']({'raw': ['x']})['score'] != 1:
+            raise AssertionError('second call')
+
+    checker = 'def check(response):\n    return {"score": 0.5 if response["raw"] == ["2/4"] else 0.25}\n'
+    result = golden.authored_output(run_question, {'checker': checker}, str(tmp_path))
+    assert golden.canonical(result) == (
+        '{"calls":[{"score":0.5},{"score":0.25}],"outcome":"assertion failed: second call",'
+        '"responses":[{"inputs":{},"kind":"expressions","raw":["2/4"]},{"inputs":{},"kind":"expressions","raw":["x"]}]}')

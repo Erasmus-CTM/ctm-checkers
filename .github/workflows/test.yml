@@ -5,8 +5,9 @@ name: Tests
 # matches src/ and no released version changed; the golden tables are
 # reproduced by math-exercise 0.10.0's own code (legacy adapter,
 # tools/pins.json) and by the built wheel, imported from the zip as builds
-# import it; mutations of the checks make them fail; the tests run on src/
-# and on the wheel; the wheel installs with pip.
+# import it (authored rows recorded with the umbrella's recorder at the pin);
+# mutations of the checks make them fail; the tests run on src/ and on the
+# wheel; the wheel installs with pip.
 on:
   push:
     branches: [main]
@@ -42,6 +43,14 @@ jobs:
           repository: Erasmus-CTM/math-exercise
           ref: ${{ steps.pins.outputs['math-exercise'] }}
           path: _ci/math-exercise
+          persist-credentials: false
+      - name: The umbrella's parity harness (its authored-question recorder)
+        uses: actions/checkout@v7
+        with:
+          repository: Erasmus-CTM/ctm-assessment
+          ref: ${{ steps.pins.outputs['ctm-assessment'] }}
+          path: _ci/ctm-assessment
+          sparse-checkout: integration/pyodide-parity
           persist-credentials: false
       - uses: actions/setup-python@v7
         with:
