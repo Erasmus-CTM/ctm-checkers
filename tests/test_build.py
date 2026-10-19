@@ -1,5 +1,6 @@
 """tools/build.py: the generated folder is current; the wheel is well formed;
-the install code installs it and leaves no names behind."""
+the install code installs it and leaves no names behind but the two the call
+text uses; released versions never change."""
 import base64
 import hashlib
 import io
@@ -150,8 +151,12 @@ def test_a_released_version_never_changes(tmp_path):
     root = copy_of_repository(tmp_path)
     version, _ = build.package_info()
     assert version in json.loads((ROOT / 'tools' / 'released.json').read_text())['versions'] or '.dev' in version
-    if '.dev' in version:
-        pytest.skip('the current version is a development version')
+    if '.dev' in version:   # release it in the copy, as its release PR will
+        version = version.split('.dev')[0]
+        set_version(root, version)
+        result = run_build(root, '--release')
+        assert result.returncode == 0 and f'Recorded the release {version}' in result.stdout, result.stderr
+        assert run_build(root, '--check').returncode == 0
     module = root / 'src' / 'ctm_checkers' / 'matrix.py'
     module.write_text(module.read_text() + '\n# a change\n')
     for args in ((), ('--check',)):
@@ -185,3 +190,28 @@ def test_the_wheel_is_written_as_build_writes_it(tmp_path):
     path.write_bytes(buffer.getvalue())
     result = run_build(root, '--check')
     assert result.returncode == 1 and 'not written as tools/build.py writes them' in result.stderr, result.stderr
+
+
+def test_released_entries_of_the_base_branch_stay(tmp_path):
+    # Review round 2: a pull request cannot rewrite a released entry together with the code.
+    base = {'0.1.0': {'contents': 'a', 'wheel': 'b', 'script': 'c'}}
+    assert build.base_release_problems(base, base) == []
+    assert build.base_release_problems(base, dict(base, **{'0.1.1': {'contents': 'd', 'wheel': 'e', 'script': 'f'}})) == []
+    assert build.base_release_problems({}, base) == []
+    assert 'differs from the base branch' in build.base_release_problems(base, {'0.1.0': dict(base['0.1.0'], script='x')})[0]
+    assert 'is missing' in build.base_release_problems(base, {})[0]
+    # Through Git: --check --released-base REF compares with tools/released.json at REF.
+    root = copy_of_repository(tmp_path)
+    git = lambda *args: subprocess.run(['git', *args], cwd=root, capture_output=True, text=True, check=True)
+    git('init', '-q'); git('add', '-A')
+    git('-c', 'user.name=t', '-c', 'user.email=t@example.org', 'commit', '-q', '-m', 'base')
+    assert run_build(root, '--check', '--released-base', 'HEAD').returncode == 0
+    path = root / 'tools' / 'released.json'
+    document = json.loads(path.read_text())
+    version = next(iter(document['versions']))
+    document['versions'][version]['script'] = '0' * 64
+    path.write_text(json.dumps(document, indent=1) + '\n')
+    result = run_build(root, '--check', '--released-base', 'HEAD')
+    assert result.returncode == 1 and f'the entry of the release {version} differs from the base branch' in result.stderr, result.stderr
+    result = run_build(root, '--check', '--released-base', 'no-such-commit')
+    assert result.returncode == 1 and 'is not a commit of this repository' in result.stderr, result.stderr

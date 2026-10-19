@@ -175,7 +175,10 @@ so `tools/released.json` records each release: the SHA-256 of its contents
 and `--check` refuse a released version whose code, wheel or script differ
 from its entry, and a development version that is not above every release.
 A version's dependency path (`site_libs/quarto-contrib/ctm-checkers-<version>/`)
-therefore always holds the same file. The release PR records its version
+therefore always holds the same file. CI also runs
+`build.py --check --released-base <base commit>`: the releases recorded on
+the base branch must be recorded unchanged, so a pull request cannot rewrite
+a released entry together with the code. The release PR records its version
 with `python tools/build.py --release`; the first change after it sets the
 next development version (for example `0.1.1.dev0`).
 

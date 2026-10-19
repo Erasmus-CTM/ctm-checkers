@@ -4,6 +4,9 @@
     python tools/build.py             # writes _extensions/ctm-checkers/ from src/
     python tools/build.py --check     # the committed folder agrees with src/ (CI)
     python tools/build.py --release   # the release PR: also records the version in tools/released.json
+    python tools/build.py --check --released-base REF
+                                      # and the releases recorded at the Git commit REF (the base
+                                      # branch) are still recorded here, unchanged (CI)
 
 _extensions/ctm-checkers/ is generated and committed; do not edit it:
   _extension.yml           a Quarto extension that only contributes metadata
@@ -35,6 +38,7 @@ import io
 import json
 from pathlib import Path
 import re
+import subprocess
 import sys
 import zipfile
 
@@ -298,6 +302,27 @@ def release_problems(version, contents, data, script):
     return []
 
 
+def base_release_problems(base, current):
+    """A release recorded on the base branch stays recorded, unchanged: a pull
+    request cannot rewrite a released entry together with the code."""
+    problems = []
+    for version, entry in base.items():
+        if version not in current:
+            problems.append(f'tools/released.json: the release {version} of the base branch is missing; released entries never change')
+        elif current[version] != entry:
+            problems.append(f'tools/released.json: the entry of the release {version} differs from the base branch; released entries never change')
+    return problems
+
+
+def released_at(ref):
+    """The releases recorded in tools/released.json at the Git commit `ref` ({} where the file did not exist yet)."""
+    found = subprocess.run(['git', 'cat-file', '-e', f'{ref}^{{commit}}'], cwd=ROOT, capture_output=True)
+    if found.returncode:
+        raise SystemExit(f'--released-base: {ref} is not a commit of this repository (fetch it first)')
+    shown = subprocess.run(['git', 'show', f'{ref}:tools/released.json'], cwd=ROOT, capture_output=True, text=True)
+    return json.loads(shown.stdout)['versions'] if shown.returncode == 0 else {}
+
+
 def next_dev(version):
     major, minor, patch = (int(part) for part in re.match(r'(\d+)\.(\d+)\.(\d+)', version).groups())
     return f'{major}.{minor}.{patch + 1}.dev0'
@@ -316,7 +341,11 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--check', action='store_true', help='check the committed folder instead of writing it')
     parser.add_argument('--release', action='store_true', help='also record this release version in tools/released.json')
+    parser.add_argument('--released-base', metavar='REF',
+                        help='with --check: the releases recorded at this Git commit (the base branch) must be recorded here unchanged')
     options = parser.parse_args(argv)
+    if options.released_base and not options.check:
+        parser.error('--released-base needs --check')
     version, api = package_info()
     contents = wheel_contents(version)
     committed = OUT / wheel_name(version)
@@ -344,11 +373,14 @@ def main(argv=None):
             problems += release_problems(version, contents, data, (OUT / SCRIPT).read_bytes() if (OUT / SCRIPT).is_file() else b'')
         if not committed.is_file() and not is_release(version):
             problems += release_problems(version, contents, b'', b'')   # the order of versions needs no wheel
+        if options.released_base:
+            problems += base_release_problems(released_at(options.released_base), released_versions())
         for problem in problems:
             print('build --check:', problem, file=sys.stderr)
         if not problems:
             print(f'_extensions/ctm-checkers/ is current: ctm-checkers {version} (API {api}{", released" if is_release(version) else ""}), '
-                  f'{committed.name} sha256 {hashlib.sha256(committed.read_bytes()).hexdigest()}')
+                  f'{committed.name} sha256 {hashlib.sha256(committed.read_bytes()).hexdigest()}'
+                  + (f'; the releases of {options.released_base} are unchanged' if options.released_base else ''))
         return 1 if problems else 0
     # Keep the committed wheel while its contents are current.
     if committed.is_file() and list(read_wheel(committed.read_bytes()).items()) == list(contents.items()):
