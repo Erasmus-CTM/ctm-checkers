@@ -286,7 +286,8 @@ LIBRARY = re.compile(r"var source = \[\n(.*?)\n    \]\.join\('\\n'\);", re.S)
 
 
 def legacy_folder(path):
-    path = Path(path)
+    # Absolute: authored tests run in their own folder (os.chdir).
+    path = Path(path).resolve()
     for folder in (path, path / '_extensions' / 'math-exercise'):
         if (folder / 'math-exercise.js').is_file():
             return folder
