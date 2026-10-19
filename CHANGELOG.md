@@ -6,6 +6,29 @@ release. Every grading change is listed under "Grading changes" with the
 finding or decision it implements, its test and the summary of its golden
 diff (docs/goldens.md).
 
+## Unreleased (0.1.1.dev0)
+
+No grading changes: every golden row is reproduced as before.
+
+- The page's call text no longer looks up `__import__` and `globals` in the
+  page's namespace, which learner code shares: the install code also sets
+  `_ctm_import` and `_ctm_globals` (the builtins themselves), and the call
+  text is
+  `_ctm_import("ctm_checkers.browser", fromlist=["call"]).call(name, _ctm_globals())`
+  (docs/api.md). A learner's `__import__ = None` stopped every check before
+  (math-exercise 0.10.0's call had the same weakness); the call text of
+  0.1.0 still works where nothing rebound them.
+- Golden tables: three supplementary requests (88 in all) for rules that
+  only mutations reached in the second round of the review: an imaginary part
+  between 1e-9 and 1e-3, boolean graph node identifiers, and how
+  `_math_response_json` spells numbers (positional from 1e-6 to below
+  1e21, as JSON.stringify); `tests/test_mutations.py` has 24 mutations.
+- Tools: `build.py --check --released-base <commit>` (CI: the base commit)
+  requires the releases recorded on the base branch unchanged, so a pull
+  request cannot rewrite a released entry together with the code;
+  `golden.py` resolves a relative `CTM_UMBRELLA` where it starts; the
+  umbrella pin is ctm-assessment's merge of PR #14 (`9ed46a4`).
+
 ## 0.1.0 (19 October 2026)
 
 The checker code of math-exercise, moved verbatim from math-exercise 0.10.0
