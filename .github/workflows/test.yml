@@ -1,0 +1,47 @@
+name: Tests
+
+# Native Python (3.9, the floor, and 3.12/3.13, the versions of Pyodide
+# 0.27.2/0.28.3): the golden tables are reproduced by math-exercise 0.10.0's
+# own code (legacy adapter, tools/pins.json).
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ctm-checkers-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.9', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v7
+      - name: Pinned commits
+        id: pins
+        run: jq -r 'to_entries[] | select(.value | type == "object") | "\(.key)=\(.value.commit)"' tools/pins.json >> "$GITHUB_OUTPUT"
+      - name: math-exercise 0.10.0 (the legacy sources of the goldens)
+        uses: actions/checkout@v7
+        with:
+          repository: Erasmus-CTM/math-exercise
+          ref: ${{ steps.pins.outputs['math-exercise'] }}
+          path: _ci/math-exercise
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install -r ci/requirements.txt
+      - name: Tests
+        run: pytest -q tests
+      - name: The legacy code reproduces the golden tables
+        run: python -W ignore tools/golden.py verify --adapter legacy --legacy _ci/math-exercise
