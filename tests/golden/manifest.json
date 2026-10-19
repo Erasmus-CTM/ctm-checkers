@@ -1,7 +1,7 @@
 {
  "capture": {
   "components": {
-   "ctm-assessment": "1281b0c88bcaa0526a67a8c1e646f9743935eb47",
+   "ctm-assessment": "10f8c9d01d519e81e61ec99fdf2cc78333824d24",
    "ctm-libs": "df4799ea87ac07d24f81545355a40413a7f7a83e",
    "jsxgraph": "17de83e006cf8907a146cc6a2366f42a35463c6e",
    "math-exercise": "8ab1b253d8d49f7a02753f1a33c6fc578352bc7f",
@@ -30,14 +30,14 @@
     "export": true,
     "kind": "custom-probes",
     "licence": "AGPL-3.0-or-later",
-    "rows": 830
+    "rows": 932
    },
    "math_exercise/requests-math-exercise.jsonl": {
     "corpus": "math-exercise",
     "export": true,
     "kind": "requests",
     "licence": "AGPL-3.0-or-later",
-    "rows": 624
+    "rows": 672
    },
    "math_exercise/sources-math-exercise.jsonl": {
     "corpus": "math-exercise",
@@ -51,16 +51,16 @@
   "runs": [
    {
     "name": "0.27.2",
-    "runtime": "Pyodide 0.27.2 (Python 3.12.7, SymPy 1.13.3)",
+    "runtime": "Pyodide 0.27.2 (Python 3.12.7, SymPy 1.13.3, PYTHONHASHSEED 0)",
     "version": "0.27.2"
    },
    {
     "name": "0.28.3",
-    "runtime": "Pyodide 0.28.3 (Python 3.13.2, SymPy 1.13.3)",
+    "runtime": "Pyodide 0.28.3 (Python 3.13.2, SymPy 1.13.3, PYTHONHASHSEED 0)",
     "version": "0.28.3"
    }
   ],
-  "umbrella": "1281b0c88bcaa0526a67a8c1e646f9743935eb47"
+  "umbrella": "10f8c9d01d519e81e61ec99fdf2cc78333824d24"
  },
  "files": [
   "_includes/tests/dynamic-column-space-basis.py",
@@ -136,7 +136,15 @@
     "3.12",
     "3.13"
    ],
-   "rows": 1581
+   "rows": 1020
+  },
+  "math_exercise/rounding-variants": {
+   "python": [
+    "3.9",
+    "3.12",
+    "3.13"
+   ],
+   "rows": 561
   }
  }
 }
