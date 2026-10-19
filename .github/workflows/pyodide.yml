@@ -1,0 +1,76 @@
+name: Pyodide
+
+# Pyodide 0.27.2 (Python 3.12) and 0.28.3 (Python 3.13, the version ctm-libs
+# loads) in Node, with SymPy, mpmath and NetworkX as Pyodide builds them (the
+# umbrella's harness modules, tools/pins.json; authored rows with its
+# authored_record.py): the page script's install code (through globals.set
+# and runPythonAsync only), then the golden tables with the wheel it
+# installed and with the legacy code. Runs on every pull request
+# and push to main (no path filter, so the checks can be required), weekly
+# and on demand; npm packages and the verified wheels are cached.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '41 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ctm-checkers-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  goldens:
+    name: Pyodide ${{ matrix.pyodide }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        pyodide: ['0.27.2', '0.28.3']
+    env:
+      PYODIDE_PARITY_CACHE: _ci/wheels
+    steps:
+      - uses: actions/checkout@v7
+      - name: Pinned commits
+        id: pins
+        run: jq -r 'to_entries[] | select(.value | type == "object") | "\(.key)=\(.value.commit)"' tools/pins.json >> "$GITHUB_OUTPUT"
+      - name: math-exercise 0.10.0 (the legacy sources of the goldens)
+        uses: actions/checkout@v7
+        with:
+          repository: Erasmus-CTM/math-exercise
+          ref: ${{ steps.pins.outputs['math-exercise'] }}
+          path: _ci/math-exercise
+          persist-credentials: false
+      - name: The umbrella's Pyodide harness modules and authored-question recorder
+        uses: actions/checkout@v7
+        with:
+          repository: Erasmus-CTM/ctm-assessment
+          ref: ${{ steps.pins.outputs['ctm-assessment'] }}
+          path: _ci/ctm-assessment
+          sparse-checkout: integration/pyodide-parity
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: _ci/ctm-assessment/integration/pyodide-parity/package-lock.json
+      - run: npm ci --ignore-scripts
+        working-directory: _ci/ctm-assessment/integration/pyodide-parity
+      - name: Wheel cache (checked against Pyodide's lock file when used)
+        uses: actions/cache@v6
+        with:
+          path: _ci/wheels
+          key: pyodide-wheels-${{ matrix.pyodide }}-${{ steps.pins.outputs['ctm-assessment'] }}
+      - name: The page script's install code
+        run: node tests/pyodide/payload.cjs --umbrella _ci/ctm-assessment --version ${{ matrix.pyodide }}
+      - name: The installed wheel reproduces the golden tables
+        run: >-
+          node tools/pyodide/verify.cjs --umbrella _ci/ctm-assessment --version ${{ matrix.pyodide }}
+          --payload _extensions/ctm-checkers/ctm-checkers.js -- verify --adapter installed --variants _ci/math-exercise
+      - name: The legacy code reproduces the golden tables
+        run: node tools/pyodide/verify.cjs --umbrella _ci/ctm-assessment --version ${{ matrix.pyodide }} -- verify --adapter legacy --legacy _ci/math-exercise

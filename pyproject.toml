@@ -1,0 +1,28 @@
+[build-system]
+requires = ["flit_core >=3.4,<4"]
+build-backend = "flit_core.buildapi"
+
+# For development (`pip install -e .`). The wheel that pages and builds use is
+# made by tools/build.py (deterministic, stdlib only) into _extensions/ctm-checkers/.
+[project]
+name = "ctm-checkers"
+dynamic = ["version", "description"]
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "AGPL-3.0-or-later"}
+authors = [{name = "CTM team"}]
+dependencies = ["sympy>=1.13"]
+classifiers = [
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+    "Programming Language :: Python :: 3",
+]
+
+[project.optional-dependencies]
+# graph_from_response (graph-editor answers)
+graph = ["networkx>=3.2"]
+
+[project.urls]
+Source = "https://github.com/Erasmus-CTM/ctm-checkers"
+
+[tool.flit.module]
+name = "ctm_checkers"

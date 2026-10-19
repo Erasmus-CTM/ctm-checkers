@@ -1,0 +1,77 @@
+name: Tests
+
+# Native Python, every version from the floor (3.9) to 3.13 (3.12 and 3.13
+# are those of Pyodide 0.27.2 and 0.28.3): the committed extension folder
+# matches src/ and no released version changed; the golden tables are
+# reproduced by math-exercise 0.10.0's own code (legacy adapter,
+# tools/pins.json) and by the built wheel, imported from the zip as builds
+# import it (authored rows recorded with the umbrella's recorder at the pin);
+# mutations of the checks make them fail; the tests run on src/ and on the
+# wheel; the wheel installs with pip.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ctm-checkers-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+    env:
+      CTM_LEGACY_MATH_EXERCISE: _ci/math-exercise
+    steps:
+      - uses: actions/checkout@v7
+      - name: Pinned commits
+        id: pins
+        run: jq -r 'to_entries[] | select(.value | type == "object") | "\(.key)=\(.value.commit)"' tools/pins.json >> "$GITHUB_OUTPUT"
+      - name: math-exercise 0.10.0 (the legacy sources of the goldens)
+        uses: actions/checkout@v7
+        with:
+          repository: Erasmus-CTM/math-exercise
+          ref: ${{ steps.pins.outputs['math-exercise'] }}
+          path: _ci/math-exercise
+          persist-credentials: false
+      - name: The umbrella's parity harness (its authored-question recorder)
+        uses: actions/checkout@v7
+        with:
+          repository: Erasmus-CTM/ctm-assessment
+          ref: ${{ steps.pins.outputs['ctm-assessment'] }}
+          path: _ci/ctm-assessment
+          sparse-checkout: integration/pyodide-parity
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: ci/requirements.txt
+      - run: python -m pip install -r ci/requirements.txt
+      - name: The generated extension folder matches src/
+        run: python tools/build.py --check
+      - name: Tests (src/)
+        run: pytest -q tests
+      - name: Tests (the built wheel)
+        run: CTM_CHECKERS_WHEEL="$PWD/_extensions/ctm-checkers/$(jq -r .wheel _extensions/ctm-checkers/checkers.json)" pytest -q tests
+      - name: The legacy code reproduces the golden tables
+        run: python tools/golden.py verify --adapter legacy --legacy _ci/math-exercise
+      - name: The built wheel reproduces the golden tables
+        run: python tools/golden.py verify --adapter wheel --variants _ci/math-exercise
+      - name: The golden tables fail on mutations of the checks
+        run: CTM_MUTATION_TESTS=1 pytest -q -rA tests/test_mutations.py
+      - name: The wheel installs with pip
+        run: |
+          python -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/python" -m pip install -q "_extensions/ctm-checkers/$(jq -r .wheel _extensions/ctm-checkers/checkers.json)"
+          cd "$RUNNER_TEMP" && "$RUNNER_TEMP/venv/bin/python" -c "import ctm_checkers, ctm_checkers.math_exercise.checks as c; print(ctm_checkers.__version__, c.__file__)"
