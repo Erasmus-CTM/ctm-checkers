@@ -4,24 +4,13 @@ name: Pyodide
 # loads) in Node, with SymPy, mpmath and NetworkX as Pyodide builds them (the
 # umbrella's harness modules, tools/pins.json): the page script's install code
 # (through globals.set and runPythonAsync only), then the golden tables with
-# the wheel it installed and with the legacy code. Runs when the code, the
-# tables or the tools change, weekly in full, and on demand.
+# the wheel it installed and with the legacy code. Runs on every pull request
+# and push to main (no path filter, so the checks can be required), weekly
+# and on demand; npm packages and the verified wheels are cached.
 on:
   push:
     branches: [main]
-    paths:
-      - src/**
-      - tests/**
-      - tools/**
-      - _extensions/**
-      - .github/workflows/pyodide.yml
   pull_request:
-    paths:
-      - src/**
-      - tests/**
-      - tools/**
-      - _extensions/**
-      - .github/workflows/pyodide.yml
   schedule:
     - cron: '41 4 * * 1'
   workflow_dispatch:
@@ -67,8 +56,15 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
+          cache: npm
+          cache-dependency-path: _ci/ctm-assessment/integration/pyodide-parity/package-lock.json
       - run: npm ci --ignore-scripts
         working-directory: _ci/ctm-assessment/integration/pyodide-parity
+      - name: Wheel cache (checked against Pyodide's lock file when used)
+        uses: actions/cache@v6
+        with:
+          path: _ci/wheels
+          key: pyodide-wheels-${{ matrix.pyodide }}-${{ steps.pins.outputs['ctm-assessment'] }}
       - name: The page script's install code
         run: node tests/pyodide/payload.cjs --umbrella _ci/ctm-assessment --version ${{ matrix.pyodide }}
       - name: The installed wheel reproduces the golden tables
