@@ -65,7 +65,8 @@ design is ctm-assessment `docs/consolidation/2026-10-step2.md`.
   `golden.py` both use it (ctm-checkers pins the umbrella commit and the
   file's SHA-256 in `tools/pins.json`, with `runtime.cjs` and `wheels.cjs`).
   A change of the recorder is a change of the authored rows: ctm-checkers
-  moves its pin with the next capture it imports.
+  moves its pin with the next capture it imports. The pin is ctm-assessment's
+  merge of PR #14 (`9ed46a4`).
 
 ## Before the first grading-change pull request (fixes, B rows)
 

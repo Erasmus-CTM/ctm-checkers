@@ -1,6 +1,7 @@
 """The golden tables themselves: format, provenance, completeness (docs/goldens.md)."""
 import hashlib
 import json
+import os
 
 import pytest
 
@@ -127,3 +128,30 @@ def test_the_pinned_recorder_records_check_calls(tmp_path, monkeypatch):
     assert golden.canonical(result) == (
         '{"calls":[{"score":0.5},{"score":0.25}],"outcome":"assertion failed: second call",'
         '"responses":[{"inputs":{},"kind":"expressions","raw":["2/4"]},{"inputs":{},"kind":"expressions","raw":["x"]}]}')
+
+
+@pytest.mark.skipif(not (golden.umbrella_folder() / golden.RECORDER).is_file(),
+                    reason='needs ctm-assessment at the commit in tools/pins.json in _ci/ctm-assessment')
+def test_a_relative_umbrella_folder_is_relative_to_where_golden_py_runs(tmp_path, monkeypatch):
+    # Review round 2: authored rows run in their question's folder; CTM_UMBRELLA=<relative> still finds the recorder.
+    umbrella = golden.umbrella_folder()
+    monkeypatch.chdir(umbrella.parent)
+    monkeypatch.setenv('CTM_UMBRELLA', umbrella.name)
+    monkeypatch.setattr(golden, '_recorder', None)
+    questions = tmp_path / 'questions'
+    questions.mkdir()
+
+    def run_question(options, base):
+        scope = {}
+        exec(options['checker'], scope)
+        scope['check']({'raw': ['1']})
+
+    result = golden.authored_output(run_question, {'checker': 'def check(response):\n    return True\n'}, str(questions))
+    assert golden.canonical(result) == '{"calls":[true],"outcome":"pass","responses":[{"inputs":{},"kind":"expressions","raw":["1"]}]}'
+    # main() makes it absolute before anything changes the folder, also for record's subprocesses.
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv('CTM_UMBRELLA', 'umbrella-checkout')
+    golden.use_umbrella()
+    assert os.environ['CTM_UMBRELLA'] == str((tmp_path / 'umbrella-checkout').resolve())
+    golden.use_umbrella('other')   # --umbrella wins
+    assert os.environ['CTM_UMBRELLA'] == str((tmp_path / 'other').resolve())

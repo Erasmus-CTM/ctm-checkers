@@ -241,6 +241,15 @@ def umbrella_folder():
     return Path(os.environ.get('CTM_UMBRELLA') or ROOT / '_ci' / 'ctm-assessment').resolve()
 
 
+def use_umbrella(folder=None):
+    """--umbrella DIR, else CTM_UMBRELLA, made absolute before anything changes
+    the current folder (authored rows run in their question's folder), for
+    record's subprocesses too."""
+    folder = folder or os.environ.get('CTM_UMBRELLA')
+    if folder:
+        os.environ['CTM_UMBRELLA'] = str(Path(folder).resolve())
+
+
 def recorder():
     """The umbrella's authored_record module (checked against the pin's sha256)."""
     global _recorder
@@ -265,11 +274,12 @@ def recorder():
 def authored_output(run_question, options, base):
     """An authored row's result: the umbrella's record() of the question, run
     in its source folder (as the harness runs it) and in canonical form."""
+    record = recorder().record   # loaded before the folder changes: a relative CTM_UMBRELLA is relative to where golden.py runs
     here = os.getcwd()
     if Path(base).is_dir():
         os.chdir(base)
     try:
-        result = recorder().record(run_question, options, base)
+        result = record(run_question, options, base)
     finally:
         os.chdir(here)
     return loads(json.dumps(result, sort_keys=True, ensure_ascii=False, separators=(',', ':')))
@@ -1042,8 +1052,7 @@ def main(argv=None):
                      help='also record with this interpreter (each Python version CI tests)')
     imp.add_argument('--umbrella', help='ctm-assessment checkout at the commit in tools/pins.json (default: _ci/ctm-assessment)')
     options = parser.parse_args(argv)
-    if getattr(options, 'umbrella', None):
-        os.environ['CTM_UMBRELLA'] = str(Path(options.umbrella).resolve())   # for record's subprocesses too
+    use_umbrella(getattr(options, 'umbrella', None))
     if options.command == 'verify':
         return 1 if verify(make_adapter(options), options.suite, options.max_diffs) else 0
     if options.command == 'record':
