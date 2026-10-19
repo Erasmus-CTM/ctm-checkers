@@ -610,11 +610,12 @@ def supplement_rows():
                          '_math_reject': reject, '_math_tolerance': tolerance, '_math_decplaces': decplaces,
                          '_math_sigfigs': sigfigs, '_math_form': form, '_math_partial_credit': partial, '_math_form_credit': credit}
 
-    def custom(checker, response=None, vars=''):
+    def custom(checker, response=None, vars='', text=None):
+        # `text`: the response as the page's JSON.stringify wrote it, where Python would spell a number otherwise.
         if response is None:
             response = {'kind': 'expressions', 'raw': ['x'], 'inputs': {}}
-        return 'check_custom', {'_math_checker': checker, '_math_response_json': json.dumps(response, separators=(',', ':')),
-                                '_math_vars': vars}
+        return 'check_custom', {'_math_checker': checker, '_math_vars': vars,
+                                '_math_response_json': text if text is not None else json.dumps(response, separators=(',', ':'))}
 
     def returns(expression):
         return 'def check(response, symbols):\n    return ' + expression + '\n'
@@ -732,6 +733,16 @@ def supplement_rows():
         # assess_basis scores dependent vectors by its independence factor.
         custom('def check(response, symbols):\n    return assess_basis(response["inputs"]["M"]["matrix"], axis="columns", '
                'target_dimension=2, belongs=lambda v: True, name="M")\n', dependent),
+        # Rules that only the round-2 review's mutations reached: an imaginary part between 1e-9 and 1e-3 is rejected;
+        check('1 + 1e-6*I', '1', mode='numeric'),
+        # graph node ids are integers, not booleans;
+        custom(returns('{"score": 1.0, "feedback": repr(sorted(graph_from_response(response).nodes()))}'),
+               {'representation': 'undirected-graph', 'nodes': [{'id': True, 'x': 0, 'y': 0}, {'id': False, 'x': 1, 'y': 1}],
+                'edges': [[True, False]]}),
+        # _math_response_json spells numbers as JSON.stringify does: positional from 1e-6 to below 1e21.
+        custom(returns('{"score": 1.0, "feedback": _math_response_json}'), text=(
+            '{"representation":"undirected-graph","nodes":[{"id":1,"x":0.000001,"y":1e-7},{"id":2,"x":-1.5e-7,"y":0.0000015}],'
+            '"edges":[],"scale":[100000000000000000000,1e+21,1.23e-18,0.1,123456.789]}')),
     ]
     out = {}
     for call, value in requests:

@@ -21,7 +21,7 @@ math-exercise's own code at `905d06fc89d173af224c6460139a32b12033867b` (`tools/g
 | `math_exercise/requests-math-exercise.jsonl` | 672 | captured from math-exercise `8ab1b253d8d4` | AGPL-3.0-or-later |
 | `math_exercise/sources-math-exercise.jsonl` | 61 | captured from math-exercise `8ab1b253d8d4` | AGPL-3.0-or-later |
 | `math_exercise/namespace.jsonl` | 1 | recorded with math-exercise `905d06fc89d1` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | AGPL-3.0-or-later |
-| `math_exercise/requests-supplement.jsonl` | 85 | recorded with math-exercise `905d06fc89d1` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | AGPL-3.0-or-later |
+| `math_exercise/requests-supplement.jsonl` | 88 | recorded with math-exercise `905d06fc89d1` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | AGPL-3.0-or-later |
 | `math_exercise/rounding.jsonl` | 1020 | recorded with math-exercise `905d06fc89d1` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | AGPL-3.0-or-later |
 | `math_exercise/rounding-variants.jsonl` | 561 | recorded with math-exercise `905d06fc89d1` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | AGPL-3.0-or-later |
 | `math_exercise/files/_includes/tests/dynamic-column-space-basis.py` | — | math-exercise `8ab1b253d8d4`, named by an authored test | AGPL-3.0-or-later |
