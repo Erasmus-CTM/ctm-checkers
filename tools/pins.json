@@ -1,0 +1,11 @@
+{
+  "comment": "Commits that CI and tools/golden.py use. math-exercise: the legacy sources of the goldens (math-exercise 0.10.0 on main; its checker library, question-tests.py and variants.py are byte-identical to the commit the capture was rendered with, which golden.py import-capture checks). ctm-assessment: the umbrella's Pyodide harness modules that tools/pyodide/verify.cjs uses (integration/pyodide-parity/runtime.cjs boots Pyodide in Node; wheels.cjs fetches SymPy, mpmath and NetworkX and checks them against Pyodide's lock file).",
+  "math-exercise": {
+    "repository": "Erasmus-CTM/math-exercise",
+    "commit": "905d06fc89d173af224c6460139a32b12033867b"
+  },
+  "ctm-assessment": {
+    "repository": "Erasmus-CTM/ctm-assessment",
+    "commit": "122d3ec967056639e776c2e882ecee9608c2e5b9"
+  }
+}
