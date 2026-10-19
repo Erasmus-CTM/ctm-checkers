@@ -59,7 +59,8 @@ def run(code):
 
 def test_roots_and_numeric_import_no_sympy():
     # variants.py (math-exercise) rounds with numeric and needs only PyYAML.
-    assert run('import sys, ctm_checkers, ctm_checkers.math_exercise, ctm_checkers.math_exercise.numeric, ctm_checkers.core.result; '
+    assert run('import sys, ctm_checkers, ctm_checkers.math_exercise, ctm_checkers.math_exercise.numeric, ctm_checkers.core.result, '
+               'ctm_checkers.math_exercise.authored; '
                'print(sorted(m for m in ("sympy", "networkx", "mpmath") if m in sys.modules))') == '[]'
 
 

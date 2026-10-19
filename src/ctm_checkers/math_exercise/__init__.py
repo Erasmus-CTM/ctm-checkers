@@ -6,6 +6,7 @@ _EXPORTS = {
     'check': 'checks',
     'check_custom': 'custom',
     'namespace': 'custom',
+    'symbols': 'custom',
     'learner_strings': 'inputs',
     'admit': 'inputs',
     'round_places': 'numeric',

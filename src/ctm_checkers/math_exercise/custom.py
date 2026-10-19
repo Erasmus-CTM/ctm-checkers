@@ -53,6 +53,13 @@ def check_custom(request):
         return {"status": "error", "message": str(_me)}
 
 
+def symbols(vars):
+    """The symbols a checker receives for the exercise's variables `vars`
+    (`check(response, symbols)`; check_custom and run_question build the same
+    dict)."""
+    return {k: v for k, v in build_locals(vars).items() if isinstance(v, Symbol)}
+
+
 # The names every checker starts with: those of math-exercise 0.10.0's
 # checker module, whose globals a checker received (docs/api.md, "The
 # checker namespace"). Built once; each call gets a fresh copy.
