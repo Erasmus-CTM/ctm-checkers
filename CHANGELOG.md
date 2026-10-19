@@ -17,12 +17,14 @@ engine follows in 0.2.0.
 
 - Golden verdict tables for math-exercise, recorded from math-exercise 0.10.0
   before any code moved: every grading call of math-exercise's own examples as
-  the umbrella's parity harness captured it at the runtime boundary (624
-  requests, 830 custom-checker probes, 33 authored questions), the
-  `#| checker:` namespace, 69 supplementary requests and the rounding rule
-  (1581 rows). `tools/golden.py` verifies them against the legacy code or
-  ctm-checkers, natively and in Pyodide (`tools/pyodide/verify.cjs`), and
-  imports a new capture with one command.
+  the umbrella's parity harness captured it at the runtime boundary (672
+  requests, 932 custom-checker requests, 33 authored questions; capture of
+  ctm-assessment 10f8c9d), the `#| checker:` namespace, 69 supplementary
+  requests and the rounding rule (1020 rows, and 561 through variants.py).
+  `tools/golden.py` verifies them against the legacy code or ctm-checkers,
+  natively and in Pyodide (`tools/pyodide/verify.cjs`), and imports a new
+  capture with one command. The captured tables alone fail on both numeric
+  mutations of the step-2 review (rounding half to even; tolerance `<`).
 - `ctm_checkers.math_exercise`: `check`, `check_custom`, `namespace` (the
   names a `#| checker:` sees, as before), `learner_strings` and `admit` (the
   dunder rule), `round_places`, `sigfigs_round` and `parse_tolerance`
