@@ -7,6 +7,12 @@
 // `tools/golden.py verify` inside, with the same adapters as natively.
 //
 //   node tools/pyodide/verify.cjs --umbrella DIR --version 0.28.3 -- verify --adapter legacy --legacy DIR
+//   node tools/pyodide/verify.cjs --umbrella DIR --version 0.28.3 --payload _extensions/ctm-checkers/ctm-checkers.js \
+//     -- verify --adapter installed --variants DIR
+//
+// With --payload, the page script's own install code (CTMCheckers.install)
+// installs the wheel first, through an object that offers only
+// globals.set and runPythonAsync, as pyodide-interaktiv's worker proxy does.
 //
 // Paths after `--` are host paths; they are mounted into Pyodide's file
 // system. The umbrella checkout needs `npm ci` in integration/pyodide-parity.
@@ -17,6 +23,7 @@
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const vm = require('node:vm');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 
@@ -24,7 +31,7 @@ function parse(argv) {
   const split = argv.indexOf('--');
   const own = split < 0 ? argv : argv.slice(0, split);
   const golden = split < 0 ? [] : argv.slice(split + 1);
-  const options = {umbrella: null, version: null};
+  const options = {umbrella: null, version: null, payload: null};
   for (let i = 0; i < own.length; i += 2) {
     const key = own[i].replace(/^--/, '');
     if (!(key in options) || own[i + 1] === undefined) throw new Error('Usage: see the header of verify.cjs');
@@ -47,6 +54,15 @@ function parse(argv) {
   await py.loadPackage('sympy');
   await py.loadPackage('networkx');
   console.log(`Pyodide ${options.version} (Python ${python}, SymPy ${py.runPython('import sympy; sympy.__version__')})`);
+  if (options.payload) {
+    const sandbox = {};
+    vm.createContext(sandbox);
+    vm.runInContext(fs.readFileSync(options.payload, 'utf8'), sandbox, {filename: options.payload});
+    const checkers = sandbox.CTMCheckers;
+    const proxy = {globals: {set: (name, value) => py.globals.set(name, value)}, runPythonAsync: code => py.runPythonAsync(code)};
+    await checkers.install(proxy);
+    console.log(`Installed ${checkers.wheel} (sha256 ${checkers.sha256}) with the payload's install code`);
+  }
 
   // This repository and every host path among the arguments, mounted.
   const mounts = new Map([[ROOT, '/ctm-checkers']]);
