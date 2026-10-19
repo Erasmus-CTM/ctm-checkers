@@ -4,7 +4,6 @@ import ast
 import os
 import subprocess
 import sys
-from pathlib import Path
 
 from conftest import PACKAGE, ROOT
 
