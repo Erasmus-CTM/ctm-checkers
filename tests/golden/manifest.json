@@ -1,0 +1,142 @@
+{
+ "capture": {
+  "components": {
+   "ctm-assessment": "1281b0c88bcaa0526a67a8c1e646f9743935eb47",
+   "ctm-libs": "df4799ea87ac07d24f81545355a40413a7f7a83e",
+   "jsxgraph": "17de83e006cf8907a146cc6a2366f42a35463c6e",
+   "math-exercise": "8ab1b253d8d49f7a02753f1a33c6fc578352bc7f",
+   "py-exercise": "2b24df65deacfe405f07c17409b2d70eb3d7622b",
+   "pyodide-interaktiv": "8a16aa73bc1eea241ee1407525d8657c4c8b287b"
+  },
+  "corpus": {
+   "commit": "8ab1b253d8d49f7a02753f1a33c6fc578352bc7f",
+   "export": true,
+   "licence": "AGPL-3.0-or-later",
+   "repository": "Erasmus-CTM/math-exercise",
+   "sites": [
+    "math-exercise"
+   ]
+  },
+  "files": {
+   "math_exercise/authored-math-exercise.jsonl": {
+    "corpus": "math-exercise",
+    "export": true,
+    "kind": "authored",
+    "licence": "AGPL-3.0-or-later",
+    "rows": 33
+   },
+   "math_exercise/custom-probes-math-exercise.jsonl": {
+    "corpus": "math-exercise",
+    "export": true,
+    "kind": "custom-probes",
+    "licence": "AGPL-3.0-or-later",
+    "rows": 830
+   },
+   "math_exercise/requests-math-exercise.jsonl": {
+    "corpus": "math-exercise",
+    "export": true,
+    "kind": "requests",
+    "licence": "AGPL-3.0-or-later",
+    "rows": 624
+   },
+   "math_exercise/sources-math-exercise.jsonl": {
+    "corpus": "math-exercise",
+    "export": true,
+    "kind": "sources",
+    "licence": "AGPL-3.0-or-later",
+    "rows": 61
+   }
+  },
+  "harness": "ctm-assessment integration/pyodide-parity/run.cjs --capture",
+  "runs": [
+   {
+    "name": "0.27.2",
+    "runtime": "Pyodide 0.27.2 (Python 3.12.7, SymPy 1.13.3)",
+    "version": "0.27.2"
+   },
+   {
+    "name": "0.28.3",
+    "runtime": "Pyodide 0.28.3 (Python 3.13.2, SymPy 1.13.3)",
+    "version": "0.28.3"
+   }
+  ],
+  "umbrella": "1281b0c88bcaa0526a67a8c1e646f9743935eb47"
+ },
+ "files": [
+  "_includes/tests/dynamic-column-space-basis.py",
+  "_includes/tests/dynamic-eigenspace-basis.py",
+  "_includes/tests/dynamic-hessian.py",
+  "_includes/tests/dynamic-nullspace-basis.py",
+  "_includes/tests/dynamic-point-rows.py",
+  "_includes/tests/dynamic-polynomial-basis.py",
+  "_includes/tests/dynamic-row-space-basis.py",
+  "_includes/tests/ex-jsxgraph-editable-freehand-monotonicity.py",
+  "_includes/tests/ex-jsxgraph-freehand-monotonicity.py",
+  "_includes/tests/jsxgraph-bipartite-construction.py",
+  "_includes/tests/jsxgraph-euler-construction.py",
+  "_includes/tests/jsxgraph-nonplanar-construction.py",
+  "_includes/tests/jsxgraph-tree-construction.py"
+ ],
+ "format": 1,
+ "legacy": {
+  "library_sha256": "dec19bf05f66bcb723b00759ed06c1c5b76fa88bd2fe30295967aa31daf2abd4",
+  "math-exercise": "905d06fc89d173af224c6460139a32b12033867b"
+ },
+ "python": {
+  "captured": [
+   "3.12",
+   "3.13"
+  ],
+  "environments": {
+   "3.12": {
+    "mpmath": "1.3.0",
+    "networkx": "3.4.2",
+    "python": "3.12.3",
+    "sympy": "1.13.3"
+   },
+   "3.13": {
+    "mpmath": "1.3.0",
+    "networkx": "3.4.2",
+    "python": "3.13.16",
+    "sympy": "1.13.3"
+   },
+   "3.9": {
+    "mpmath": "1.3.0",
+    "networkx": "3.2.1",
+    "python": "3.9.25",
+    "sympy": "1.13.3"
+   }
+  },
+  "recorded": [
+   "3.9",
+   "3.12",
+   "3.13"
+  ]
+ },
+ "recorded": {
+  "math_exercise/namespace": {
+   "python": [
+    "3.9",
+    "3.12",
+    "3.13"
+   ],
+   "rows": 1
+  },
+  "math_exercise/requests-supplement": {
+   "python": [
+    "3.9",
+    "3.12",
+    "3.13"
+   ],
+   "rows": 69
+  },
+  "math_exercise/rounding": {
+   "python": [
+    "3.9",
+    "3.12",
+    "3.13"
+   ],
+   "rows": 1581
+  }
+ }
+}
