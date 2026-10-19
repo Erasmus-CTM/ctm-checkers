@@ -2,7 +2,8 @@ name: Tests
 
 # Native Python, every version from the floor (3.9) to 3.13 (3.12 and 3.13
 # are those of Pyodide 0.27.2 and 0.28.3): the committed extension folder
-# matches src/ and no released version changed; the golden tables are
+# matches src/ and no released version changed (neither its code nor, against
+# the base commit, its entry in tools/released.json); the golden tables are
 # reproduced by math-exercise 0.10.0's own code (legacy adapter,
 # tools/pins.json) and by the built wheel, imported from the zip as builds
 # import it (authored rows recorded with the umbrella's recorder at the pin);
@@ -58,8 +59,16 @@ jobs:
           cache: pip
           cache-dependency-path: ci/requirements.txt
       - run: python -m pip install -r ci/requirements.txt
-      - name: The generated extension folder matches src/
-        run: python tools/build.py --check
+      - name: The generated extension folder matches src/; the releases of the base branch are unchanged
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -n "$BASE" ] && [ "$BASE" != 0000000000000000000000000000000000000000 ]; then
+            git fetch --no-tags --depth=1 origin "$BASE"
+            python tools/build.py --check --released-base "$BASE"
+          else
+            python tools/build.py --check
+          fi
       - name: Tests (src/)
         run: pytest -q tests
       - name: Tests (the built wheel)

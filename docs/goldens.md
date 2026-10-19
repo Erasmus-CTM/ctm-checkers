@@ -17,7 +17,7 @@ A change that alters a verdict shows up as a diff of `tests/golden/`.
 | `sources-math-exercise.jsonl` | 61 | Checker and test sources, stored once by SHA-256. |
 | `files/` | 13 | The test files that authored tests name (`#\| tests: _includes/tests/….py`). |
 | `namespace.jsonl` | 1 | A probe checker reporting the public names of the `#\| checker:` namespace with their origins and the request values it sees (`_math_response_json`, `_math_vars`, `_math_checker`). |
-| `requests-supplement.jsonl` | 85 | Requests for rules the examples do not reach: the reject rule, form credit, every rule and error of the custom result, matrix dimensions, the dunder rule on each kind of learner string, the equivalence and set tolerances, the default numeric tolerance for small keys, the imaginary part, `inf`, brackets in set answers, duplicate graph edges, dependent basis vectors. |
+| `requests-supplement.jsonl` | 88 | Requests for rules the examples do not reach: the reject rule, form credit, every rule and error of the custom result, matrix dimensions, the dunder rule on each kind of learner string, the equivalence and set tolerances, the default numeric tolerance for small keys, the imaginary part and its threshold, `inf`, brackets in set answers, duplicate graph edges and boolean node identifiers, dependent basis vectors, the spelling of numbers in `_math_response_json`. |
 | `rounding.jsonl` | 1020 | The rounding rule of the checks (`round_places`, `sigfigs_round`) on a grid of ties, binary noise, signs, magnitudes, integers and non-finite values. |
 | `rounding-variants.jsonl` | 561 | The same grid through variants.py's `round_half_up` and `sigfig` (math-exercise's variant generator, which stays in math-exercise and rounds by the same rule). |
 
@@ -121,7 +121,7 @@ mutation below to a copy of `src/ctm_checkers` and requires that the tables
 no longer reproduce: the two numeric mutations of the step-2 U1 review on
 the captured tables alone, every mutation on the suites recorded here. Rows
 that differ (captured tables: 1637 rows; recorded: `rounding`,
-`requests-supplement` and `namespace`, 1106 rows):
+`requests-supplement` and `namespace`, 1109 rows):
 
 | Mutation | Captured | Recorded |
 |---|---|---|
@@ -138,20 +138,24 @@ that differ (captured tables: 1637 rows; recorded: `rounding`,
 | the dunder rule also on string answers | 0 | 1 |
 | `lowest_terms`: unreduced numeric fractions not caught | 0 | 1 |
 | `string_ci` without lower-casing | 0 | 1 |
-| `_math_response_json` with spaces | 0 | 2 |
+| `_math_response_json` with spaces | 0 | 3 |
 | matrix dimensions not checked | 0 | 1 |
 | equivalence tolerance 1e-6 instead of 1e-10 | 0 | 1 |
 | default numeric tolerance `1e-8 * abs(key)` instead of `1e-8 * max(1, abs(key))` | 0 | 1 |
-| numeric mode: imaginary parts not rejected | 0 | 1 |
+| numeric mode: imaginary parts not rejected | 0 | 2 |
 | `inf` no longer `oo` | 0 | 2 |
 | `[` and `{` no longer protect commas in set answers | 0 | 3 |
 | undirected graphs: `[1, 2]` and `[2, 1]` not a duplicate | 0 | 1 |
+| numeric mode: imaginary parts up to 1e-3 accepted instead of 1e-9 | 0 | 1 |
+| graph node identifiers: booleans accepted as integers | 0 | 1 |
+| `_math_response_json` writes 1e-7 as `0.0000001` (JSON.stringify: `1e-7`) | 0 | 1 |
 
-The last thirteen are caught by the supplementary requests (and the
-namespace probe) only: the examples never reach those rules; the review of
-C1 found the last six with no row at all and added rows for them. One more
-mutation of that review, the reject rule comparing expressions instead of
-their text, changes no verdict SymPy can produce here and is not listed.
+The last sixteen are caught by the supplementary requests (and the
+namespace probe) only: the examples never reach those rules. The review of
+C1 found the last nine with no row at all (six in its first round, three in
+its second) and rows were added for them. One more mutation of its first
+round, the reject rule comparing expressions instead of their text, changes
+no verdict SymPy can produce here and is not listed.
 
 ## Refreshing the capture
 

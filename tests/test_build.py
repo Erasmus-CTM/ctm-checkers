@@ -1,5 +1,6 @@
 """tools/build.py: the generated folder is current; the wheel is well formed;
-the install code installs it and leaves no names behind."""
+the install code installs it and leaves no names behind but the two the call
+text uses; released versions never change."""
 import base64
 import hashlib
 import io
@@ -63,18 +64,27 @@ def test_the_page_script_carries_the_committed_wheel():
 
 # Names learner code may have rebound in the page's namespace.
 LEARNER = ('open', 'RuntimeError', 'list', 'len', 'isinstance', 'str', 'Exception', 'io', 'os', 'json', 'base64', 'hashlib',
-           'importlib', 'builtins')
+           'importlib', 'builtins', '__import__', 'globals')
+# The page's call text (docs/api.md), with the names the install code leaves.
+CALL = '_ctm_import("ctm_checkers.browser", fromlist=["call"]).call("math_exercise.check", _ctm_globals())'
+REQUEST = {'student': '2*x', 'correct': 'x+x', 'vars': 'x', 'mode': 'equivalent', 'reject': '', 'tolerance': '', 'decplaces': '',
+           'sigfigs': '', 'form': '', 'partial_credit': False, 'form_credit': 0.5}
 
 
 def install(payload, tmp_path, extra=''):
     # The install code natively (it is plain Python): in __main__, as the page
-    # runs it, after learner code rebound builtins and module names there.
-    code = ('import sys as _t\n_ctm_checkers_payload = _t.stdin.read()\nlearner = 1\n'
-            + ''.join(f'{name} = None\n' for name in LEARNER) + 'before = set(globals())\n'
+    # runs it, after learner code rebound builtins and module names there;
+    # then a request through the call text.
+    code = ('import sys as _t, builtins as _tb, json as _tj\n_ctm_checkers_payload = _t.stdin.read()\nlearner = 1\n'
+            + ''.join(f'{name} = None\n' for name in LEARNER) + 'before = set(_tb.globals())\n'
             + build.INSTALL + '\n'
-            + 'import json as _j, ctm_checkers\n'
-            + 'print(_j.dumps({"file": ctm_checkers.__file__, "left": sorted(set(globals()) - before - {"before", "ctm_checkers", "_j"}), '
-              '"gone": sorted(before - set(globals())), "learner": learner}))\n' + extra)
+            + 'import ctm_checkers\n'
+            + 'after = set(_tb.globals()) - before - {"before", "ctm_checkers"}\n'
+            + '_ctm_request = ' + repr(json.dumps(REQUEST)) + '\n'
+            + 'result = ' + CALL + '\n'
+            + 'print(_tj.dumps({"file": ctm_checkers.__file__, "left": sorted(after), "gone": sorted(before - set(_tb.globals())), '
+              '"learner": [learner] + [_tb.globals()[name] for name in ' + repr(LEARNER) + '], "result": _tj.loads(result), '
+              '"request": "_ctm_request" in _tb.globals()}))\n' + extra)
     return subprocess.run([sys.executable, '-c', code], input=json.dumps(payload), capture_output=True, text=True,
                           cwd=tmp_path, env=dict(os.environ, PYTHONPATH=''))
 
@@ -103,7 +113,11 @@ def test_the_install_code(tmp_path, install_folder):
     assert result.returncode == 0, result.stderr
     report = json.loads(result.stdout)
     assert report['file'].startswith(str(install_folder / manifest['wheel']) + '/')
-    assert report['left'] == [] and report['gone'] == ['_ctm_checkers_payload'] and report['learner'] == 1
+    # Only the two names of the call text are left; learner variables keep their values.
+    assert report['left'] == ['_ctm_globals', '_ctm_import'] and report['gone'] == ['_ctm_checkers_payload']
+    assert report['learner'] == [1] + [None] * len(LEARNER)
+    # The call text works although learner code rebound __import__ and globals, and takes the request out.
+    assert report['result'] == {'status': 'correct', 'score': 1.0} and report['request'] is False
     # Learner code removed it: installing again works.
     again = install(payload, tmp_path, extra=(
         'import sys\nfor n in [n for n in sys.modules if n.startswith("ctm_checkers")]: del sys.modules[n]\n'
@@ -137,8 +151,12 @@ def test_a_released_version_never_changes(tmp_path):
     root = copy_of_repository(tmp_path)
     version, _ = build.package_info()
     assert version in json.loads((ROOT / 'tools' / 'released.json').read_text())['versions'] or '.dev' in version
-    if '.dev' in version:
-        pytest.skip('the current version is a development version')
+    if '.dev' in version:   # release it in the copy, as its release PR will
+        version = version.split('.dev')[0]
+        set_version(root, version)
+        result = run_build(root, '--release')
+        assert result.returncode == 0 and f'Recorded the release {version}' in result.stdout, result.stderr
+        assert run_build(root, '--check').returncode == 0
     module = root / 'src' / 'ctm_checkers' / 'matrix.py'
     module.write_text(module.read_text() + '\n# a change\n')
     for args in ((), ('--check',)):
@@ -172,3 +190,28 @@ def test_the_wheel_is_written_as_build_writes_it(tmp_path):
     path.write_bytes(buffer.getvalue())
     result = run_build(root, '--check')
     assert result.returncode == 1 and 'not written as tools/build.py writes them' in result.stderr, result.stderr
+
+
+def test_released_entries_of_the_base_branch_stay(tmp_path):
+    # Review round 2: a pull request cannot rewrite a released entry together with the code.
+    base = {'0.1.0': {'contents': 'a', 'wheel': 'b', 'script': 'c'}}
+    assert build.base_release_problems(base, base) == []
+    assert build.base_release_problems(base, dict(base, **{'0.1.1': {'contents': 'd', 'wheel': 'e', 'script': 'f'}})) == []
+    assert build.base_release_problems({}, base) == []
+    assert 'differs from the base branch' in build.base_release_problems(base, {'0.1.0': dict(base['0.1.0'], script='x')})[0]
+    assert 'is missing' in build.base_release_problems(base, {})[0]
+    # Through Git: --check --released-base REF compares with tools/released.json at REF.
+    root = copy_of_repository(tmp_path)
+    git = lambda *args: subprocess.run(['git', *args], cwd=root, capture_output=True, text=True, check=True)
+    git('init', '-q'); git('add', '-A')
+    git('-c', 'user.name=t', '-c', 'user.email=t@example.org', 'commit', '-q', '-m', 'base')
+    assert run_build(root, '--check', '--released-base', 'HEAD').returncode == 0
+    path = root / 'tools' / 'released.json'
+    document = json.loads(path.read_text())
+    version = next(iter(document['versions']))
+    document['versions'][version]['script'] = '0' * 64
+    path.write_text(json.dumps(document, indent=1) + '\n')
+    result = run_build(root, '--check', '--released-base', 'HEAD')
+    assert result.returncode == 1 and f'the entry of the release {version} differs from the base branch' in result.stderr, result.stderr
+    result = run_build(root, '--check', '--released-base', 'no-such-commit')
+    assert result.returncode == 1 and 'is not a commit of this repository' in result.stderr, result.stderr

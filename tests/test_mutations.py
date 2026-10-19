@@ -3,8 +3,8 @@ applied to a copy of src/ctm_checkers, and the tables must no longer be
 reproduced. The two numeric mutations of the step-2 U1 review must fail on
 the tables captured from math-exercise's examples alone; every mutation must
 fail on the suites recorded here (the review of C1 found six rules that no
-row reached and added rows for them). docs/goldens.md lists how many rows
-each mutation changes."""
+row reached, its second round three more; rows were added for them).
+docs/goldens.md lists how many rows each mutation changes."""
 import os
 import re
 import shutil
@@ -51,6 +51,12 @@ MUTATIONS = {
     'split-brackets': ('math_exercise/parsing.py', 'if ch in "([{": depth += 1', 'if ch in "(": depth += 1', 1, (RECORDED,)),
     'graph-duplicate-edges': ('graph.py', 'key = (source, target) if directed else tuple(sorted((source, target)))', 'key = (source, target)', 1,
                               (RECORDED,)),
+    # Round 2 of that review.
+    'imaginary-threshold': ('math_exercise/checks.py', 'if abs(sv.imag) > 1e-9 or abs(cv.imag) > 1e-9:',
+                            'if abs(sv.imag) > 1e-3 or abs(cv.imag) > 1e-3:', 1, (RECORDED,)),
+    'graph-boolean-ids': ('graph.py', 'if type(node_id) is not int or node_id in known:', 'if not isinstance(node_id, int) or node_id in known:', 1,
+                          (RECORDED,)),
+    'js-number-small-exponent': ('math_exercise/custom.py', 'if -6 < n <= 0:', 'if -7 < n <= 0:', 1, (RECORDED,)),
 }
 
 # A few minutes: CI runs them in a step of their own (CTM_MUTATION_TESTS=1).
