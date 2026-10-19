@@ -12,7 +12,8 @@ design is ctm-assessment `docs/consolidation/2026-10-step2.md`.
   ctm-checkers' page script (docs/api.md). Each call installs again with a
   payload variable of its own, so two calls that overlap (two cells retrying
   at once) are safe, and the install code looks up nothing in the page's
-  namespace.
+  namespace. It leaves `_ctm_import` and `_ctm_globals` there for the call
+  text (0.1.1.dev0).
 - `_ctm_guard`: its kept module prefix becomes `("_ctm_", "ctm_checkers")`
   (design §13 item 4). `browser.call` imports its handlers before the
   snapshot, so a checker that removes `ctm_checkers` modules from
@@ -41,9 +42,15 @@ design is ctm-assessment `docs/consolidation/2026-10-step2.md`.
   order: `page_json` rebuilds that text for the checker namespace). Keep the
   `formCredit` clamp (`math-exercise.js:1406-1407`): JSON.stringify sends NaN
   as `null`, where Pyodide passed NaN as a float.
+- The call text (`runtimeCall`) is
+  `_ctm_import("ctm_checkers.browser", fromlist=["call"]).call("math_exercise.<name>", _ctm_globals())`
+  (docs/api.md): the 0.10.0 text and the design's §4 text look up
+  `__import__` and `globals` in the page's namespace, and a learner's
+  `__import__ = None` stops every check.
 - The reinstall retry (`math-exercise.js:1284`) also matches
-  `No module named 'ctm_checkers` (the message `tests/pyodide/payload.cjs`
-  checks) and `has no attribute 'call'`.
+  `No module named 'ctm_checkers`, `name '_ctm_` (a removed `_ctm_import` or
+  `_ctm_globals`; the messages `tests/pyodide/payload.cjs` checks) and
+  `has no attribute 'call'`.
 - variants.py rounds with `ctm_checkers.math_exercise.numeric`:
   `python <ctm-checkers>/tools/golden.py verify --adapter wheel --variants <math-exercise> --suite rounding-variants`
   checks it against the rounding rows recorded from 0.10.0.
@@ -67,5 +74,3 @@ design is ctm-assessment `docs/consolidation/2026-10-step2.md`.
   that changes rows needs a "Grading changes" entry), design §6.4 and §7,
   are not implemented: 0.1.0 has no grading changes. They must exist before
   the first fix or B-row pull request relies on golden diffs as evidence.
-- The first change after 0.1.0 sets a development version
-  (`tools/released.json`, docs/api.md).

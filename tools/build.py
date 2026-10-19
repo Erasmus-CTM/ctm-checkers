@@ -50,16 +50,21 @@ EXTRAS = {'graph': ['networkx>=3.2']}
 QUARTO_REQUIRED = '>=1.8.27'
 
 # The Python that installs the wheel into a Pyodide runtime. It runs inside a
-# function: the only globals it uses (the payload and the function, _ctm_
-# names) are deleted afterwards, so learner variables are never touched, and
-# it looks up no other name in the page's namespace, where learner code may
-# have rebound `open` or `RuntimeError` (builtins come from `builtins`). It
-# checks the sha256, writes the wheel with Python's own file I/O (which works
-# in a worker too), puts it first on sys.path (zipimport) and imports
-# ctm_checkers; a copy imported before is replaced. The page script gives
-# each install a payload variable of its own (_ctm_checkers_payload_<n>), so
-# installs that overlap do not take each other's payload.
+# function: the globals it uses for itself (the payload and the function,
+# _ctm_ names) are deleted afterwards, so learner variables are never touched,
+# and it looks up no other name in the page's namespace, where learner code
+# may have rebound `open` or `RuntimeError` (builtins come from `builtins`).
+# It checks the sha256, writes the wheel with Python's own file I/O (which
+# works in a worker too), puts it first on sys.path (zipimport) and imports
+# ctm_checkers; a copy imported before is replaced. It leaves the page two
+# names, `_ctm_import` and `_ctm_globals` (builtins.__import__ and
+# builtins.globals), for the page's call text: learner code may rebind
+# `__import__` and `globals` in the namespace they share. The page script
+# gives each install a payload variable of its own
+# (_ctm_checkers_payload_<n>), so installs that overlap do not take each
+# other's payload.
 INSTALL = '''def _ctm_checkers_install(text):
+    global _ctm_import, _ctm_globals
     import base64, builtins, hashlib, importlib, io, json, os, sys
     payload = json.loads(text)
     data = base64.b64decode(payload["data"])
@@ -78,6 +83,7 @@ INSTALL = '''def _ctm_checkers_install(text):
     module = importlib.import_module("ctm_checkers")
     if module.__version__ != payload["version"]:
         raise builtins.RuntimeError("ctm-checkers: " + path + " has version " + module.__version__)
+    _ctm_import, _ctm_globals = builtins.__import__, builtins.globals
 try:
     _ctm_checkers_install(_ctm_checkers_payload)
 finally:
@@ -196,7 +202,8 @@ def generated(version, api, data):
   'use strict';
   // The wheel's install code (Python): checks the sha256, writes the wheel into
   // the interpreter's file system and imports ctm_checkers from it (zipimport).
-  // It runs inside a function whose two globals (_ctm_ names) are deleted.
+  // It runs inside a function whose two globals (_ctm_ names) are deleted; it
+  // sets _ctm_import and _ctm_globals for the call text (docs/api.md).
   var INSTALL = [
 {install}
   ].join('\\n');

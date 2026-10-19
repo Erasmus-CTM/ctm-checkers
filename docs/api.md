@@ -1,6 +1,6 @@
 # ctm-checkers: API and packaging
 
-ctm-checkers 0.1.0 holds math-exercise's grading code, moved verbatim from
+ctm-checkers 0.1 holds math-exercise's grading code, moved verbatim from
 math-exercise 0.10.0 (consolidation step 2; design in ctm-assessment
 `docs/consolidation/2026-10-step2.md`). Every verdict is the same: the golden
 tables ([goldens.md](goldens.md)) are reproduced by the built wheel natively
@@ -29,12 +29,15 @@ that every runtime on a page offers, pyodide-interaktiv's worker proxy
 included. Its Python checks the SHA-256, writes the wheel to
 `/tmp/ctm-checkers/<sha256[:16]>/` with Python's own file I/O, puts it first
 on `sys.path` and imports `ctm_checkers` (zipimport); an earlier copy is
-replaced. It runs inside a function; the payload and the function, its only
-globals (`_ctm_` names), are deleted afterwards, so learner variables are
-never touched, and it looks up no other name in the page's namespace (where
-learner code may have rebound `open` or `RuntimeError`). Each call installs
-again, with a payload variable of its own (calls that overlap do not
-interfere): the once-per-runtime bookkeeping
+replaced. It runs inside a function; the payload and the function, the
+globals it uses for itself (`_ctm_` names), are deleted afterwards, so
+learner variables are never touched, and it looks up no other name in the
+page's namespace (where learner code may have rebound `open` or
+`RuntimeError`). It leaves two names there for the call text below:
+`_ctm_import` (`builtins.__import__`) and `_ctm_globals`
+(`builtins.globals`). Each call installs again, with a payload variable of
+its own (calls that overlap do not interfere), and sets those two names
+again: the once-per-runtime bookkeeping
 (and installing again after learner code removed the library, or after a
 restart) belongs to ctm-libs' runtime, which is also where `ctm_checkers`
 joins the module prefix that `_ctm_guard` keeps.
@@ -44,8 +47,18 @@ joins the module prefix that `_ctm_guard` keeps.
 The page sets one global, `_ctm_request` (JSON text), and runs
 
 ```python
-__import__("ctm_checkers.browser", fromlist=["call"]).call("math_exercise.check", globals())
+_ctm_import("ctm_checkers.browser", fromlist=["call"]).call("math_exercise.check", _ctm_globals())
 ```
+
+Learner code shares the page's namespace and may rebind `__import__` or
+`globals` there (`__import__ = None` stopped every check of math-exercise
+0.10.0); `_ctm_import` and `_ctm_globals`, set by the install code, are the
+builtins themselves. The call text of 0.1.0,
+`__import__("ctm_checkers.browser", fromlist=["call"]).call("math_exercise.check", globals())`,
+still works where nothing rebound them. When learner code removed
+`_ctm_import`, the call fails with `NameError: name '_ctm_import' is not
+defined`; installing again (as after `No module named 'ctm_checkers'`)
+repairs it.
 
 `call` takes `_ctm_request` out of `caller` (learner code sharing the
 namespace sees nothing left behind), applies the call's admission rule, runs
