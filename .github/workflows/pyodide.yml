@@ -43,7 +43,7 @@ jobs:
       matrix:
         pyodide: ['0.27.2', '0.28.3']
     env:
-      PYODIDE_PARITY_CACHE: ${{ runner.temp }}/wheels
+      PYODIDE_PARITY_CACHE: _ci/wheels
     steps:
       - uses: actions/checkout@v7
       - name: Pinned commits
