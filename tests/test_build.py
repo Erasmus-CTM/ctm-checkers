@@ -6,6 +6,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -112,3 +113,62 @@ def test_the_install_code(tmp_path, install_folder):
     assert again.returncode == 0, again.stderr
     damaged = install(dict(payload, data=base64.b64encode(data[:-1] + b'x').decode()), tmp_path)
     assert damaged.returncode == 1 and 'RuntimeError: ctm-checkers: the payload is damaged' in damaged.stderr
+
+
+def copy_of_repository(tmp_path):
+    for name in ('src', 'tools', '_extensions'):
+        shutil.copytree(ROOT / name, tmp_path / name, ignore=shutil.ignore_patterns('__pycache__'))
+    for name in ('LICENSE', 'pyproject.toml'):
+        shutil.copy2(ROOT / name, tmp_path / name)
+    return tmp_path
+
+
+def run_build(root, *args):
+    return subprocess.run([sys.executable, str(root / 'tools' / 'build.py'), *args], capture_output=True, text=True)
+
+
+def set_version(root, version):
+    path = root / 'src' / 'ctm_checkers' / '__init__.py'
+    path.write_text(re.sub(r'__version__ = "[^"]+"', f'__version__ = "{version}"', path.read_text()))
+
+
+def test_a_released_version_never_changes(tmp_path):
+    # Review S3: without tags, tools/released.json keeps each release's contents.
+    root = copy_of_repository(tmp_path)
+    version, _ = build.package_info()
+    assert version in json.loads((ROOT / 'tools' / 'released.json').read_text())['versions'] or '.dev' in version
+    if '.dev' in version:
+        pytest.skip('the current version is a development version')
+    module = root / 'src' / 'ctm_checkers' / 'matrix.py'
+    module.write_text(module.read_text() + '\n# a change\n')
+    for args in ((), ('--check',)):
+        result = run_build(root, *args)
+        assert result.returncode == 1 and 'is released (tools/released.json)' in result.stderr, (args, result.stderr)
+    # A development version below the release is refused; the next one is built, with a dependency version per content.
+    set_version(root, version + '.dev0')   # X.Y.Z.dev0 comes before X.Y.Z
+    result = run_build(root, '--check')
+    assert result.returncode == 1 and 'is not above the released' in result.stderr, result.stderr
+    major, minor, patch = (int(part) for part in version.split('.')[:3])
+    following = f'{major}.{minor}.{patch + 1}.dev0'
+    set_version(root, following)
+    assert run_build(root).returncode == 0 and run_build(root, '--check').returncode == 0
+    manifest = json.loads((root / '_extensions' / 'ctm-checkers' / 'checkers.json').read_text())
+    data = (root / '_extensions' / 'ctm-checkers' / manifest['wheel']).read_bytes()
+    assert manifest['dependency'] == following + '+' + hashlib.sha256(data).hexdigest()[:8]
+    assert f'version: {major}.{minor}.{patch + 1}-dev.0' in (root / '_extensions' / 'ctm-checkers' / '_extension.yml').read_text()
+
+
+def test_the_wheel_is_written_as_build_writes_it(tmp_path):
+    root = copy_of_repository(tmp_path)
+    manifest = json.loads((root / '_extensions' / 'ctm-checkers' / 'checkers.json').read_text())
+    path = root / '_extensions' / 'ctm-checkers' / manifest['wheel']
+    with zipfile.ZipFile(io.BytesIO(path.read_bytes())) as archive:
+        files = [(info, archive.read(info.filename)) for info in archive.infolist()]
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w') as archive:
+        for info, data in files:
+            info.compress_type = zipfile.ZIP_STORED
+            archive.writestr(info, data)
+    path.write_bytes(buffer.getvalue())
+    result = run_build(root, '--check')
+    assert result.returncode == 1 and 'not written as tools/build.py writes them' in result.stderr, result.stderr

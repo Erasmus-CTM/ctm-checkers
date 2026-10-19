@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Builds the wheel of ctm-checkers and its extension folder (docs/api.md).
 
-    python tools/build.py           # writes _extensions/ctm-checkers/ from src/
-    python tools/build.py --check   # the committed folder agrees with src/ (CI)
+    python tools/build.py             # writes _extensions/ctm-checkers/ from src/
+    python tools/build.py --check     # the committed folder agrees with src/ (CI)
+    python tools/build.py --release   # the release PR: also records the version in tools/released.json
 
 _extensions/ctm-checkers/ is generated and committed; do not edit it:
   _extension.yml           a Quarto extension that only contributes metadata
@@ -18,9 +19,12 @@ The wheel is pure Python: entries sorted, dist-info last, timestamps
 builds, so --check compares contents (names, bytes, metadata) and requires the
 other files to be exactly what the committed wheel gives; a rebuild keeps the
 committed wheel while its contents are current. The sha256 of the committed
-wheel identifies what runs in the browser and at build time. A development
-version (X.Y.Z.devN) gets the HTML dependency version X.Y.Z.devN+<sha8>, so
-browsers fetch a changed wheel although the version stayed.
+wheel identifies what runs in the browser and at build time. A released
+version never changes (tools/released.json holds its contents, wheel and
+script hashes; --check compares them), so its HTML dependency path is for one
+content only; a development version (X.Y.Z.devN, above every release) gets the
+HTML dependency version X.Y.Z.devN+<sha8 of the wheel>, so browsers fetch a
+changed wheel although the version stayed.
 
 Standard library only; runs on Python 3.9 or later.
 """
@@ -240,9 +244,71 @@ def check_pyproject():
     return problems
 
 
+RELEASED = ROOT / 'tools' / 'released.json'
+RANKS = {'dev': 0, 'a': 1, 'b': 2, 'rc': 3, None: 4}
+
+
+def version_key(version):
+    """Orders X.Y.Z, X.Y.Z.devN and X.Y.Z(a|b|rc)N as PEP 440 does."""
+    match = re.fullmatch(r'(\d+)\.(\d+)\.(\d+)(?:\.(dev)(\d+)|(a|b|rc)(\d+))?', version)
+    major, minor, patch, dev, devn, pre, pren = match.groups()
+    kind = dev or pre
+    return (int(major), int(minor), int(patch), RANKS[kind], int(devn or pren or 0))
+
+
+def is_release(version):
+    return '.dev' not in version
+
+
+def released_versions():
+    return json.loads(RELEASED.read_text(encoding='utf-8'))['versions'] if RELEASED.exists() else {}
+
+
+def release_entry(contents, data, script):
+    """What a release is: the digest of its contents (the wheel's RECORD lists
+    every file with its sha256), the wheel file and the page script."""
+    record = next(text for name, text in contents.items() if name.endswith('.dist-info/RECORD'))
+    return {'contents': hashlib.sha256(record).hexdigest(), 'wheel': hashlib.sha256(data).hexdigest(),
+            'script': hashlib.sha256(script).hexdigest()}
+
+
+def release_problems(version, contents, data, script):
+    """A released version never changes; a development version is above every release."""
+    versions = released_versions()
+    entry = release_entry(contents, data, script)
+    if is_release(version):
+        if version not in versions:
+            return [f'{version} is a release version without an entry in tools/released.json: the release PR adds it with '
+                    f'python tools/build.py --release; otherwise set a development version ({version}.dev0 or later)']
+        changed = [key for key in ('contents', 'wheel', 'script') if versions[version].get(key) != entry[key]]
+        if changed:
+            return [f'{version} is released (tools/released.json) and its {", ".join(changed)} changed: released code never changes; '
+                    f'set the next development version (for example {next_dev(version)}) in src/ctm_checkers/__init__.py']
+        return []
+    above = [v for v in versions if version_key(v) >= version_key(version)]
+    if above:
+        return [f'{version} is not above the released {", ".join(sorted(above, key=version_key))}: set a later development version']
+    return []
+
+
+def next_dev(version):
+    major, minor, patch = (int(part) for part in re.match(r'(\d+)\.(\d+)\.(\d+)', version).groups())
+    return f'{major}.{minor}.{patch + 1}.dev0'
+
+
+def zip_problems(name, data):
+    """The committed wheel is written as tools/build.py writes it."""
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        bad = [info.filename for info in archive.infolist()
+               if info.compress_type != zipfile.ZIP_DEFLATED or info.date_time != (1980, 1, 1, 0, 0, 0)
+               or info.external_attr >> 16 != 0o644]
+    return [f'{name}: entries not written as tools/build.py writes them (DEFLATE, 1980-01-01, 0644): {", ".join(bad[:5])}'] if bad else []
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--check', action='store_true', help='check the committed folder instead of writing it')
+    parser.add_argument('--release', action='store_true', help='also record this release version in tools/released.json')
     options = parser.parse_args(argv)
     version, api = package_info()
     contents = wheel_contents(version)
@@ -259,6 +325,7 @@ def main(argv=None):
             for name in contents:
                 if name in found and found[name] != contents[name]:
                     problems.append(f'{committed.name}: {name} differs from src/ (run python tools/build.py)')
+            problems += zip_problems(committed.name, data)
             expected = generated(version, api, data)
             present = sorted(p.name for p in OUT.iterdir()) if OUT.is_dir() else []
             if present != sorted(expected):
@@ -267,23 +334,40 @@ def main(argv=None):
                 path = OUT / name
                 if name != committed.name and (not path.is_file() or path.read_bytes() != text):
                     problems.append(f'_extensions/ctm-checkers/{name} is not what the committed wheel gives (run python tools/build.py)')
+            problems += release_problems(version, contents, data, (OUT / SCRIPT).read_bytes() if (OUT / SCRIPT).is_file() else b'')
+        if not committed.is_file() and not is_release(version):
+            problems += release_problems(version, contents, b'', b'')   # the order of versions needs no wheel
         for problem in problems:
             print('build --check:', problem, file=sys.stderr)
         if not problems:
-            print(f'_extensions/ctm-checkers/ is current: ctm-checkers {version} (API {api}), '
+            print(f'_extensions/ctm-checkers/ is current: ctm-checkers {version} (API {api}{", released" if is_release(version) else ""}), '
                   f'{committed.name} sha256 {hashlib.sha256(committed.read_bytes()).hexdigest()}')
         return 1 if problems else 0
+    # Keep the committed wheel while its contents are current.
+    if committed.is_file() and list(read_wheel(committed.read_bytes()).items()) == list(contents.items()):
+        data = committed.read_bytes()
+    else:
+        data = wheel_bytes(contents)
+    expected = generated(version, api, data)
+    versions = released_versions()
+    if options.release:
+        if not is_release(version):
+            problems.append(f'--release: {version} is a development version')
+        elif version not in versions:
+            versions[version] = release_entry(contents, data, expected[SCRIPT])
+            document = json.loads(RELEASED.read_text(encoding='utf-8')) if RELEASED.exists() else {'versions': {}}
+            document['versions'] = dict(sorted(versions.items(), key=lambda item: version_key(item[0])))
+            RELEASED.write_text(json.dumps(document, indent=1) + '\n', encoding='utf-8')
+            print(f'Recorded the release {version} in tools/released.json')
+    if is_release(version) and version in versions:
+        problems += release_problems(version, contents, data, expected[SCRIPT])
+    elif not is_release(version):
+        problems += release_problems(version, contents, data, expected[SCRIPT])
     for problem in problems:
         print('build:', problem, file=sys.stderr)
     if problems:
         return 1
-    # Keep the committed wheel while its contents are current.
-    if committed.is_file() and read_wheel(committed.read_bytes()) == contents and list(read_wheel(committed.read_bytes())) == list(contents):
-        data = committed.read_bytes()
-    else:
-        data = wheel_bytes(contents)
     OUT.mkdir(parents=True, exist_ok=True)
-    expected = generated(version, api, data)
     for path in OUT.iterdir():
         if path.name not in expected:
             path.unlink()
@@ -291,6 +375,8 @@ def main(argv=None):
         (OUT / name).write_bytes(text)
     print(f'Wrote _extensions/ctm-checkers/ for ctm-checkers {version} (API {api}): {wheel_name(version)}, '
           f'{len(data)} bytes, sha256 {hashlib.sha256(data).hexdigest()}')
+    if is_release(version) and version not in versions:
+        print(f'{version} is a release version: record it with python tools/build.py --release', file=sys.stderr)
     return 0
 
 

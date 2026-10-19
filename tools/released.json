@@ -1,0 +1,10 @@
+{
+ "comment": "Released versions of ctm-checkers and what each is: the sha256 of its contents (the wheel's RECORD, which lists every file with its hash), of the wheel file and of the page script ctm-checkers.js. A release never changes: tools/build.py --check fails when the code, the wheel or the script of a released version differ from its entry, and a development version must be above every release. Without tags (step-2 design \u00a713), this keeps a version and its HTML dependency path (site_libs/quarto-contrib/ctm-checkers-<version>/) for one content only, so browsers cannot keep a stale copy. The release PR adds its entry with `python tools/build.py --release`; the first change after it sets the next development version (X.Y.Z.devN, dependency version X.Y.Z.devN+<sha8 of the wheel>).",
+ "versions": {
+  "0.1.0": {
+   "contents": "3baa8317d369ebbd3dbb8625105b5698e69704e7dbd3b6e08096427e050ea37f",
+   "wheel": "6ac0f6898fe34565e7e3b1da68794ece57cf895992657f95e85219298e5847db",
+   "script": "176faf901dd8d950b40f0df4a27f16b9438ed7af1a77d33c57d273905c9afda9"
+  }
+ }
+}
