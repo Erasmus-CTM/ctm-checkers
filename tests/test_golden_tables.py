@@ -27,7 +27,7 @@ def test_rows_are_canonical_sorted_and_complete():
 
 def test_recorded_rows_have_their_ids():
     for name, rows in tables().items():
-        if name.startswith('math_exercise/') and name.split('/')[1].rsplit('.', 1)[0] in ('namespace', 'rounding', 'requests-supplement'):
+        if name.startswith('math_exercise/') and name.split('/')[1].rsplit('.', 1)[0] in ('namespace', 'rounding', 'rounding-variants', 'requests-supplement'):
             for row in rows:
                 assert row['id'] == golden.row_id(row['call'], row['input'])
 
@@ -42,7 +42,7 @@ def test_only_math_exercise_examples_are_committed():
         name = path.name
         if name.endswith('-math-exercise.jsonl'):
             continue
-        assert name in ('namespace.jsonl', 'rounding.jsonl', 'requests-supplement.jsonl'), name
+        assert name in ('namespace.jsonl', 'rounding.jsonl', 'rounding-variants.jsonl', 'requests-supplement.jsonl'), name
     for info in manifest['capture']['files'].values():
         assert info['corpus'] == 'math-exercise' and info['export'] is True
 

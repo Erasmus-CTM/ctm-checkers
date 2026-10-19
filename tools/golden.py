@@ -45,6 +45,7 @@ import json
 import math
 import os
 from pathlib import Path
+import random
 import re
 import runpy
 import shutil
@@ -222,8 +223,11 @@ def python_value(value, sources=None):
 
 # ---------------------------------------------------------------------------
 # Authored question tests: recorded as the umbrella's harness records them
-# (integration/pyodide-parity/worker.cjs, AUTHORED): the outcome, every
-# check() result and the responses passed to check() (JSON only).
+# (integration/pyodide-parity/worker.cjs, AUTHORED, at the capture's commit):
+# the outcome, every check() result (Python's bool, int, float and str as
+# they are, other numbers with their type) and the response passed to each
+# check(), as the page would send it (text), taken when check() is called.
+# `random` is seeded per question.
 # ---------------------------------------------------------------------------
 
 AUTHORED_WRAP = '''
@@ -231,7 +235,8 @@ import sys as _ctm_golden_sys
 _ctm_golden_record = _ctm_golden_sys.modules['_ctm_golden_record']
 _ctm_golden_check = check
 def check(*args, **kwargs):
-    _ctm_golden_record.responses.append(args[0] if args else kwargs.get('response'))
+    # The response as it is now: a test may change its matrix after the call.
+    _ctm_golden_record.responses.append(_ctm_golden_record.page(args[0] if args else kwargs.get('response')))
     result = _ctm_golden_check(*args, **kwargs)
     _ctm_golden_record.calls.append(result)
     return result
@@ -239,26 +244,59 @@ def check(*args, **kwargs):
 
 
 def _ctm_plain(value):
+    # A checker result as JSON: Python's bool, int, float and str as they are;
+    # any other number keeps its type ({"$type": "Rational", "value": "1/3"}),
+    # so a change of the returned type shows in the goldens.
     if isinstance(value, dict):
         return {str(k): _ctm_plain(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
         return [_ctm_plain(v) for v in value]
-    if isinstance(value, (bool, str)) or value is None:
+    if value is None or isinstance(value, (bool, str)) or type(value) is int:
         return value
-    try:
-        return float(value) if not isinstance(value, int) else value
-    except Exception:
-        return repr(value)
+    if type(value) is float:   # NaN and infinities tagged as in the requests ({"$float": "NaN"})
+        return value if value == value and abs(value) != float('inf') else {'$float': 'NaN' if value != value else ('Infinity' if value > 0 else '-Infinity')}
+    return {'$type': type(value).__name__, 'value': str(value)}
+
+
+def _ctm_text(value):
+    return value if isinstance(value, str) else str(value)
 
 
 def _ctm_response(value):
-    # The response as the page sends it: JSON only; the parsed expressions
-    # and matrices that the custom check adds are not part of it.
+    # The response as the page sends it: what the learner types, as text.
+    # Tests pass parsed values (SymPy expressions, matrices); the page sends
+    # strings ("raw", and per dynamic matrix its shape and entries) and parses
+    # them itself. A response that is not JSON then is left out (None); the
+    # test itself goes on either way.
+    try:
+        return _ctm_page_shaped(value)
+    except Exception:
+        return None
+
+
+def _ctm_page_shaped(value):
     if isinstance(value, dict):
-        value = {k: v for k, v in value.items() if not (value.get('kind') == 'expressions' and k == 'expressions')}
+        page = {k: v for k, v in value.items() if k not in ('expressions', 'raw', 'inputs')}
+        if 'raw' in value:
+            page['raw'] = value['raw']
+        elif isinstance(value.get('expressions'), (list, tuple)):
+            page['raw'] = [_ctm_text(e) for e in value['expressions']]
         if isinstance(value.get('inputs'), dict):
-            value['inputs'] = {name: ({k: v for k, v in item.items() if k not in ('expressions', 'matrix')} if isinstance(item, dict) else item)
-                               for name, item in value['inputs'].items()}
+            inputs = {}
+            for name, item in value['inputs'].items():
+                if isinstance(item, dict) and 'raw' not in item and item.get('matrix') is not None:
+                    rows, cols = item['matrix'].shape
+                    inputs[name] = {'type': 'matrix', 'rows': int(rows), 'cols': int(cols), 'raw': [_ctm_text(e) for e in item['matrix']]}
+                elif isinstance(item, dict):
+                    inputs[name] = {k: v for k, v in item.items() if k not in ('expressions', 'matrix')}
+                else:
+                    inputs[name] = item
+            page['inputs'] = inputs
+        if 'raw' in page or 'inputs' in page:
+            page.setdefault('kind', 'expressions')
+            page.setdefault('raw', [])
+            page.setdefault('inputs', {})
+        value = page
     try:
         return json.loads(json.dumps(value, allow_nan=False))
     except (TypeError, ValueError):
@@ -267,12 +305,13 @@ def _ctm_response(value):
 
 def authored_output(run_question, options, base):
     record = types.ModuleType('_ctm_golden_record')
-    record.calls, record.responses = [], []
+    record.calls, record.responses, record.page = [], [], _ctm_response
     sys.modules['_ctm_golden_record'] = record
     wrapped = dict(options, checker=options.get('checker', '') + AUTHORED_WRAP)
     here = os.getcwd()
     if Path(base).is_dir():
         os.chdir(base)
+    random.seed(0)
     try:
         run_question(wrapped, base)
         outcome = 'pass'
@@ -284,7 +323,7 @@ def authored_output(run_question, options, base):
         os.chdir(here)
         del sys.modules['_ctm_golden_record']
     result = {'outcome': outcome, 'calls': _ctm_plain(record.calls),
-              'responses': [r for r in map(_ctm_response, record.responses) if r is not None]}
+              'responses': [r for r in record.responses if r is not None]}
     return loads(json.dumps(result, sort_keys=True, ensure_ascii=False, separators=(',', ':')))
 
 
@@ -335,6 +374,9 @@ class Legacy:
 
     def describe(self):
         return {'adapter': self.name, 'library_sha256': hashlib.sha256(self.library.encode('utf-8')).hexdigest()}
+
+    def runs(self, rows):
+        return True
 
     def call(self, name, values):
         # math-exercise.js sets the values as the interpreter's globals and runs
@@ -405,6 +447,10 @@ class CtmCheckers:
         return {'adapter': self.name, 'version': self.package.__version__, 'file': self.package.__file__,
                 'variants': str(self.variants_folder) if self.variants_folder else None}
 
+    def runs(self, rows):
+        # variants.py stays in math-exercise: its rows need --variants.
+        return bool(self.variants_folder) or not any(row['call'].startswith('variants.') for row in rows)
+
     def call(self, name, values):
         request = {REQUEST_FIELDS[key]: (json.loads(value) if key == '_math_response_json' else value)
                    for key, value in values.items()}
@@ -423,8 +469,6 @@ class CtmCheckers:
             return self.rounding.round_places(*args)
         if name == 'sigfigs_round':
             return self.rounding.sigfigs_round(*args)
-        if not self.variants_folder:
-            raise SystemExit('Rows of variants.py (math-exercise) need --variants DIR')
         if self._variants is None:
             self._variants = runpy.run_path(str(self.variants_folder / 'variants.py'), run_name='_ctm_variants')
         return self._variants[name.split('.', 1)[1]](*args)
@@ -452,6 +496,7 @@ def run_row(adapter, row, sources):
     call, value = row['call'], row['input']
     if call in ('check', 'check_custom'):
         values = {key: page_value(item, sources) for key, item in value.items()}
+        random.seed(0)   # as the harness seeds it before each grading call
         try:
             return output_of(adapter.call(call, values))
         except Exception as error:
@@ -490,8 +535,13 @@ def verify(adapter, patterns=(), max_diffs=20, out=print):
     warnings.simplefilter('ignore')
     out(f'Golden tables with {adapter.name} on Python {sys.version.split()[0]} ({sys.platform}): '
         + json.dumps(adapter.describe(), sort_keys=True))
+    skipped = []
     for path in selected(table_files(), patterns):
         rows = read_rows(path)
+        if not adapter.runs(rows):
+            skipped.append(path.relative_to(GOLDEN).as_posix())
+            out(f'{skipped[-1]}: {len(rows)} rows; skipped: they run math-exercise\'s variants.py (--variants DIR)')
+            continue
         counts = {'reproduced': 0, 'different': 0, 'missing': 0}
         for row in rows:
             found, expected = expected_output(row)
@@ -513,7 +563,7 @@ def verify(adapter, patterns=(), max_diffs=20, out=print):
                                f'| actual {canonical(actual)[:900]} | input {canonical(row["input"])[:600]}')
         total += len(rows)
         out(f'{path.relative_to(GOLDEN).as_posix()}: {len(rows)} rows; ' + ', '.join(f'{k} {v}' for k, v in counts.items()))
-    out(f'{total} rows, {total - failures} reproduced, {failures} not.')
+    out(f'{total} rows, {total - failures} reproduced, {failures} not.' + (f' Skipped: {", ".join(skipped)}.' if skipped else ''))
     return failures
 
 
@@ -553,29 +603,36 @@ def namespace_rows():
              'input': value, 'tags': ['namespace']}]
 
 
-def numeric_grid():
-    """Values for the rounding suite: ties at many places, binary noise,
-    negatives, large and small magnitudes, integers and non-finite values."""
-    values = [0.0, -0.0, 0.5, 1.5, 2.5, -0.5, -1.5, -2.5, 0.125, 0.375, -0.125, 1.005, 2.675, 5.395, 1.05 * 1.9,
-              0.045, 1.115, 8.345, 0.1 + 0.2, 1 / 3, 2 / 3, -2 / 3, 12345.6785, 99.995, 9.995, 0.995,
-              123456789.125, 1e-7, 2.5e-7, 1.25e-5, -3.14159265358979, 2.718281828459045, 1e15 + 0.5, 1e16,
-              1e30, -1e30, 1.5e300, 5e-324, 1e-300, 7.0, -7.0, 1234.0, float('inf'), float('-inf'), float('nan'),
-              3, -3, 0, 12345, -98765, 10 ** 20]
-    rows = []
-    for x in values:
-        for d in (-2, -1, 0, 1, 2, 3, 4, 6, 10, 15, 20, 30):
-            rows.append(('round_places', {'x': x, 'd': d}))
-        for n in (1, 2, 3, 4, 6, 10, 15, 17):
-            rows.append(('sigfigs_round', {'x': x, 'n': n}))
-        for digits in (None, -1, 0, 1, 2, 3, 6):
-            rows.append(('variants.round_half_up', {'x': x, 'digits': digits}))
-        for n in (1, 2, 3, 6):
-            rows.append(('variants.sigfig', {'x': x, 'n': n}))
+GRID = [0.0, -0.0, 0.5, 1.5, 2.5, -0.5, -1.5, -2.5, 0.125, 0.375, -0.125, 1.005, 2.675, 5.395, 1.05 * 1.9,
+        0.045, 1.115, 8.345, 0.1 + 0.2, 1 / 3, 2 / 3, -2 / 3, 12345.6785, 99.995, 9.995, 0.995,
+        123456789.125, 1e-7, 2.5e-7, 1.25e-5, -3.14159265358979, 2.718281828459045, 1e15 + 0.5, 1e16,
+        1e30, -1e30, 1.5e300, 5e-324, 1e-300, 7.0, -7.0, 1234.0, float('inf'), float('-inf'), float('nan'),
+        3, -3, 0, 12345, -98765, 10 ** 20]
+
+
+def grid_rows(suite, calls):
     out = {}
-    for call, value in rows:
-        value = loads(canonical(value))   # numbers as Python writes them
-        out.setdefault(row_id(call, value), {'suite': 'math_exercise/rounding', 'id': row_id(call, value), 'call': call, 'input': value, 'tags': ['rounding']})
+    for x in GRID:
+        for call, argument, values in calls:
+            for value in values:
+                row = loads(canonical({'x': x, argument: value}))   # numbers as Python writes them
+                out.setdefault(row_id(call, row), {'suite': suite, 'id': row_id(call, row), 'call': call, 'input': row, 'tags': ['rounding']})
     return list(out.values())
+
+
+def numeric_grid():
+    """The rounding rule of the checks (round_places, sigfigs_round) on a grid
+    of ties at many places, binary noise, negatives, large and small
+    magnitudes, integers and non-finite values."""
+    return grid_rows('math_exercise/rounding', [('round_places', 'd', (-2, -1, 0, 1, 2, 3, 4, 6, 10, 15, 20, 30)),
+                                                ('sigfigs_round', 'n', (1, 2, 3, 4, 6, 10, 15, 17))])
+
+
+def variants_grid():
+    """The same grid through math-exercise's variants.py (round_half_up,
+    sigfig), which stays in math-exercise and rounds by the same rule."""
+    return grid_rows('math_exercise/rounding-variants', [('variants.round_half_up', 'digits', (None, -1, 0, 1, 2, 3, 6)),
+                                                         ('variants.sigfig', 'n', (1, 2, 3, 6))])
 
 
 def supplement_rows():
@@ -691,7 +748,7 @@ def supplement_rows():
 
 
 RECORDED = {'math_exercise/namespace': namespace_rows, 'math_exercise/rounding': numeric_grid,
-            'math_exercise/requests-supplement': supplement_rows}
+            'math_exercise/rounding-variants': variants_grid, 'math_exercise/requests-supplement': supplement_rows}
 
 
 def suite_path(suite):
@@ -818,8 +875,10 @@ LEGACY_FILES = ('math-exercise.js', 'question-tests.py', 'variants.py')
 
 
 def capture_files(capture):
-    """{relative path under export/: bytes} and the manifest of a capture
-    (a folder written by run.cjs --capture, or the goldens-export artifact zip)."""
+    """The exported files {path relative to export/: bytes} and their manifest
+    (its "files" keyed the same way) of a capture: a folder written by
+    run.cjs --capture (export/ inside), or the goldens-export artifact (the
+    export/ folder itself), as a folder or zip."""
     capture = Path(capture)
     files = {}
     if capture.is_file():
@@ -832,10 +891,21 @@ def capture_files(capture):
         for path in capture.rglob('*'):
             if path.is_file():
                 files[path.relative_to(capture).as_posix()] = path.read_bytes()
-    if 'manifest.json' not in files:
+    if 'export/manifest.json' in files:
+        # run.cjs --capture: export/ has a manifest of its own.
+        exported = {name[len('export/'):]: data for name, data in files.items() if name.startswith('export/')}
+    elif 'manifest.json' in files and any(name.startswith('export/') for name in files):
+        # An older capture: one manifest for both sides, paths with export/.
+        manifest = json.loads(files['manifest.json'])
+        manifest['files'] = {name[len('export/'):]: info for name, info in manifest.get('files', {}).items() if name.startswith('export/')}
+        manifest['corpora'] = {name: info for name, info in manifest.get('corpora', {}).items() if info.get('export')}
+        exported = {name[len('export/'):]: data for name, data in files.items() if name.startswith('export/')}
+        exported['manifest.json'] = json.dumps(manifest).encode('utf-8')
+    else:
+        exported = files   # the artifact goldens-export
+    if 'manifest.json' not in exported:
         raise SystemExit(f'{capture}: no manifest.json (expected the output of run.cjs --capture or the goldens-export artifact)')
-    manifest = json.loads(files['manifest.json'])
-    exported = {name[len('export/'):]: data for name, data in files.items() if name.startswith('export/')}
+    manifest = json.loads(exported.pop('manifest.json'))
     return exported, manifest
 
 
@@ -855,7 +925,7 @@ def import_capture(options, out=print):
         if name == 'PROVENANCE.md':
             continue
         match = re.fullmatch(r'math_exercise/(%s)-math-exercise\.jsonl' % '|'.join(CAPTURED_KINDS), name)
-        info = captured.get('files', {}).get('export/' + name, {})
+        info = captured.get('files', {}).get(name, {})
         if not match or not info.get('export') or info.get('corpus') != 'math-exercise':
             raise SystemExit(f'Unexpected exported file {name}: not a math-exercise suite marked for export')
         tables[name] = data.decode('utf-8')
@@ -910,7 +980,7 @@ def import_capture(options, out=print):
                 'capture': {'harness': captured.get('harness'), 'umbrella': captured.get('umbrella'),
                             'runs': captured.get('runs'), 'components': captured.get('components'),
                             'corpus': corpora['math-exercise'],
-                            'files': {name: captured['files']['export/' + name] for name in sorted(tables)}},
+                            'files': {name: captured['files'][name] for name in sorted(tables)}},
                 'legacy': {'math-exercise': pin,
                            'library_sha256': hashlib.sha256(legacy.library.encode('utf-8')).hexdigest()},
                 'files': sorted(named),
@@ -948,6 +1018,10 @@ def write_provenance():
              f'parity harness (`{capture.get("harness")}`, ctm-assessment `{capture.get("umbrella")}`) at the runtime',
              'boundary of math-exercise.js under ' + ', '.join(run.get('runtime') or run.get('name') for run in capture.get('runs') or []) + '.',
              'Rows derived from courses or the umbrella\'s example site are not committed here (step-2 design §13 item 7).',
+             'Inputs: each captured request is what a rendered page of math-exercise\'s example site sent to the checker library;',
+             'the answers typed into the pages come from math-exercise itself (answer keys, authored tests, variant fixtures) or',
+             'were written for the harness in the umbrella under AGPL-3.0-or-later (probe sets and boundary probes, the audit\'s',
+             'challenge answers, teacher answers). The inputs of the recorded suites are written here (`tools/golden.py`).',
              'Recorded suites and the per-version results of Python versions without a Pyodide build were recorded with',
              f'math-exercise\'s own code at `{manifest["legacy"]["math-exercise"]}` (`tools/golden.py record`).', '',
              '| File | Rows | Source | Licence |', '|---|---|---|---|']
