@@ -55,6 +55,8 @@ jobs:
         run: python tools/golden.py verify --adapter legacy --legacy _ci/math-exercise
       - name: The built wheel reproduces the golden tables
         run: python tools/golden.py verify --adapter wheel --variants _ci/math-exercise
+      - name: The golden tables fail on the numeric mutations of the step-2 review
+        run: CTM_MUTATION_TESTS=1 pytest -q -rA tests/test_mutations.py
       - name: The wheel installs with pip
         run: |
           python -m venv "$RUNNER_TEMP/venv"
