@@ -31,10 +31,16 @@ python tools/build.py                 # after changing src/: regenerate _extensi
 python tools/golden.py verify --adapter src --variants <math-exercise checkout>
 ```
 
-CI (`Tests`, `Pyodide`) checks the generated folder, runs the tests on `src/`
-and on the built wheel, and verifies the golden tables with the built wheel
-and with math-exercise 0.10.0's own code, on Python 3.9, 3.12 and 3.13 and in
-Pyodide 0.27.2 and 0.28.3.
+CI (`Tests`, `Pyodide`) checks the generated folder and the released
+versions (`tools/released.json`), runs the tests on `src/` and on the built
+wheel, verifies the golden tables with the built wheel and with math-exercise
+0.10.0's own code, and makes sure that mutations of the checks fail them, on
+Python 3.9 to 3.13 and in Pyodide 0.27.2 and 0.28.3. A local `verify` works
+on any of those Python versions.
+
+- [docs/consolidation-notes.md](docs/consolidation-notes.md): notes for the
+  next pull requests of the consolidation (ctm-libs, math-exercise, the
+  umbrella).
 
 ## Licence
 

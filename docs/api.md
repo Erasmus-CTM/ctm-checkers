@@ -20,7 +20,7 @@ loaded by ctm-libs) defines `globalThis.CTMCheckers`:
 | Field | |
 |---|---|
 | `name`, `version`, `api` | `ctm-checkers`, the package version, the API level |
-| `dependency` | the HTML dependency version: the version, or for a development version `X.Y.Z.devN+<first 8 hex digits of the wheel's sha256>` |
+| `dependency` | the HTML dependency version: the version of a release (whose content never changes, `tools/released.json`), or for a development version `X.Y.Z.devN+<first 8 hex digits of the wheel's sha256>`, so a changed wheel gets a new path |
 | `wheel`, `sha256`, `data` | the wheel's file name, its SHA-256 and the wheel itself (base64) |
 | `install(py)` | installs the wheel into the Pyodide runtime `py`; returns a promise |
 
@@ -31,7 +31,10 @@ included. Its Python checks the SHA-256, writes the wheel to
 on `sys.path` and imports `ctm_checkers` (zipimport); an earlier copy is
 replaced. It runs inside a function; the payload and the function, its only
 globals (`_ctm_` names), are deleted afterwards, so learner variables are
-never touched. Each call installs again: the once-per-runtime bookkeeping
+never touched, and it looks up no other name in the page's namespace (where
+learner code may have rebound `open` or `RuntimeError`). Each call installs
+again, with a payload variable of its own (calls that overlap do not
+interfere): the once-per-runtime bookkeeping
 (and installing again after learner code removed the library, or after a
 restart) belongs to ctm-libs' runtime, which is also where `ctm_checkers`
 joins the module prefix that `_ctm_guard` keeps.
@@ -84,6 +87,7 @@ their names without `_math_`:
 ctm_checkers.math_exercise.check(request)          # typed answers: string, set, numeric, equivalent, exact; forms; reject
 ctm_checkers.math_exercise.check_custom(request)   # a #| checker: on a response
 ctm_checkers.math_exercise.namespace(request=None) # the names a #| checker: sees (below)
+ctm_checkers.math_exercise.symbols(vars)           # the symbols a checker receives for the exercise's variables
 ctm_checkers.math_exercise.learner_strings(request), admit(request)
 ctm_checkers.math_exercise.round_places(x, d), sigfigs_round(x, n), parse_tolerance(spec, ref)   # standard library only
 ctm_checkers.math_exercise.authored_questions(path), run_question(options, base)
@@ -91,13 +95,16 @@ ctm_checkers.math_exercise.authored.main(argv)     # question-tests.py's command
 ctm_checkers.core.result.normalize_result(value), STATUSES
 ctm_checkers.matrix.assess_basis(matrix, *, axis, target_dimension, belongs, name, space_name="space")
 ctm_checkers.graph.graph_from_response(response, *, directed=False)
-ctm_checkers.testing.run_tests(tests, namespace, symbols, base)
+ctm_checkers.testing.run_tests(check, symbols, tests, *, namespace, base)   # check=None: the namespace's check after the tests ran
 ```
 
 Importing `ctm_checkers` or `ctm_checkers.math_exercise` imports no SymPy;
 the names of `math_exercise` load their module on first use, and
 `math_exercise.numeric` uses the standard library only (math-exercise's
 variant generator rounds with it and needs only PyYAML).
+`math_exercise.authored` imports SymPy when it runs, so its command line
+reports a missing SymPy as question-tests.py did ("No module named 'sympy'"),
+and stops with one message below Python 3.9.
 
 ### The checker namespace
 
@@ -148,6 +155,16 @@ fails when they do not match `src/`. The wheel is deterministic in content
 between zlib builds, so a rebuild keeps the committed wheel while its
 contents are current, and the SHA-256 of the committed wheel identifies what
 runs. The wheel also installs with pip.
+
+A released version never changes. There are no tags (builds pin commits),
+so `tools/released.json` records each release: the SHA-256 of its contents
+(the wheel's RECORD), of the wheel file and of the page script. `build.py`
+and `--check` refuse a released version whose code, wheel or script differ
+from its entry, and a development version that is not above every release.
+A version's dependency path (`site_libs/quarto-contrib/ctm-checkers-<version>/`)
+therefore always holds the same file. The release PR records its version
+with `python tools/build.py --release`; the first change after it sets the
+next development version (for example `0.1.1.dev0`).
 
 Versions follow semantic versioning; while `0.x`, a release that changes a
 verdict (a golden row) or the API is a MINOR release (CHANGELOG.md). Courses

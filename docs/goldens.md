@@ -17,7 +17,7 @@ A change that alters a verdict shows up as a diff of `tests/golden/`.
 | `sources-math-exercise.jsonl` | 61 | Checker and test sources, stored once by SHA-256. |
 | `files/` | 13 | The test files that authored tests name (`#\| tests: _includes/tests/….py`). |
 | `namespace.jsonl` | 1 | A probe checker reporting the public names of the `#\| checker:` namespace with their origins and the request values it sees (`_math_response_json`, `_math_vars`, `_math_checker`). |
-| `requests-supplement.jsonl` | 69 | Requests for branches the examples do not reach: the reject rule, form credit, every rule and error of the custom result, matrix dimensions, the dunder rule on each kind of learner string. |
+| `requests-supplement.jsonl` | 85 | Requests for rules the examples do not reach: the reject rule, form credit, every rule and error of the custom result, matrix dimensions, the dunder rule on each kind of learner string, the equivalence and set tolerances, the default numeric tolerance for small keys, the imaginary part, `inf`, brackets in set answers, duplicate graph edges, dependent basis vectors. |
 | `rounding.jsonl` | 1020 | The rounding rule of the checks (`round_places`, `sigfigs_round`) on a grid of ties, binary noise, signs, magnitudes, integers and non-finite values. |
 | `rounding-variants.jsonl` | 561 | The same grid through variants.py's `round_half_up` and `sigfig` (math-exercise's variant generator, which stays in math-exercise and rounds by the same rule). |
 
@@ -55,9 +55,10 @@ of the row's canonical `{call, input}`:
   results that hold a Python message (error messages change between versions:
   Python 3.9 says "unexpected EOF while parsing" where 3.12 says "invalid
   syntax") or that differ between versions. Captured results come from
-  Pyodide 0.27.2 (Python 3.12) and 0.28.3 (Python 3.13); Python 3.9, which has
-  no Pyodide build, is recorded natively with the legacy code. Every version
-  CI runs must be present.
+  Pyodide 0.27.2 (Python 3.12) and 0.28.3 (Python 3.13); every Python from
+  3.9 to 3.13 is also recorded natively with the legacy code (3.12 and 3.13
+  give the Pyodide results; 3.10 and 3.11 those of 3.12; 3.9 words 60 parse
+  errors differently). Every version CI runs must be present.
 
 ## Verifying
 
@@ -68,6 +69,9 @@ git -C _ci/math-exercise checkout <math-exercise commit in tools/pins.json>
 python tools/golden.py verify --adapter legacy --legacy _ci/math-exercise
 ```
 
+Any Python from 3.9 to 3.13 verifies every row; another version has no
+results of its own in the rows kept per version and says so once.
+
 Adapters: `legacy` (below); `wheel` (the built wheel, imported from the zip
 as builds import it; `--wheel` also takes a folder that contains
 `ctm_checkers`), `src`, and `installed` (in Pyodide, the copy that the page
@@ -77,7 +81,10 @@ runs math-exercise's `variants.py` (`--variants DIR`, a math-exercise
 checkout; math-exercise passes its own when it rounds with ctm-checkers);
 without it that table is skipped.
 
-The legacy adapter runs math-exercise 0.10.0's own code as the page ran it:
+The legacy adapter runs math-exercise 0.10.0's own code as the page ran it
+(the pin, `905d06f` on math-exercise's `main`, has changes after 0.10.0
+elsewhere; its checker library, `question-tests.py` and `variants.py` are
+those of 0.10.0, which `import-capture` checks):
 the Python array of `math-exercise.js`, decoded as `question-tests.py` decodes
 it, installed as the private module `_ctm_math_exercise` and called through
 `_math_run` with the request values as the page's globals; authored tests
@@ -91,21 +98,49 @@ Inside Pyodide (Node 22; the umbrella's harness modules at the commit in
 node tools/pyodide/verify.cjs --umbrella _ci/ctm-assessment --version 0.28.3 -- verify --adapter legacy --legacy _ci/math-exercise
 ```
 
-CI runs both: `Tests` on Python 3.9, 3.12 and 3.13 (legacy and the built
-wheel), `Pyodide` on 0.27.2 and 0.28.3 (the page script's install code, then
-the installed wheel and the legacy code; on changed paths, weekly in full and
-on demand).
+CI runs both: `Tests` on Python 3.9, 3.10, 3.11, 3.12 and 3.13 (legacy and
+the built wheel), `Pyodide` on 0.27.2 and 0.28.3 (the page script's install
+code, then the installed wheel and the legacy code), on every pull request,
+weekly and on demand.
 
 ## Sensitivity
 
-`tests/test_mutations.py` (CI sets `CTM_MUTATION_TESTS=1`) applies the two
-numeric mutations of the step-2 U1 review to a copy of `src/ctm_checkers` and
-requires that the tables fail, the captured tables alone included:
+`tests/test_mutations.py` (CI sets `CTM_MUTATION_TESTS=1`) applies each
+mutation below to a copy of `src/ctm_checkers` and requires that the tables
+no longer reproduce: the two numeric mutations of the step-2 U1 review on
+the captured tables alone, every mutation on the suites recorded here. Rows
+that differ (captured tables: 1637 rows; recorded: `rounding`,
+`requests-supplement` and `namespace`, 1106 rows):
 
-| Mutation | Captured tables (1637 rows) | Recorded suites (`rounding`, `requests-supplement`) |
+| Mutation | Captured | Recorded |
 |---|---|---|
-| `round_places` rounds half to even instead of half up | 6 rows differ | 26 rows differ |
-| the tolerance test `<` instead of `<=` | 2 rows differ (4 cases of the harness: the same two requests in two variants) | 1 row differs |
+| `round_places` rounds half to even instead of half up (U1 review) | 6 | 26 |
+| the tolerance test `<` instead of `<=` (U1 review; 2 requests in 4 harness cases) | 2 | 1 |
+| significant figures one place off | 4 | 85 |
+| `round_places` reads 17 digits instead of 15 | 3 | 36 |
+| a custom result's `show_score` ignored | 167 | 5 |
+| `assess_basis` without its independence factor | 10 | 1 |
+| set answers: extra items not counted | 1 | 2 |
+| exact mode: unreduced fractions not caught | 1 | 3 |
+| `correct` only at a score of exactly 1 | 0 | 1 |
+| the checker namespace with SymPy's `floor` and `gcd` | 0 | 1 |
+| the dunder rule also on string answers | 0 | 1 |
+| `lowest_terms`: unreduced numeric fractions not caught | 0 | 1 |
+| `string_ci` without lower-casing | 0 | 1 |
+| `_math_response_json` with spaces | 0 | 2 |
+| matrix dimensions not checked | 0 | 1 |
+| equivalence tolerance 1e-6 instead of 1e-10 | 0 | 1 |
+| default numeric tolerance `1e-8 * abs(key)` instead of `1e-8 * max(1, abs(key))` | 0 | 1 |
+| numeric mode: imaginary parts not rejected | 0 | 1 |
+| `inf` no longer `oo` | 0 | 2 |
+| `[` and `{` no longer protect commas in set answers | 0 | 3 |
+| undirected graphs: `[1, 2]` and `[2, 1]` not a duplicate | 0 | 1 |
+
+The last thirteen are caught by the supplementary requests (and the
+namespace probe) only: the examples never reach those rules; the review of
+C1 found the last six with no row at all and added rows for them. One more
+mutation of that review, the reject rule comparing expressions instead of
+their text, changes no verdict SymPy can produce here and is not listed.
 
 ## Refreshing the capture
 
@@ -119,7 +154,7 @@ node integration/pyodide-parity/run.cjs … --capture /tmp/goldens
 
 # here, with Python 3.13 and each other Python version that CI tests (all with ci/requirements.txt):
 python tools/golden.py import-capture /tmp/goldens --math-exercise ~/math-exercise \
-    --record-with python3.9 --record-with python3.12
+    --record-with python3.9 --record-with python3.10 --record-with python3.11 --record-with python3.12
 ```
 
 `import-capture` takes a capture folder (it reads `export/` with its own
