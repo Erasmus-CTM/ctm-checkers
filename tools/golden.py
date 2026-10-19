@@ -2,6 +2,7 @@
 """Golden verdict tables of ctm-checkers: verify, record, import (docs/goldens.md).
 
     python tools/golden.py verify --adapter legacy --legacy DIR [--suite NAME ...] [--max-diffs N]
+    python tools/golden.py verify --adapter wheel|src|installed [--wheel FILE] [--variants DIR]
     python tools/golden.py record --legacy DIR
     python tools/golden.py import-capture CAPTURE --math-exercise CHECKOUT [--record-with PYTHON ...]
 
@@ -16,13 +17,22 @@ authored tests name are under files/. A number that JSON cannot hold is
 {"$float": "NaN" | "Infinity" | "-Infinity"}.
 
 Adapters (what runs the rows):
-  legacy  math-exercise 0.10.0's own code, from a checkout (--legacy DIR, the
-          commit in tools/pins.json): the Python array of math-exercise.js
-          decoded as question-tests.py does, installed as the private module
-          _ctm_math_exercise and called through _math_run with the request
-          values as the page's globals, as math-exercise.js calls it;
-          question-tests.py for the authored tests; variants.py for its
-          rounding helpers.
+  legacy     math-exercise 0.10.0's own code, from a checkout (--legacy DIR,
+             the commit in tools/pins.json): the Python array of
+             math-exercise.js decoded as question-tests.py does, installed as
+             the private module _ctm_math_exercise and called through
+             _math_run with the request values as the page's globals, as
+             math-exercise.js calls it; question-tests.py for the authored
+             tests; variants.py for its rounding helpers.
+  wheel      ctm-checkers from a wheel by zipimport, as builds use it
+             (--wheel FILE; default: the one in _extensions/ctm-checkers/).
+  src        ctm-checkers from src/.
+  installed  the ctm_checkers that is importable (in Pyodide: installed by
+             the payload's own install code, tools/pyodide/verify.cjs).
+  With ctm-checkers, a request goes through browser.call as the page sends
+  it: one JSON request whose fields are the _math_* values' names without
+  the prefix (_math_response_json as the object "response"). variants.py
+  stays in math-exercise: its rows run the variants.py of --variants DIR.
 
 This file runs in native Python (3.9 or later) and inside Pyodide
 (tools/pyodide/verify.cjs): standard library only; subprocesses only for
@@ -349,12 +359,83 @@ class Legacy:
         return self._variants[name.split('.', 1)[1]](*args)
 
 
+# The request fields of browser.call for the values math-exercise.js set.
+REQUEST_FIELDS = {'_math_student': 'student', '_math_correct': 'correct', '_math_vars': 'vars', '_math_mode': 'mode',
+                  '_math_reject': 'reject', '_math_tolerance': 'tolerance', '_math_decplaces': 'decplaces',
+                  '_math_sigfigs': 'sigfigs', '_math_form': 'form', '_math_partial_credit': 'partial_credit',
+                  '_math_form_credit': 'form_credit', '_math_response_json': 'response', '_math_checker': 'checker'}
+
+
+def default_wheel():
+    folder = ROOT / '_extensions' / 'ctm-checkers'
+    manifest = json.loads((folder / 'checkers.json').read_text(encoding='utf-8'))
+    return folder / manifest['wheel']
+
+
+class CtmCheckers:
+    """ctm-checkers (see the module docstring)."""
+
+    def __init__(self, mode, wheel=None, variants=None):
+        import importlib
+        self.name = mode
+        location = None
+        if mode == 'src':
+            location = ROOT / 'src'
+        elif mode == 'wheel':
+            location = Path(wheel).resolve() if wheel else default_wheel()
+        elif mode != 'installed':
+            raise SystemExit('Unknown adapter: ' + mode)
+        if location is not None:
+            if not location.exists():
+                raise SystemExit(f'{location}: not found')
+            for name in [n for n in sys.modules if n == 'ctm_checkers' or n.startswith('ctm_checkers.')]:
+                del sys.modules[name]
+            sys.path.insert(0, str(location))
+        package = importlib.import_module('ctm_checkers')
+        if location is not None and not os.path.abspath(package.__file__).startswith(os.path.abspath(str(location)) + os.sep):
+            raise SystemExit(f'ctm_checkers was imported from {package.__file__}, not from {location}')
+        self.package = package
+        self.browser = importlib.import_module('ctm_checkers.browser')
+        self.authored = importlib.import_module('ctm_checkers.math_exercise.authored')
+        self.rounding = importlib.import_module('ctm_checkers.math_exercise.numeric')
+        self.variants_folder = legacy_folder(variants) if variants else None
+        self._variants = None
+
+    def describe(self):
+        return {'adapter': self.name, 'version': self.package.__version__, 'file': self.package.__file__,
+                'variants': str(self.variants_folder) if self.variants_folder else None}
+
+    def call(self, name, values):
+        request = {REQUEST_FIELDS[key]: (json.loads(value) if key == '_math_response_json' else value)
+                   for key, value in values.items()}
+        caller = {'_ctm_request': json.dumps(request, allow_nan=False)}
+        try:
+            return self.browser.call('math_exercise.' + name, caller)
+        finally:
+            if '_ctm_request' in caller:
+                raise AssertionError('browser.call left the request in the namespace')
+
+    def run_question(self, options, base):
+        self.authored.run_question(options, Path(base))
+
+    def numeric(self, name, args):
+        if name == 'round_places':
+            return self.rounding.round_places(*args)
+        if name == 'sigfigs_round':
+            return self.rounding.sigfigs_round(*args)
+        if not self.variants_folder:
+            raise SystemExit('Rows of variants.py (math-exercise) need --variants DIR')
+        if self._variants is None:
+            self._variants = runpy.run_path(str(self.variants_folder / 'variants.py'), run_name='_ctm_variants')
+        return self._variants[name.split('.', 1)[1]](*args)
+
+
 def make_adapter(options):
     if options.adapter == 'legacy':
         if not options.legacy:
             raise SystemExit('--adapter legacy needs --legacy DIR (a math-exercise checkout at the commit in tools/pins.json)')
         return Legacy(options.legacy)
-    raise SystemExit('Unknown adapter: ' + options.adapter)
+    return CtmCheckers(options.adapter, options.wheel, options.variants)
 
 
 # ---------------------------------------------------------------------------
@@ -885,8 +966,10 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest='command', required=True)
     check = commands.add_parser('verify', help='run every row and compare')
-    check.add_argument('--adapter', default='legacy')
+    check.add_argument('--adapter', default='legacy', choices=('legacy', 'wheel', 'src', 'installed'))
     check.add_argument('--legacy', help='math-exercise checkout (legacy adapter)')
+    check.add_argument('--wheel', help='the wheel (adapter wheel; default: the one in _extensions/ctm-checkers/)')
+    check.add_argument('--variants', help="math-exercise checkout whose variants.py runs the rounding rows of variants.py")
     check.add_argument('--suite', action='append', default=[], help='regular expression on the table path (repeatable)')
     check.add_argument('--max-diffs', type=int, default=20)
     rec = commands.add_parser('record', help="add this Python's results (legacy adapter)")
