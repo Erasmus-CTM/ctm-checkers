@@ -43,6 +43,7 @@ import sys
 import tempfile
 import traceback
 import types
+import warnings
 
 ROOT = Path(__file__).resolve().parents[1]
 GOLDEN = ROOT / 'tests' / 'golden'
@@ -386,6 +387,13 @@ def run_row(adapter, row, sources):
     raise SystemExit('Unknown call: ' + call)
 
 
+def annotate(path, message):
+    # In GitHub Actions, a difference is an error annotation on the table (readable without the log).
+    if os.environ.get('GITHUB_ACTIONS') == 'true':
+        text = message.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+        print(f'::error file={path.relative_to(ROOT).as_posix()},title=Golden row differs::{text}', flush=True)
+
+
 def selected(files, patterns):
     if not patterns:
         return files
@@ -396,6 +404,8 @@ def verify(adapter, patterns=(), max_diffs=20, out=print):
     """Runs every row; returns the number of rows that do not reproduce."""
     sources = read_sources()
     failures = total = 0
+    # Deprecation warnings of SymPy (set up when it is imported) are not results.
+    warnings.simplefilter('ignore')
     out(f'Golden tables with {adapter.name} on Python {sys.version.split()[0]} ({sys.platform}): '
         + json.dumps(adapter.describe(), sort_keys=True))
     for path in selected(table_files(), patterns):
@@ -417,6 +427,8 @@ def verify(adapter, patterns=(), max_diffs=20, out=print):
             failures += 1
             if failures <= max_diffs:
                 out(f'  DIFFERENT {row["suite"]} {row["id"]} ({row["call"]})\n    expected {canonical(expected)[:600]}\n    actual   {canonical(actual)[:600]}')
+                annotate(path, f'{row["suite"]} {row["id"]} ({row["call"]}) on Python {MINOR}: expected {canonical(expected)[:900]} '
+                               f'| actual {canonical(actual)[:900]} | input {canonical(row["input"])[:600]}')
         total += len(rows)
         out(f'{path.relative_to(GOLDEN).as_posix()}: {len(rows)} rows; ' + ', '.join(f'{k} {v}' for k, v in counts.items()))
     out(f'{total} rows, {total - failures} reproduced, {failures} not.')
@@ -615,6 +627,7 @@ def record(adapter, out=print):
     sources = read_sources()
     manifest = read_manifest()
     environment = record_environment(manifest)
+    warnings.simplefilter('ignore')
     pythons = manifest.setdefault('python', {})
     pythons.setdefault('environments', {})[MINOR] = environment
     captured = pythons.setdefault('captured', [])
