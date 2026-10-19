@@ -5,6 +5,8 @@ import hashlib
 import io
 import json
 import os
+from pathlib import Path
+import shutil
 import subprocess
 import sys
 import zipfile
@@ -58,26 +60,48 @@ def test_the_page_script_carries_the_committed_wheel():
     assert script.startswith('/* ctm-checkers ') and 'do not edit' in script.split('*/')[0]
 
 
+# Names learner code may have rebound in the page's namespace.
+LEARNER = ('open', 'RuntimeError', 'list', 'len', 'isinstance', 'str', 'Exception', 'io', 'os', 'json', 'base64', 'hashlib',
+           'importlib', 'builtins')
+
+
 def install(payload, tmp_path, extra=''):
-    # The install code natively (it is plain Python): in __main__, as the page runs it.
-    code = ('import json, sys\n_ctm_checkers_payload = sys.stdin.read()\nlearner = 1\nbefore = set(globals())\n'
+    # The install code natively (it is plain Python): in __main__, as the page
+    # runs it, after learner code rebound builtins and module names there.
+    code = ('import sys as _t\n_ctm_checkers_payload = _t.stdin.read()\nlearner = 1\n'
+            + ''.join(f'{name} = None\n' for name in LEARNER) + 'before = set(globals())\n'
             + build.INSTALL + '\n'
-            + 'import ctm_checkers\n'
-            + 'print(json.dumps({"file": ctm_checkers.__file__, "left": sorted(set(globals()) - before - {"before", "ctm_checkers"}), '
+            + 'import json as _j, ctm_checkers\n'
+            + 'print(_j.dumps({"file": ctm_checkers.__file__, "left": sorted(set(globals()) - before - {"before", "ctm_checkers", "_j"}), '
               '"gone": sorted(before - set(globals())), "learner": learner}))\n' + extra)
     return subprocess.run([sys.executable, '-c', code], input=json.dumps(payload), capture_output=True, text=True,
                           cwd=tmp_path, env=dict(os.environ, PYTHONPATH=''))
 
 
+@pytest.fixture
+def install_folder():
+    # The install code writes under /tmp/ctm-checkers/<sha256[:16]>/, as in Pyodide; tidied afterwards.
+    manifest, _ = committed()
+    folder = Path('/tmp/ctm-checkers') / manifest['sha256'][:16]
+    existed = folder.exists()
+    yield folder
+    if not existed:
+        shutil.rmtree(folder, ignore_errors=True)
+        try:
+            folder.parent.rmdir()
+        except OSError:
+            pass
+
+
 @pytest.mark.skipif(os.name != 'posix', reason='the install code writes under /tmp, as in Pyodide')
-def test_the_install_code(tmp_path):
+def test_the_install_code(tmp_path, install_folder):
     manifest, data = committed()
     payload = {'version': manifest['version'], 'wheel': manifest['wheel'], 'sha256': manifest['sha256'],
                'data': base64.b64encode(data).decode()}
     result = install(payload, tmp_path)
     assert result.returncode == 0, result.stderr
     report = json.loads(result.stdout)
-    assert report['file'].startswith('/tmp/ctm-checkers/' + manifest['sha256'][:16] + '/' + manifest['wheel'] + '/')
+    assert report['file'].startswith(str(install_folder / manifest['wheel']) + '/')
     assert report['left'] == [] and report['gone'] == ['_ctm_checkers_payload'] and report['learner'] == 1
     # Learner code removed it: installing again works.
     again = install(payload, tmp_path, extra=(
@@ -87,4 +111,4 @@ def test_the_install_code(tmp_path):
         'import ctm_checkers.browser\nprint(ctm_checkers.browser.__file__)\n'))
     assert again.returncode == 0, again.stderr
     damaged = install(dict(payload, data=base64.b64encode(data[:-1] + b'x').decode()), tmp_path)
-    assert damaged.returncode == 1 and 'the payload is damaged' in damaged.stderr
+    assert damaged.returncode == 1 and 'RuntimeError: ctm-checkers: the payload is damaged' in damaged.stderr

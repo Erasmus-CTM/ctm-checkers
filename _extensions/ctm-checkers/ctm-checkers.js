@@ -9,29 +9,30 @@
   // It runs inside a function whose two globals (_ctm_ names) are deleted.
   var INSTALL = [
     "def _ctm_checkers_install(text):",
-    "    import base64, hashlib, importlib, json, os, sys",
+    "    import base64, builtins, hashlib, importlib, io, json, os, sys",
     "    payload = json.loads(text)",
     "    data = base64.b64decode(payload[\"data\"])",
     "    if hashlib.sha256(data).hexdigest() != payload[\"sha256\"]:",
-    "        raise RuntimeError(\"ctm-checkers: the payload is damaged (sha256 mismatch)\")",
+    "        raise builtins.RuntimeError(\"ctm-checkers: the payload is damaged (sha256 mismatch)\")",
     "    folder = \"/tmp/ctm-checkers/\" + payload[\"sha256\"][:16]",
     "    path = folder + \"/\" + payload[\"wheel\"]",
     "    os.makedirs(folder, exist_ok=True)",
-    "    with open(path, \"wb\") as file:",
+    "    with io.open(path, \"wb\") as file:",
     "        file.write(data)",
-    "    for name in [name for name in sys.modules if name == \"ctm_checkers\" or name.startswith(\"ctm_checkers.\")]:",
+    "    for name in [name for name in builtins.list(sys.modules) if name == \"ctm_checkers\" or name.startswith(\"ctm_checkers.\")]:",
     "        del sys.modules[name]",
     "    sys.path[:] = [entry for entry in sys.path if not entry.startswith(\"/tmp/ctm-checkers/\")]",
     "    sys.path.insert(0, path)",
     "    importlib.invalidate_caches()",
     "    module = importlib.import_module(\"ctm_checkers\")",
     "    if module.__version__ != payload[\"version\"]:",
-    "        raise RuntimeError(\"ctm-checkers: \" + path + \" has version \" + module.__version__)",
+    "        raise builtins.RuntimeError(\"ctm-checkers: \" + path + \" has version \" + module.__version__)",
     "try:",
     "    _ctm_checkers_install(_ctm_checkers_payload)",
     "finally:",
     "    del _ctm_checkers_install, _ctm_checkers_payload"
   ].join('\n');
+  var installs = 0;
   var checkers = {
     name: 'ctm-checkers',
     version: "0.1.0",
@@ -43,11 +44,13 @@
     // Installs the wheel into the Pyodide runtime `py` with py.globals.set and
     // py.runPythonAsync only (all that pyodide-interaktiv's worker proxy
     // offers); resolves when `import ctm_checkers` works. Each call installs
-    // again: ctm-libs keeps the once-per-runtime bookkeeping.
+    // again, with a payload variable of its own: ctm-libs keeps the
+    // once-per-runtime bookkeeping.
     install: function (py) {
+      var name = '_ctm_checkers_payload_' + (++installs);
       var payload = JSON.stringify({version: checkers.version, wheel: checkers.wheel, sha256: checkers.sha256, data: checkers.data});
-      return Promise.resolve(py.globals.set('_ctm_checkers_payload', payload)).then(function () {
-        return py.runPythonAsync(INSTALL);
+      return Promise.resolve(py.globals.set(name, payload)).then(function () {
+        return py.runPythonAsync(INSTALL.split('_ctm_checkers_payload').join(name));
       });
     }
   };

@@ -47,29 +47,33 @@ QUARTO_REQUIRED = '>=1.8.27'
 
 # The Python that installs the wheel into a Pyodide runtime. It runs inside a
 # function: the only globals it uses (the payload and the function, _ctm_
-# names) are deleted afterwards, so learner variables are never touched. It
+# names) are deleted afterwards, so learner variables are never touched, and
+# it looks up no other name in the page's namespace, where learner code may
+# have rebound `open` or `RuntimeError` (builtins come from `builtins`). It
 # checks the sha256, writes the wheel with Python's own file I/O (which works
 # in a worker too), puts it first on sys.path (zipimport) and imports
-# ctm_checkers; a copy imported before is replaced.
+# ctm_checkers; a copy imported before is replaced. The page script gives
+# each install a payload variable of its own (_ctm_checkers_payload_<n>), so
+# installs that overlap do not take each other's payload.
 INSTALL = '''def _ctm_checkers_install(text):
-    import base64, hashlib, importlib, json, os, sys
+    import base64, builtins, hashlib, importlib, io, json, os, sys
     payload = json.loads(text)
     data = base64.b64decode(payload["data"])
     if hashlib.sha256(data).hexdigest() != payload["sha256"]:
-        raise RuntimeError("ctm-checkers: the payload is damaged (sha256 mismatch)")
+        raise builtins.RuntimeError("ctm-checkers: the payload is damaged (sha256 mismatch)")
     folder = "/tmp/ctm-checkers/" + payload["sha256"][:16]
     path = folder + "/" + payload["wheel"]
     os.makedirs(folder, exist_ok=True)
-    with open(path, "wb") as file:
+    with io.open(path, "wb") as file:
         file.write(data)
-    for name in [name for name in sys.modules if name == "ctm_checkers" or name.startswith("ctm_checkers.")]:
+    for name in [name for name in builtins.list(sys.modules) if name == "ctm_checkers" or name.startswith("ctm_checkers.")]:
         del sys.modules[name]
     sys.path[:] = [entry for entry in sys.path if not entry.startswith("/tmp/ctm-checkers/")]
     sys.path.insert(0, path)
     importlib.invalidate_caches()
     module = importlib.import_module("ctm_checkers")
     if module.__version__ != payload["version"]:
-        raise RuntimeError("ctm-checkers: " + path + " has version " + module.__version__)
+        raise builtins.RuntimeError("ctm-checkers: " + path + " has version " + module.__version__)
 try:
     _ctm_checkers_install(_ctm_checkers_payload)
 finally:
@@ -192,6 +196,7 @@ def generated(version, api, data):
   var INSTALL = [
 {install}
   ].join('\\n');
+  var installs = 0;
   var checkers = {{
     name: 'ctm-checkers',
     version: {json.dumps(version)},
@@ -203,11 +208,13 @@ def generated(version, api, data):
     // Installs the wheel into the Pyodide runtime `py` with py.globals.set and
     // py.runPythonAsync only (all that pyodide-interaktiv's worker proxy
     // offers); resolves when `import ctm_checkers` works. Each call installs
-    // again: ctm-libs keeps the once-per-runtime bookkeeping.
+    // again, with a payload variable of its own: ctm-libs keeps the
+    // once-per-runtime bookkeeping.
     install: function (py) {{
+      var name = '_ctm_checkers_payload_' + (++installs);
       var payload = JSON.stringify({{version: checkers.version, wheel: checkers.wheel, sha256: checkers.sha256, data: checkers.data}});
-      return Promise.resolve(py.globals.set('_ctm_checkers_payload', payload)).then(function () {{
-        return py.runPythonAsync(INSTALL);
+      return Promise.resolve(py.globals.set(name, payload)).then(function () {{
+        return py.runPythonAsync(INSTALL.split('_ctm_checkers_payload').join(name));
       }});
     }}
   }};

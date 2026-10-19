@@ -36,7 +36,7 @@ function loadScript(change = text => text) {
   const {manifest, checkers} = loadScript();
   assert.equal(checkers.version, manifest.version);
   assert.equal(checkers.sha256, manifest.sha256);
-  const names = () => JSON.parse(py.runPython('import json; json.dumps(sorted(globals()))'));
+  const names = () => JSON.parse(py.runPython('__import__("json").dumps(sorted(globals()))'));
 
   // Installed through the proxy; the page's namespace keeps its names.
   py.runPython('learner = 42');
@@ -67,11 +67,25 @@ function loadScript(change = text => text) {
   await proxy.globals.set('_ctm_request', JSON.stringify(request));
   assert.equal(JSON.parse(await proxy.runPythonAsync(CALL)).status, 'correct');
 
+  // Learner code rebound builtins and module names in the page's namespace:
+  // the install code looks none of them up there.
+  const LEARNER = ['open', 'RuntimeError', 'list', 'len', 'isinstance', 'str', 'Exception', 'io', 'os', 'json', 'base64', 'hashlib', 'importlib', 'builtins'];
+  py.runPython(LEARNER.map(name => `${name} = None`).join('\n'));
+  const shadowed = names();
+  await checkers.install(proxy);
+  assert.deepEqual(names(), shadowed);
+  await assert.rejects(loadScript(text => text.replace(/data: '([A-Za-z0-9+\/]{24})/, (match, start) => "data: '" + [...start].reverse().join(''))).checkers.install(proxy),
+    /RuntimeError: ctm-checkers: the payload is damaged/);
+  // Installs that overlap (two cells retrying at once) each keep their own payload.
+  await Promise.all([checkers.install(proxy), checkers.install(proxy), checkers.install(proxy)]);
+  assert.deepEqual(names(), shadowed);
+  py.runPython(LEARNER.map(name => `del ${name}`).join('\n'));
+
   // A damaged script (its wheel data changed) is refused and leaves no names behind.
   const damaged = loadScript(text => text.replace(/data: '([A-Za-z0-9+\/]{24})/, (match, start) => "data: '" + [...start].reverse().join(''))).checkers;
   assert.notEqual(damaged.data, checkers.data);
   await assert.rejects(damaged.install(proxy), /payload is damaged/);
   assert.deepEqual(names(), before);
-  console.log(`Payload of ${manifest.wheel} in Pyodide ${version} (Python ${python}): install, request, reinstall, damaged: ok`);
+  console.log(`Payload of ${manifest.wheel} in Pyodide ${version} (Python ${python}): install, request, reinstall, learner globals, overlapping installs, damaged: ok`);
   process.exit(0);
 })().catch(error => { console.error(error); process.exit(1); });
