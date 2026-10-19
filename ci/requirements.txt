@@ -1,0 +1,7 @@
+# The versions Pyodide 0.27.2 and 0.28.3 ship (the goldens were recorded with
+# them); NetworkX 3.4 needs Python 3.10, so Python 3.9 tests 3.2.1.
+sympy==1.13.3
+mpmath==1.3.0
+networkx==3.4.2; python_version >= "3.10"
+networkx==3.2.1; python_version < "3.10"
+pytest==8.4.2

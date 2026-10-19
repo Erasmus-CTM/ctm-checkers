@@ -5,3 +5,6 @@ build/
 dist/
 .venv/
 node_modules/
+.pytest_cache/
+# Checkouts that CI and tools/golden.py use (legacy sources, the umbrella's harness)
+/_ci/
