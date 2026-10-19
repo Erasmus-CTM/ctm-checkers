@@ -1,22 +1,24 @@
 name: Pyodide
 
-# The golden tables inside Pyodide 0.27.2 (Python 3.12) and 0.28.3 (Python
-# 3.13, the version ctm-libs loads) in Node, with SymPy, mpmath and NetworkX as
-# Pyodide builds them (the umbrella's harness modules, tools/pins.json). Runs
-# when the code, the tables or the tools change, weekly in full, and on demand.
+# Pyodide 0.27.2 (Python 3.12) and 0.28.3 (Python 3.13, the version ctm-libs
+# loads) in Node, with SymPy, mpmath and NetworkX as Pyodide builds them (the
+# umbrella's harness modules, tools/pins.json): the page script's install code
+# (through globals.set and runPythonAsync only), then the golden tables with
+# the wheel it installed and with the legacy code. Runs when the code, the
+# tables or the tools change, weekly in full, and on demand.
 on:
   push:
     branches: [main]
     paths:
       - src/**
-      - tests/golden/**
+      - tests/**
       - tools/**
       - _extensions/**
       - .github/workflows/pyodide.yml
   pull_request:
     paths:
       - src/**
-      - tests/golden/**
+      - tests/**
       - tools/**
       - _extensions/**
       - .github/workflows/pyodide.yml
@@ -40,6 +42,8 @@ jobs:
       fail-fast: false
       matrix:
         pyodide: ['0.27.2', '0.28.3']
+    env:
+      PYODIDE_PARITY_CACHE: ${{ runner.temp }}/wheels
     steps:
       - uses: actions/checkout@v7
       - name: Pinned commits
@@ -65,5 +69,11 @@ jobs:
           node-version: '22'
       - run: npm ci --ignore-scripts
         working-directory: _ci/ctm-assessment/integration/pyodide-parity
+      - name: The page script's install code
+        run: node tests/pyodide/payload.cjs --umbrella _ci/ctm-assessment --version ${{ matrix.pyodide }}
+      - name: The installed wheel reproduces the golden tables
+        run: >-
+          node tools/pyodide/verify.cjs --umbrella _ci/ctm-assessment --version ${{ matrix.pyodide }}
+          --payload _extensions/ctm-checkers/ctm-checkers.js -- verify --adapter installed --variants _ci/math-exercise
       - name: The legacy code reproduces the golden tables
         run: node tools/pyodide/verify.cjs --umbrella _ci/ctm-assessment --version ${{ matrix.pyodide }} -- verify --adapter legacy --legacy _ci/math-exercise
