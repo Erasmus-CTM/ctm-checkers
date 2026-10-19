@@ -535,6 +535,12 @@ def verify(adapter, patterns=(), max_diffs=20, out=print):
     warnings.simplefilter('ignore')
     out(f'Golden tables with {adapter.name} on Python {sys.version.split()[0]} ({sys.platform}): '
         + json.dumps(adapter.describe(), sort_keys=True))
+    pythons = read_manifest().get('python', {})
+    known = sorted(set(pythons.get('captured', [])) | set(pythons.get('recorded', [])), key=version_key)
+    unknown = MINOR not in known
+    if unknown:
+        out(f'Python {MINOR} has no results of its own in the tables (recorded: {", ".join(known)}): the rows that keep '
+            f'results per version count as missing. Verify with one of those versions, or record this one (tools/golden.py record).')
     skipped = []
     for path in selected(table_files(), patterns):
         rows = read_rows(path)
@@ -548,7 +554,7 @@ def verify(adapter, patterns=(), max_diffs=20, out=print):
             if not found:
                 counts['missing'] += 1
                 failures += 1
-                if failures <= max_diffs:
+                if failures <= max_diffs and not unknown:
                     out(f'  missing {row["suite"]} {row["id"]}: no result for Python {MINOR}')
                 continue
             actual = run_row(adapter, row, sources)
@@ -657,6 +663,8 @@ def supplement_rows():
 
     matrix = {'kind': 'expressions', 'raw': ['1', '2', '3', '4'],
               'inputs': {'M': {'type': 'matrix', 'rows': 2, 'cols': 2, 'raw': ['1', '2', '3', '4']}}}
+    dependent = {'kind': 'expressions', 'raw': ['1', '2', '2', '4'],
+                 'inputs': {'M': {'type': 'matrix', 'rows': 2, 'cols': 2, 'raw': ['1', '2', '2', '4']}}}
     requests = [
         check('(x+1)^2', 'x^2+2*x+1', vars='x', reject='(x+1)^2'),
         check('x^2+2*x+1', 'x^2+2*x+1', vars='x', reject='(x+1)^2'),
@@ -738,6 +746,34 @@ def supplement_rows():
                'target_dimension=1, belongs=lambda v: True, name="M")\n', matrix),
         custom(returns('{"score": 1.0, "feedback": repr(parse_expr("2x", transformations=standard_transformations '
                        '+ (implicit_multiplication_application, convert_xor)))}')),
+        # Rules the examples do not reach (review of C1, S1):
+        # the equivalence tolerance (1e-10: a difference of 3.6e-9 is wrong) and the set tolerance (1e-8);
+        check('3.14159265', 'pi'),
+        check('3.14159265, 1', 'pi, 1', mode='set'),
+        check('3.1415926, 1', 'pi, 1', mode='set', partial=True),
+        # the default numeric tolerance 1e-8 * max(1, |key|) for small keys;
+        check('5e-9', '0', mode='numeric'),
+        check('2e-8', '0', mode='numeric'),
+        check('1.000000005e-3', '1e-3', mode='numeric'),
+        # the imaginary part in numeric mode;
+        check('sqrt(-1)', '0', mode='numeric'),
+        check('1 + 1e-10*I', '1', mode='numeric'),
+        # inf is oo unless it is a variable;
+        check('1/inf', '0'),
+        custom(returns('{"score": 1.0, "feedback": repr(response["expressions"])}'),
+               {'kind': 'expressions', 'raw': ['inf', '-inf', '1/inf'], 'inputs': {}}),
+        # brackets and braces keep their commas in set answers;
+        check('[1, 2], 3', '3, [1, 2]', mode='set'),
+        check('{1, 2}, 3', '3, {1, 2}', mode='set'),
+        check('Matrix([1, 2]), 3', '3, Matrix([1, 2])', mode='set'),
+        # an undirected graph's [1, 2] and [2, 1] are one edge (a duplicate), a directed graph's two;
+        custom(returns('{"score": 1.0, "feedback": repr(graph_from_response({"representation": "undirected-graph", '
+                       '"nodes": [{"id": 1, "x": 0, "y": 0}, {"id": 2, "x": 1, "y": 1}], "edges": [[1, 2], [2, 1]]}))}')),
+        custom(returns('{"score": 1.0, "feedback": repr(sorted(graph_from_response({"representation": "directed-graph", '
+                       '"nodes": [{"id": 1, "x": 0, "y": 0}, {"id": 2, "x": 1, "y": 1}], "edges": [[1, 2], [2, 1]]}, directed=True).edges()))}')),
+        # assess_basis scores dependent vectors by its independence factor.
+        custom('def check(response, symbols):\n    return assess_basis(response["inputs"]["M"]["matrix"], axis="columns", '
+               'target_dimension=2, belongs=lambda v: True, name="M")\n', dependent),
     ]
     out = {}
     for call, value in requests:

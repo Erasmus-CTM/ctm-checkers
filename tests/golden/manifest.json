@@ -88,6 +88,18 @@
    "3.13"
   ],
   "environments": {
+   "3.10": {
+    "mpmath": "1.3.0",
+    "networkx": "3.4.2",
+    "python": "3.10.20",
+    "sympy": "1.13.3"
+   },
+   "3.11": {
+    "mpmath": "1.3.0",
+    "networkx": "3.4.2",
+    "python": "3.11.17",
+    "sympy": "1.13.3"
+   },
    "3.12": {
     "mpmath": "1.3.0",
     "networkx": "3.4.2",
@@ -109,6 +121,8 @@
   },
   "recorded": [
    "3.9",
+   "3.10",
+   "3.11",
    "3.12",
    "3.13"
   ]
@@ -117,6 +131,8 @@
   "math_exercise/namespace": {
    "python": [
     "3.9",
+    "3.10",
+    "3.11",
     "3.12",
     "3.13"
    ],
@@ -125,14 +141,18 @@
   "math_exercise/requests-supplement": {
    "python": [
     "3.9",
+    "3.10",
+    "3.11",
     "3.12",
     "3.13"
    ],
-   "rows": 69
+   "rows": 85
   },
   "math_exercise/rounding": {
    "python": [
     "3.9",
+    "3.10",
+    "3.11",
     "3.12",
     "3.13"
    ],
@@ -141,6 +161,8 @@
   "math_exercise/rounding-variants": {
    "python": [
     "3.9",
+    "3.10",
+    "3.11",
     "3.12",
     "3.13"
    ],

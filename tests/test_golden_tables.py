@@ -4,7 +4,7 @@ import json
 
 import golden
 
-PYTHONS_TESTED = ['3.9', '3.12', '3.13']   # CI: native 3.9, 3.12, 3.13; Pyodide 0.27.2 (3.12), 0.28.3 (3.13)
+PYTHONS_TESTED = ['3.9', '3.10', '3.11', '3.12', '3.13']   # every Python from the floor; Pyodide 0.27.2 is 3.12, 0.28.3 3.13
 
 
 def tables():
