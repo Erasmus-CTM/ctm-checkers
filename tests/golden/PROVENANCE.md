@@ -56,11 +56,23 @@ Rows that ran longer than 20 s are listed in `stack/excluded.json`, not recorded
 | `stack/reference.jsonl` | 65 | stack-sympy's reference cases for the native comparison (tests/stack/reference_cases.json); recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | AGPL-3.0-or-later |
 | `stack/questions-project.jsonl` | 1178 | stack-sympy's own example questions (examples/stack/*.xml) with their checker files, and the answers of the stack-sympy audit's leak.py (S-01); recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | the questions CC-BY-SA-4.0 as each file states (determinant-one.xml AGPL-3.0-or-later); the checker files and the answers AGPL-3.0-or-later |
 | `stack/questions-library.jsonl` | 1049 | STACK sample questions: the corpus (examples/stack/corpus), the corrected teaching copies (examples/stack/corrected) and AlgMap-6.1 (examples/stack/upstream); recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | CC-BY-SA-4.0; examples/stack/corpus/COPYING.txt, examples/stack/upstream/COPYING.txt |
-| `stack/questions-helm.jsonl` | 179 | HELM sample questions from STACK (examples/stack/upstream/bodmas.xml, rounding-three-dp.xml); recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | CC-BY-NC-4.0; examples/stack/upstream/HELM-COPYING.txt |
+| `stack/questions-helm.jsonl` | 179 | HELM sample questions from STACK (examples/stack/upstream/bodmas.xml, rounding-three-dp.xml); test data only, see below; recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | CC-BY-NC-4.0 (NonCommercial; test data only, not the AGPL-3.0-or-later of the code); examples/stack/upstream/HELM-COPYING.txt |
 | `stack/questions-course.jsonl` | 232 | course material: the STACK questions derived from the course ingmat3a_ntnu (examples/stack/course-b-rank-pivots.xml, course-b-nullspace.xml, course-c-nullspace.xml); see below; recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | CC-BY-SA-4.0 (course material, Andrey Chesnokov); examples/stack/course-examples-provenance.json |
 | `stack/probes.jsonl` | 207 | answer-test probes of the stack-sympy audit (ctm-assessment docs/consolidation/stack-sympy-audit-2026-10/probes: cases1-4.json, perf*.py) with the native verdicts of STACK 10d3233 and Maxima 5.46 (out1-4.json); recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | AGPL-3.0-or-later; the "native" values are output of STACK (GPL-3.0-or-later) and Maxima |
 | `stack/probe-questions.jsonl` | 285 | question probes of the stack-sympy audit (examples/stack/probes/*.xml with the answers of its qprobe.py, crash.py and overflow.cjs); recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | AGPL-3.0-or-later |
 | `stack/supplement.jsonl` | 153 | inputs written for these tables (tools/golden_stack.py SUPPLEMENT, examples/stack/supplement/): rules that no other row reached (the review of C3); recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | AGPL-3.0-or-later |
+
+### HELM samples, CC BY-NC 4.0: `stack/questions-helm.jsonl`
+
+**This table is NonCommercial test data.** Its 179 rows are derived from two HELM questions of
+STACK's sample library (`maths/moodle-qtype_stack` at `10d323311b7f`, `samplequestions/stacklibrary/HELM/Course_quiz_1_1-mathematical-notation-and-symbols/top/Default-for-1-1/1-1-4-T2-BODMAS.xml`, `samplequestions/stacklibrary/HELM/Course_quiz_1_1-mathematical-notation-and-symbols/top/Default-for-1-1/1-1-3-T1-Rounding-to-n-Decimal-Places.xml`),
+copied unchanged as `examples/stack/upstream/bodmas.xml`, `examples/stack/upstream/rounding-three-dp.xml` (`examples/stack/upstream/sources.json`).
+**Licence: CC-BY-NC-4.0** (Creative Commons Attribution-NonCommercial 4.0,
+`examples/stack/upstream/HELM-COPYING.txt`), for the two questions and for the rows derived from them.
+They are test data only: no wheel, page script or package of ctm-checkers contains them, and the
+NonCommercial condition does not apply to ctm-checkers' code, which is AGPL-3.0-or-later. Whoever reuses
+the two questions or these rows must respect CC BY-NC 4.0 (no commercial use; credit HELM and STACK).
+AC decided on 20 October 2026 to keep them, clearly labelled.
 
 ### Course material: `stack/questions-course.jsonl`
 

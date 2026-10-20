@@ -54,7 +54,7 @@ run them (`stack.import`, `stack.instantiate`, `stack.card`, `stack.tests`,
 | `reference.jsonl` | 65 | The cases stack-sympy compares with native STACK in Maxima (`tests/stack/reference_cases.json`). |
 | `questions-project.jsonl` | 1178 | stack-sympy's own example questions (`examples/stack/*.xml`): each file's import; the cards of stack-sympy's site; for every seed the site uses and seeds 1 to 3 (stack-sympy's default card) the variant and the question tests; and answer sets: the teacher's answers, the question tests' inputs and, for the site's first seed and seed 1, for each input its sign, offsets, double, factored, expanded and decimal forms, every question variable's name (S-01) and strings the input rules must handle (empty, `x+`, `sin(`, `2 x`, `x²`, `π`, `3,5`, `__import__('os')`, 1300 characters); also the answers of the audit's leak.py. |
 | `questions-library.jsonl` | 1049 | The same for the STACK sample questions (`examples/stack/corpus`, `corrected`, `upstream/algmap-6-1.xml`), with the seeds of the corpus replay (the first three deployed seeds, else 17, 29, 47). |
-| `questions-helm.jsonl` | 179 | The same for the two HELM questions (`examples/stack/upstream`). |
+| `questions-helm.jsonl` | 179 | **NonCommercial test data** (CC BY-NC 4.0, below): the same for the two HELM questions (`examples/stack/upstream`). |
 | `questions-course.jsonl` | 232 | **Course material** (CC BY-SA 4.0, below): the same as `questions-project` for the three questions derived from the course ingmat3a_ntnu (`examples/stack/course-*.xml`), among them S-01's test case `course-b-rank-pivots.xml` (`r` and `P` accepted as answers). |
 | `probes.jsonl` | 207 | The stack-sympy audit's answer-test probes with STACK's and Maxima's native verdicts (`native`), and its performance probes. |
 | `probe-questions.jsonl` | 285 | The audit's question probes (`examples/stack/probes/`) with its answers. |
@@ -64,6 +64,14 @@ run them (`stack.import`, `stack.instantiate`, `stack.card`, `stack.tests`,
 `sin(exp(exp(exp(5))))`, `sin(x)^99*cos(x)^99` against `(sin(2*x)/2)^99`):
 they are not rows until S-12 bounds them. A table holds rows of one kind of
 source, under that source's licence (`PROVENANCE.md`).
+
+`questions-helm.jsonl` is licensed CC BY-NC 4.0 (Attribution-NonCommercial),
+like the two HELM questions of STACK's sample library it is derived from
+(`examples/stack/upstream/HELM-COPYING.txt`); `PROVENANCE.md` gives it its
+own licence notice. It is test data only: no wheel or page script contains
+it, and the NonCommercial condition does not apply to ctm-checkers' code,
+which is AGPL-3.0-or-later. AC decided on 20 October 2026 to keep it,
+clearly labelled.
 
 `questions-course.jsonl` is course material, labelled as such in
 `PROVENANCE.md` with its provenance and licence notice: its rows are derived

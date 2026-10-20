@@ -1249,6 +1249,22 @@ def write_provenance():
             if info:
                 lines.append(f'| `{suite}.jsonl` | {info["rows"]} | {source}; recorded with stack-sympy `{stack[:12]}` '
                              f'(Python {", ".join(info["python"])}) | {licence} |')
+        helm = manifest.get('recorded', {}).get('stack/questions-helm')
+        if helm:
+            sources = {entry['file']: entry for entry in
+                       json.loads((ROOT / 'examples' / 'stack' / 'upstream' / 'sources.json').read_text(encoding='utf-8'))}
+            files = [sources[path.rsplit('/', 1)[1]] for path in golden_stack.HELM]
+            lines += ['', '### HELM samples, CC BY-NC 4.0: `stack/questions-helm.jsonl`', '',
+                      f'**This table is NonCommercial test data.** Its {helm["rows"]} rows are derived from two HELM questions of',
+                      f'STACK\'s sample library (`{files[0]["repository"]}` at `{files[0]["commit"][:12]}`, '
+                      + ', '.join(f'`{entry["path"]}`' for entry in files) + '),',
+                      'copied unchanged as ' + ', '.join(f'`{path}`' for path in golden_stack.HELM) + ' (`examples/stack/upstream/sources.json`).',
+                      '**Licence: CC-BY-NC-4.0** (Creative Commons Attribution-NonCommercial 4.0,',
+                      '`examples/stack/upstream/HELM-COPYING.txt`), for the two questions and for the rows derived from them.',
+                      'They are test data only: no wheel, page script or package of ctm-checkers contains them, and the',
+                      'NonCommercial condition does not apply to ctm-checkers\' code, which is AGPL-3.0-or-later. Whoever reuses',
+                      'the two questions or these rows must respect CC BY-NC 4.0 (no commercial use; credit HELM and STACK).',
+                      'AC decided on 20 October 2026 to keep them, clearly labelled.']
         course = manifest.get('recorded', {}).get('stack/questions-course')
         if course:
             record = json.loads((ROOT / 'examples' / 'stack' / 'course-examples-provenance.json').read_text(encoding='utf-8'))

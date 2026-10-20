@@ -69,3 +69,11 @@ source and licence of each golden table. One STACK table is course material:
 `tests/golden/stack/questions-course.jsonl`, derived from the course
 ingmat3a_ntnu (Andrey Chesnokov), CC BY-SA 4.0 like the three questions in
 `examples/stack/` it comes from.
+
+**HELM samples, CC BY-NC 4.0 (NonCommercial).** Two HELM questions of
+STACK's sample library (`examples/stack/upstream/bodmas.xml`,
+`rounding-three-dp.xml`) and the 179 golden rows derived from them
+(`tests/golden/stack/questions-helm.jsonl`) are licensed CC BY-NC 4.0
+([HELM-COPYING.txt](examples/stack/upstream/HELM-COPYING.txt)). They are test
+data only: no wheel or page script contains them, and the NonCommercial
+condition does not apply to the code, which is AGPL-3.0-or-later.

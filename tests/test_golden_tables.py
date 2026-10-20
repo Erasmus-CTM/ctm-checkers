@@ -176,6 +176,10 @@ def test_stack_rows_name_files_here_and_course_material_only_in_its_table():
     assert source.startswith('course material') and licence.startswith('CC-BY-SA-4.0 (course material')
     assert sorted(golden_stack.COURSE_DERIVED) == sorted(
         'examples/stack/' + q['file'] for q in json.loads((golden.ROOT / 'examples/stack/course-examples-provenance.json').read_text())['questions'])
+    # AC (20 Oct 2026): the HELM samples stay, labelled as CC BY-NC 4.0 test data (the code is AGPL).
+    source, licence = golden_stack.TABLES['stack/questions-helm']
+    assert 'test data only' in source and licence.startswith('CC-BY-NC-4.0 (NonCommercial; test data only')
+    assert all(golden_stack.question_table(path) == 'stack/questions-helm' for path in golden_stack.HELM)
     course = set()
     excluded = json.loads((golden.GOLDEN / 'stack' / 'excluded.json').read_text(encoding='utf-8'))
     listed = {(entry['suite'], entry['id']) for entry in excluded}

@@ -22,6 +22,13 @@ grade these questions; each folder keeps its own licence:
 | `corpus/` | 35 unchanged STACK sample questions ([README](corpus/README.md), `manifest.json`, `baseline.json`) | CC-BY-SA-4.0, [COPYING.txt](corpus/COPYING.txt) |
 | `corrected/` | CTM's corrected teaching copies of four corpus questions ([README](corrected/README.md)) | CC-BY-SA-4.0, [COPYING.txt](corpus/COPYING.txt) |
 | `upstream/algmap-6-1.xml` | a STACK sample question (`sources.json`) | CC-BY-SA-4.0, [COPYING.txt](upstream/COPYING.txt) |
-| `upstream/bodmas.xml`, `upstream/rounding-three-dp.xml` | HELM questions from STACK's library (`sources.json`) | CC-BY-NC-4.0, [HELM-COPYING.txt](upstream/HELM-COPYING.txt) |
+| `upstream/bodmas.xml`, `upstream/rounding-three-dp.xml` | HELM questions from STACK's library (`sources.json`), unchanged; test data only (below) | **CC-BY-NC-4.0** (NonCommercial), [HELM-COPYING.txt](upstream/HELM-COPYING.txt) |
 | `probes/` | question probes of the stack-sympy audit ([README](probes/README.md)) | AGPL-3.0-or-later |
 | `supplement/` | questions written for the golden tables, for rules no example reaches ([README](supplement/README.md)) | AGPL-3.0-or-later |
+
+**HELM samples (CC BY-NC 4.0).** The two HELM questions and the golden rows
+derived from them (`tests/golden/stack/questions-helm.jsonl`) are
+NonCommercial test data: no wheel or page script of ctm-checkers contains
+them, and their licence does not apply to ctm-checkers' code
+(AGPL-3.0-or-later). Reusing them means respecting CC BY-NC 4.0: no
+commercial use, and credit to HELM and STACK.

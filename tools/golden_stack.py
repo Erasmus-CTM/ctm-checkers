@@ -225,8 +225,10 @@ TABLES = {
     'stack/questions-library': ('STACK sample questions: the corpus (examples/stack/corpus), the corrected teaching '
                                 'copies (examples/stack/corrected) and AlgMap-6.1 (examples/stack/upstream)',
                                 'CC-BY-SA-4.0; examples/stack/corpus/COPYING.txt, examples/stack/upstream/COPYING.txt'),
-    'stack/questions-helm': ('HELM sample questions from STACK (examples/stack/upstream/bodmas.xml, rounding-three-dp.xml)',
-                             'CC-BY-NC-4.0; examples/stack/upstream/HELM-COPYING.txt'),
+    'stack/questions-helm': ('HELM sample questions from STACK (examples/stack/upstream/bodmas.xml, rounding-three-dp.xml); '
+                             'test data only, see below',
+                             'CC-BY-NC-4.0 (NonCommercial; test data only, not the AGPL-3.0-or-later of the code); '
+                             'examples/stack/upstream/HELM-COPYING.txt'),
     'stack/questions-course': ('course material: the STACK questions derived from the course ingmat3a_ntnu '
                                '(examples/stack/course-b-rank-pivots.xml, course-b-nullspace.xml, course-c-nullspace.xml); '
                                'see below',
@@ -247,6 +249,9 @@ TABLES = {
 # design §13 item 7). course-b-rank-pivots.xml is S-01's test case.
 COURSE_DERIVED = ('examples/stack/course-b-rank-pivots.xml', 'examples/stack/course-b-nullspace.xml',
                   'examples/stack/course-c-nullspace.xml')
+# HELM sample questions of STACK's library, CC BY-NC 4.0 (examples/stack/upstream/sources.json):
+# their rows are the table stack/questions-helm. AC (20 Oct 2026): kept, clearly labelled as
+# NonCommercial test data; the code stays AGPL-3.0-or-later.
 HELM = ('examples/stack/upstream/bodmas.xml', 'examples/stack/upstream/rounding-three-dp.xml')
 
 # Strings a learner may type that the input rules must handle (design §6.2).
