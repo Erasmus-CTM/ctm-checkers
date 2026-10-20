@@ -15,6 +15,16 @@
     "wheel": "a4d6b15cba477ac377c8448b8c401cd83ebb6b0bbd8f9cf7367f1d9997e0f5db",
     "script": "e80f23ae98e17cac2afc04b7cfdbc2655509729ba14b0d62c9917bef27f27090"
    }
+  },
+  "0.3.0": {
+   "contents": "60220bce49b11ac5b248a1bd56671b6c797c645cffa3d2610ed626fdfadf059e",
+   "wheel": "e60029ccfb41cdf0078fb0c8b5f6d66c348fd9c5559f3dcfe23340a8da263b86",
+   "script": "ec5c0b20bbc2c57f2d969d3e759ee74ead231ad08d1d69f67692b038d2d3ac5c",
+   "stack": {
+    "contents": "90502f6265e303417a17562fc418ac8766e79d0d38df16c251ff20df4163a47a",
+    "wheel": "23889e89f7b7c2f1dd401716b5b3675ad63e253721a004afd62574fb538a00db",
+    "script": "404d1de06b03419ccf60661c92c37115d7e6a45f34bd3788d552f784328c884b"
+   }
   }
  }
 }
