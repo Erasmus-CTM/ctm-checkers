@@ -18,7 +18,7 @@ grade these questions; each folder keeps its own licence:
 | `*.xml` (but those below) | stack-sympy's own example questions, by the CTM team (each file states its licence) | CC-BY-SA-4.0 |
 | `checkers.py`, `matrix-checkers.py` | stack-sympy's example checker files | AGPL-3.0-or-later |
 | `determinant-one.xml`, `determinant-example-provenance.json`, `course-sources/determinant-original.qmd` | converted from math-exercise's custom-checker example | AGPL-3.0-or-later |
-| `course-b-*.xml`, `course-c-nullspace.xml`, `course-examples-provenance.json`, `course-sources/uke3-excerpts.md` | derived from the course ingmat3a_ntnu (Andrey Chesnokov); not in the golden tables (course material, design §13 item 7) | CC-BY-SA-4.0 |
+| `course-b-*.xml`, `course-c-nullspace.xml`, `course-examples-provenance.json`, `course-sources/uke3-excerpts.md` | course material: derived from the course ingmat3a_ntnu (Andrey Chesnokov); their golden rows are the course-material table `stack/questions-course` only | CC-BY-SA-4.0 |
 | `corpus/` | 35 unchanged STACK sample questions ([README](corpus/README.md), `manifest.json`, `baseline.json`) | CC-BY-SA-4.0, [COPYING.txt](corpus/COPYING.txt) |
 | `corrected/` | CTM's corrected teaching copies of four corpus questions ([README](corrected/README.md)) | CC-BY-SA-4.0, [COPYING.txt](corpus/COPYING.txt) |
 | `upstream/algmap-6-1.xml` | a STACK sample question (`sources.json`) | CC-BY-SA-4.0, [COPYING.txt](upstream/COPYING.txt) |

@@ -227,6 +227,10 @@ TABLES = {
                                 'CC-BY-SA-4.0; examples/stack/corpus/COPYING.txt, examples/stack/upstream/COPYING.txt'),
     'stack/questions-helm': ('HELM sample questions from STACK (examples/stack/upstream/bodmas.xml, rounding-three-dp.xml)',
                              'CC-BY-NC-4.0; examples/stack/upstream/HELM-COPYING.txt'),
+    'stack/questions-course': ('course material: the STACK questions derived from the course ingmat3a_ntnu '
+                               '(examples/stack/course-b-rank-pivots.xml, course-b-nullspace.xml, course-c-nullspace.xml); '
+                               'see below',
+                               'CC-BY-SA-4.0 (course material, Andrey Chesnokov); examples/stack/course-examples-provenance.json'),
     'stack/probes': ('answer-test probes of the stack-sympy audit (ctm-assessment docs/consolidation/stack-sympy-audit-2026-10/'
                      'probes: cases1-4.json, perf*.py) with the native verdicts of STACK 10d3233 and Maxima 5.46 (out1-4.json)',
                      'AGPL-3.0-or-later; the "native" values are output of STACK (GPL-3.0-or-later) and Maxima'),
@@ -236,9 +240,11 @@ TABLES = {
                          'rules that no other row reached (the review of C3)', 'AGPL-3.0-or-later'),
 }
 
-# Questions derived from course material: not in the tables (design §13
-# item 7: course-derived rows stay out of ctm-checkers). They stay examples
-# (examples/stack/course-examples-provenance.json) and the moved tests cover them.
+# Questions derived from course material (examples/stack/course-examples-provenance.json):
+# their rows are the table stack/questions-course, and no other table has any
+# (AC, 20 Oct 2026: these fixed files get their own table, labelled as course
+# material; rows generated from the course repositories stay in the umbrella,
+# design §13 item 7). course-b-rank-pivots.xml is S-01's test case.
 COURSE_DERIVED = ('examples/stack/course-b-rank-pivots.xml', 'examples/stack/course-b-nullspace.xml',
                   'examples/stack/course-c-nullspace.xml')
 HELM = ('examples/stack/upstream/bodmas.xml', 'examples/stack/upstream/rounding-three-dp.xml')
@@ -248,6 +254,8 @@ INVALID = ['', 'x+', 'sin(', '2 x', 'x²', 'π', '3,5', "__import__('os')", 'x+'
 
 
 def question_table(path):
+    if path in COURSE_DERIVED:
+        return 'stack/questions-course'
     if path.startswith('examples/stack/supplement/'):
         return 'stack/supplement'
     if path in HELM:
@@ -400,9 +408,9 @@ PROBE_ANSWERS = {
 
 
 def question_inputs(engine, folder, out=print):
-    """The question rows' inputs, by table: every XML file of examples/stack
-    (but the course-derived ones) with the seeds stack-sympy's site and the
-    corpus replay use (CTM's own questions also 1 to 3), the cards of
+    """The question rows' inputs, by table (question_table): every XML file
+    of examples/stack with the seeds stack-sympy's site and the corpus replay
+    use (CTM's own and the course's questions also 1 to 3), the cards of
     stack-sympy's site, and the audit's question probes."""
     blocks = site_blocks(folder)
     corpus = corpus_seeds(folder)
@@ -414,8 +422,6 @@ def question_inputs(engine, folder, out=print):
         rows.setdefault(table, []).append((call, value, tags))
 
     for path in files:
-        if path in COURSE_DERIVED:
-            continue
         checkers = checkers_of(path, blocks)
         base = {'file': path, **({'python_checkers': checkers} if checkers else {})}
         add('stack.import', base, ['import'])
@@ -437,9 +443,9 @@ def question_inputs(engine, folder, out=print):
                     seeds += range(block['seed'], block['seed'] + block['variants'])
             seeds += corpus.get(path, [])
             # cli.py's default card: three variants from seed 1. CTM's own
-            # questions have them too, with every answer set at seed 1 as at
-            # the site's first seed.
-            own = question_table(path) == 'stack/questions-project'
+            # questions (and the course's) have them too, with every answer
+            # set at seed 1 as at the site's first seed.
+            own = question_table(path) in ('stack/questions-project', 'stack/questions-course')
             if own or not seeds:
                 seeds += [1, 2, 3]
             seeds = sorted(set(seeds), key=seeds.index)

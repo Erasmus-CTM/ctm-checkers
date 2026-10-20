@@ -200,6 +200,16 @@
    ],
    "rows": 207
   },
+  "stack/questions-course": {
+   "python": [
+    "3.9",
+    "3.10",
+    "3.11",
+    "3.12",
+    "3.13"
+   ],
+   "rows": 232
+  },
   "stack/questions-helm": {
    "python": [
     "3.9",

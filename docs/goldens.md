@@ -55,16 +55,25 @@ run them (`stack.import`, `stack.instantiate`, `stack.card`, `stack.tests`,
 | `questions-project.jsonl` | 1178 | stack-sympy's own example questions (`examples/stack/*.xml`): each file's import; the cards of stack-sympy's site; for every seed the site uses and seeds 1 to 3 (stack-sympy's default card) the variant and the question tests; and answer sets: the teacher's answers, the question tests' inputs and, for the site's first seed and seed 1, for each input its sign, offsets, double, factored, expanded and decimal forms, every question variable's name (S-01) and strings the input rules must handle (empty, `x+`, `sin(`, `2 x`, `x²`, `π`, `3,5`, `__import__('os')`, 1300 characters); also the answers of the audit's leak.py. |
 | `questions-library.jsonl` | 1049 | The same for the STACK sample questions (`examples/stack/corpus`, `corrected`, `upstream/algmap-6-1.xml`), with the seeds of the corpus replay (the first three deployed seeds, else 17, 29, 47). |
 | `questions-helm.jsonl` | 179 | The same for the two HELM questions (`examples/stack/upstream`). |
+| `questions-course.jsonl` | 232 | **Course material** (CC BY-SA 4.0, below): the same as `questions-project` for the three questions derived from the course ingmat3a_ntnu (`examples/stack/course-*.xml`), among them S-01's test case `course-b-rank-pivots.xml` (`r` and `P` accepted as answers). |
 | `probes.jsonl` | 207 | The stack-sympy audit's answer-test probes with STACK's and Maxima's native verdicts (`native`), and its performance probes. |
 | `probe-questions.jsonl` | 285 | The audit's question probes (`examples/stack/probes/`) with its answers. |
 | `supplement.jsonl` | 153 | Rules that only the mutation tests reached (below): NumAbsolute's strict bound with STACK's 1e-9 guard and NumRelative's inclusive one, for exact and irrational numbers; AlgEquiv's numeric rejection screen (1e-4 margin); response-tree scores beyond [0, 1] (`examples/stack/supplement/score-modes.xml`); the input rules of `examples/stack/supplement/input-rules.xml` (forbidden words in any case, the numerical input's type, lowest terms with two negative numbers, and/or precedence in the validation's LaTeX, the 64-entry matrix limit), with the answer sets of the example questions and the answers in `golden_stack.PROBE_ANSWERS`. |
 
 `excluded.json` lists the inputs that run longer than 20 s (S-12:
 `sin(exp(exp(exp(5))))`, `sin(x)^99*cos(x)^99` against `(sin(2*x)/2)^99`):
-they are not rows until S-12 bounds them. The three questions derived from
-course material (`examples/stack/course-*.xml`) have no rows (design §13
-item 7); the moved tests cover them. A table holds rows of one kind of
+they are not rows until S-12 bounds them. A table holds rows of one kind of
 source, under that source's licence (`PROVENANCE.md`).
+
+`questions-course.jsonl` is course material, labelled as such in
+`PROVENANCE.md` with its provenance and licence notice: its rows are derived
+from the three STACK questions that CTM wrote from Andrey Chesnokov's course
+ingmat3a_ntnu (`examples/stack/course-*.xml`, with the excerpts and the
+source record `course-examples-provenance.json`) and are licensed CC BY-SA
+4.0, like those questions. AC decided on 20 October 2026 that these
+committed files have their own table. No other table holds a row of them
+(`tests/test_golden_tables.py`), and rows generated from the course
+repositories (ctm-demo, ingmat3a) stay in the umbrella (design §13 item 7).
 
 A STACK row stores the result as stack-sympy's worker returns it
 (`json.dumps(result, default=str)`); an exception is `{"raised": "<class
@@ -205,7 +214,7 @@ round, the reject rule comparing expressions instead of their text, changes
 no verdict SymPy can produce here and is not listed.
 
 Mutations of the STACK engine must fail the STACK tables (the test stops at
-the first row that differs). Rows that differ in all (of 5,026), by table:
+the first row that differs). Rows that differ in all (of 5,821), by table:
 
 | Mutation | Rows | Tables |
 |---|---|---|
@@ -219,22 +228,31 @@ the first row that differs). Rows that differ in all (of 5,026), by table:
 | Sets: no `ATSets_duplicates` note | 7 | compliance 3, probes 1, regressions 3 |
 | response trees: `+` sets the branch score instead of adding it | 48 | probe-questions 36, questions-library 4, supplement 8 |
 | response trees: scores not clamped to [0, 1] | 17 | supplement |
-| question tests: no penalty for a wrong first attempt | 96 | questions-project 30, questions-library 59, questions-helm 1, probe-questions 3, supplement 3 |
-| `forbidfloat` ignored | 9 | questions-library 8, questions-helm 1 |
-| the 1,200-character input limit raised to 1,400 | 77 | questions-project 22, questions-library 31, questions-helm 7, probe-questions 11, supplement 6 |
-| the card's JSON without `<` escaped | 39 | questions-project 12, questions-library 25, questions-helm 2 |
+| question tests: no penalty for a wrong first attempt | 138 | questions-project 60, questions-library 59, questions-helm 1, questions-course 12, probe-questions 3, supplement 3 |
+| `forbidfloat` ignored | 11 | questions-library 8, questions-helm 1, questions-course 2 |
+| the 1,200-character input limit raised to 1,400 | 104 | questions-project 41, questions-library 31, questions-helm 7, questions-course 8, probe-questions 11, supplement 6 |
+| the card's JSON without `<` escaped | 46 | questions-project 16, questions-library 25, questions-helm 2, questions-course 3 |
 | forbidden words compared with their case | 1 | supplement |
 | lowest terms: two negative numbers accepted | 1 | supplement |
 | a numerical input accepts a non-number | 2 | supplement |
 | the matrix limit raised from 64 to 65 entries | 1 | supplement |
 | the validation's LaTeX with `or` binding tighter than `and` | 82 | supplement |
+| `assess_basis` without its independence factor (also on the recorded math tables, above) | 16 | questions-course |
+| `assess_basis`: dependent vectors not marked | 20 | questions-course |
+| `assess_basis`: a zero vector counted as a basis vector | 16 | questions-course |
+| `assess_basis` without its coverage factor | 8 | questions-course |
+| the model answer `nullspace_basis(A)` gives a column-space basis | 75 | questions-course |
+| a PythonChecker's assessment (the vector colours) dropped | 66 | questions-course |
 
-The rows of `supplement` were added for the first seven and the last five:
-the tables recorded first reached no row of those rules (NumAbsolute's guard
-and NumRelative's bound only for exact numbers, as the compliance runner's
-fixtures do; the last five rules, found by the review of C3, only pytest or
-nothing reached). Two mutations of the page's calls change no row and no
-answer, so no test can catch them: `stack.tests` with `seeds=[1]` (the
+The rows of `supplement` were added for the first seven and for the five
+input rules after the card's JSON: the tables recorded first reached no row
+of those rules (NumAbsolute's guard and NumRelative's bound only for exact
+numbers, as the compliance runner's fixtures do; the five input rules, found
+by the review of C3, only pytest or nothing reached). Only `questions-course`
+reaches the last six: the basis checks of a STACK question (`assess_basis`
+through a PythonChecker, `nullspace_basis`, the colours), which no other
+STACK question meets with a dependent, zero or incomplete answer. Two
+mutations of the page's calls change no row and no answer, so no test can catch them: `stack.tests` with `seeds=[1]` (the
 engine's `run_question_tests` uses the card's variant and ignores `seeds`
 when it gets variants) and math-exercise's admission rule on the `stack.*`
 calls (it reads math-exercise's request fields, which a STACK request does

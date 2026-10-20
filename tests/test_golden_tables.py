@@ -168,8 +168,15 @@ def stack_files(value):
     return [value[key] for key in ('file', 'python_checkers') if key in value]
 
 
-def test_stack_rows_name_files_here_and_no_course_material():
-    # Step-2 design §13 item 7: questions derived from course material stay out of the tables.
+def test_stack_rows_name_files_here_and_course_material_only_in_its_table():
+    # AC (20 Oct 2026): the questions derived from course material have a table of their own,
+    # labelled as course material under CC BY-SA 4.0; no other table holds a row of them (and
+    # no math_exercise table holds course rows at all: design §13 item 7, test above).
+    source, licence = golden_stack.TABLES['stack/questions-course']
+    assert source.startswith('course material') and licence.startswith('CC-BY-SA-4.0 (course material')
+    assert sorted(golden_stack.COURSE_DERIVED) == sorted(
+        'examples/stack/' + q['file'] for q in json.loads((golden.ROOT / 'examples/stack/course-examples-provenance.json').read_text())['questions'])
+    course = set()
     excluded = json.loads((golden.GOLDEN / 'stack' / 'excluded.json').read_text(encoding='utf-8'))
     listed = {(entry['suite'], entry['id']) for entry in excluded}
     for name, rows in tables().items():
@@ -180,8 +187,15 @@ def test_stack_rows_name_files_here_and_no_course_material():
             assert (row['suite'], row['id']) not in listed, (name, row['id'])
             for path in stack_files(row['input']):
                 assert (golden.ROOT / path).is_file() and path.startswith('examples/stack/'), (name, row['id'], path)
-                assert path not in golden_stack.COURSE_DERIVED, (name, row['id'], path)
                 assert golden_stack.question_table(row['input']['file']) == row['suite'], (name, row['id'])
+            file = row['input'].get('file')
+            assert (file in golden_stack.COURSE_DERIVED) == (row['suite'] == 'stack/questions-course'), (name, row['id'], file)
+            assert row['input'].get('python_checkers') not in golden_stack.COURSE_DERIVED, (name, row['id'])
+            if row['suite'] == 'stack/questions-course':
+                course.add((file, row['call']))
+    # Every course question has its import, card, variants, question tests and answers.
+    calls = ('stack.import', 'stack.card', 'stack.instantiate', 'stack.tests', 'stack.answer')
+    assert course == {(path, call) for path in golden_stack.COURSE_DERIVED for call in calls}
     for entry in excluded:
         assert entry['id'] == golden.row_id(entry['call'], golden.loads(json.dumps(entry['input']))) and entry['reason']
 

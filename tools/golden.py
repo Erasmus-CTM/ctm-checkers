@@ -1216,7 +1216,8 @@ def write_provenance():
              f'rendered at math-exercise `{corpus.get("commit")}` with CTM Assessment and graded by the umbrella\'s',
              f'parity harness (`{capture.get("harness")}`, ctm-assessment `{capture.get("umbrella")}`) at the runtime',
              'boundary of math-exercise.js under ' + ', '.join(run.get('runtime') or run.get('name') for run in capture.get('runs') or []) + '.',
-             'Rows derived from courses or the umbrella\'s example site are not committed here (step-2 design §13 item 7).',
+             'No math_exercise table holds rows derived from courses or the umbrella\'s example site (step-2 design §13 item 7);',
+             'the one table of course material is STACK\'s `stack/questions-course.jsonl` (below).',
              'Inputs: each captured request is what a rendered page of math-exercise\'s example site sent to the checker library;',
              'the answers typed into the pages come from math-exercise itself (answer keys, authored tests, variant fixtures) or',
              'were written for the harness in the umbrella under AGPL-3.0-or-later (probe sets and boundary probes, the audit\'s',
@@ -1238,8 +1239,9 @@ def write_provenance():
                   f'The STACK tables were recorded with stack-sympy\'s own code at `{stack}` (`tools/golden.py record',
                   '--stack-legacy`), before its engine moved into `ctm_checkers.stack`; their inputs are written in',
                   '`tools/golden_stack.py` from the files named below. Each table holds rows derived from one kind of',
-                  'source, under that source\'s licence. Questions derived from course material are not in the tables',
-                  '(design §13 item 7): ' + ', '.join(f'`{path}`' for path in golden_stack.COURSE_DERIVED) + '.',
+                  'source, under that source\'s licence; rows derived from course material are in `stack/questions-course.jsonl`',
+                  'only (below). The tables are test data: neither wheel nor any page script holds them, and the licence',
+                  'of a table is not the licence of ctm-checkers\' code, which is AGPL-3.0-or-later.',
                   'Rows that ran longer than ' + str(STACK_LIMIT) + ' s are listed in `stack/excluded.json`, not recorded.', '',
                   '| File | Rows | Source | Licence |', '|---|---|---|---|']
         for suite, (source, licence) in golden_stack.TABLES.items():
@@ -1247,6 +1249,21 @@ def write_provenance():
             if info:
                 lines.append(f'| `{suite}.jsonl` | {info["rows"]} | {source}; recorded with stack-sympy `{stack[:12]}` '
                              f'(Python {", ".join(info["python"])}) | {licence} |')
+        course = manifest.get('recorded', {}).get('stack/questions-course')
+        if course:
+            record = json.loads((ROOT / 'examples' / 'stack' / 'course-examples-provenance.json').read_text(encoding='utf-8'))
+            lines += ['', '### Course material: `stack/questions-course.jsonl`', '',
+                      f'**This table is course material.** Its {course["rows"]} rows are derived from three STACK questions that CTM',
+                      f'wrote from the course `{record["repository"]}` by {record["author"]} ({record["source"]};',
+                      '`examples/stack/course-sources/uke3-excerpts.md` holds the excerpts):',
+                      ', '.join(f'`{path}`' for path in golden_stack.COURSE_DERIVED) + '.',
+                      '`examples/stack/course-examples-provenance.json` records the source, its SHA-256 and every change.',
+                      f'**Licence: {record["license"]}** (Creative Commons Attribution-ShareAlike 4.0), for the questions and for',
+                      f'the rows derived from them; credit {record["author"]} and the course when you reuse them. It is not the',
+                      'licence of ctm-checkers\' code (AGPL-3.0-or-later). AC decided on 20 October 2026 that these committed',
+                      'files have a table of their own (`course-b-rank-pivots.xml` is S-01\'s test case). No other table holds rows',
+                      'of course material, and rows generated from the course repositories themselves (ctm-demo, ingmat3a) stay',
+                      'in the umbrella\'s parity harness (step-2 design §13 item 7).']
     (GOLDEN / 'PROVENANCE.md').write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
 

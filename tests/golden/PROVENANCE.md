@@ -6,7 +6,8 @@ Captured rows come from math-exercise's own examples (licence: AGPL-3.0-or-later
 rendered at math-exercise `8ab1b253d8d49f7a02753f1a33c6fc578352bc7f` with CTM Assessment and graded by the umbrella's
 parity harness (`ctm-assessment integration/pyodide-parity/run.cjs --capture`, ctm-assessment `10f8c9d01d519e81e61ec99fdf2cc78333824d24`) at the runtime
 boundary of math-exercise.js under Pyodide 0.27.2 (Python 3.12.7, SymPy 1.13.3, PYTHONHASHSEED 0), Pyodide 0.28.3 (Python 3.13.2, SymPy 1.13.3, PYTHONHASHSEED 0).
-Rows derived from courses or the umbrella's example site are not committed here (step-2 design §13 item 7).
+No math_exercise table holds rows derived from courses or the umbrella's example site (step-2 design §13 item 7);
+the one table of course material is STACK's `stack/questions-course.jsonl` (below).
 Inputs: each captured request is what a rendered page of math-exercise's example site sent to the checker library;
 the answers typed into the pages come from math-exercise itself (answer keys, authored tests, variant fixtures) or
 were written for the harness in the umbrella under AGPL-3.0-or-later (probe sets and boundary probes, the audit's
@@ -43,8 +44,9 @@ math-exercise's own code at `905d06fc89d173af224c6460139a32b12033867b` (`tools/g
 The STACK tables were recorded with stack-sympy's own code at `f450bcd6adbd9a6fc23462ceeae6e27d3681bce5` (`tools/golden.py record
 --stack-legacy`), before its engine moved into `ctm_checkers.stack`; their inputs are written in
 `tools/golden_stack.py` from the files named below. Each table holds rows derived from one kind of
-source, under that source's licence. Questions derived from course material are not in the tables
-(design §13 item 7): `examples/stack/course-b-rank-pivots.xml`, `examples/stack/course-b-nullspace.xml`, `examples/stack/course-c-nullspace.xml`.
+source, under that source's licence; rows derived from course material are in `stack/questions-course.jsonl`
+only (below). The tables are test data: neither wheel nor any page script holds them, and the licence
+of a table is not the licence of ctm-checkers' code, which is AGPL-3.0-or-later.
 Rows that ran longer than 20 s are listed in `stack/excluded.json`, not recorded.
 
 | File | Rows | Source | Licence |
@@ -55,6 +57,21 @@ Rows that ran longer than 20 s are listed in `stack/excluded.json`, not recorded
 | `stack/questions-project.jsonl` | 1178 | stack-sympy's own example questions (examples/stack/*.xml) with their checker files, and the answers of the stack-sympy audit's leak.py (S-01); recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | the questions CC-BY-SA-4.0 as each file states (determinant-one.xml AGPL-3.0-or-later); the checker files and the answers AGPL-3.0-or-later |
 | `stack/questions-library.jsonl` | 1049 | STACK sample questions: the corpus (examples/stack/corpus), the corrected teaching copies (examples/stack/corrected) and AlgMap-6.1 (examples/stack/upstream); recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | CC-BY-SA-4.0; examples/stack/corpus/COPYING.txt, examples/stack/upstream/COPYING.txt |
 | `stack/questions-helm.jsonl` | 179 | HELM sample questions from STACK (examples/stack/upstream/bodmas.xml, rounding-three-dp.xml); recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | CC-BY-NC-4.0; examples/stack/upstream/HELM-COPYING.txt |
+| `stack/questions-course.jsonl` | 232 | course material: the STACK questions derived from the course ingmat3a_ntnu (examples/stack/course-b-rank-pivots.xml, course-b-nullspace.xml, course-c-nullspace.xml); see below; recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | CC-BY-SA-4.0 (course material, Andrey Chesnokov); examples/stack/course-examples-provenance.json |
 | `stack/probes.jsonl` | 207 | answer-test probes of the stack-sympy audit (ctm-assessment docs/consolidation/stack-sympy-audit-2026-10/probes: cases1-4.json, perf*.py) with the native verdicts of STACK 10d3233 and Maxima 5.46 (out1-4.json); recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | AGPL-3.0-or-later; the "native" values are output of STACK (GPL-3.0-or-later) and Maxima |
 | `stack/probe-questions.jsonl` | 285 | question probes of the stack-sympy audit (examples/stack/probes/*.xml with the answers of its qprobe.py, crash.py and overflow.cjs); recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | AGPL-3.0-or-later |
 | `stack/supplement.jsonl` | 153 | inputs written for these tables (tools/golden_stack.py SUPPLEMENT, examples/stack/supplement/): rules that no other row reached (the review of C3); recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | AGPL-3.0-or-later |
+
+### Course material: `stack/questions-course.jsonl`
+
+**This table is course material.** Its 232 rows are derived from three STACK questions that CTM
+wrote from the course `aacchhee/ingmat3a_ntnu` by Andrey Chesnokov (https://github.com/aacchhee/ingmat3a_ntnu/blob/b05dda5a9e8405d87e2b89668c63c81dc37b2a7a/_includes/linalg/uke3.md;
+`examples/stack/course-sources/uke3-excerpts.md` holds the excerpts):
+`examples/stack/course-b-rank-pivots.xml`, `examples/stack/course-b-nullspace.xml`, `examples/stack/course-c-nullspace.xml`.
+`examples/stack/course-examples-provenance.json` records the source, its SHA-256 and every change.
+**Licence: CC-BY-SA-4.0** (Creative Commons Attribution-ShareAlike 4.0), for the questions and for
+the rows derived from them; credit Andrey Chesnokov and the course when you reuse them. It is not the
+licence of ctm-checkers' code (AGPL-3.0-or-later). AC decided on 20 October 2026 that these committed
+files have a table of their own (`course-b-rank-pivots.xml` is S-01's test case). No other table holds rows
+of course material, and rows generated from the course repositories themselves (ctm-demo, ingmat3a) stay
+in the umbrella's parity harness (step-2 design §13 item 7).

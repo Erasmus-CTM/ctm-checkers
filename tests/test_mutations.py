@@ -33,7 +33,8 @@ MUTATIONS = {
     'sigfigs-off-by-one': ('math_exercise/numeric.py', 'd = n - int(floor(log10(abs(x)))) - 1', 'd = n - int(floor(log10(abs(x))))', 1, (RECORDED,)),
     'round-17-digits': ('math_exercise/numeric.py', "format(float(x), '.15g')", "format(float(x), '.17g')", 1, (RECORDED,)),
     'show-score-ignored': ('core/result.py', 'show_score = bool(result.get("show_score", True))', 'show_score = True', 1, (RECORDED,)),
-    'basis-independence': ('matrix.py', 'independence = rank / valid_count if valid_count else 0.0', 'independence = 1.0', 1, (RECORDED,)),
+    'basis-independence': ('matrix.py', 'independence = rank / valid_count if valid_count else 0.0', 'independence = 1.0', 1,
+                           (RECORDED, STACK)),
     'set-extra-items': ('math_exercise/checks.py', 'max(0.0, matched - extra)', 'max(0.0, matched)', 1, (RECORDED,)),
     'exact-unreduced': ('math_exercise/checks.py', 'if not _ms.free_symbols and numeric_not_reduced(request["student"]):', 'if False:', 1,
                         (RECORDED,)),
@@ -83,7 +84,8 @@ MUTATIONS = {
                             'observed_penalty = 0.0', 1, (STACK,)),
     'stack-forbid-float': ('stack/engine.py', 'if inp["forbidfloat"] and any(', 'if False and any(', 1, (STACK,)),
     'stack-max-chars': ('stack/expressions.py', 'MAX_CHARS = 1200', 'MAX_CHARS = 1400', 1, (STACK,)),
-    'stack-card-json-escape': ('stack/cli.py', '.replace("<", "\\\\u003c")', '', 1, (STACK,)),    # The input rules that only stack/supplement's input-rules.xml reaches (the review of C3).
+    'stack-card-json-escape': ('stack/cli.py', '.replace("<", "\\\\u003c")', '', 1, (STACK,)),
+    # The input rules that only stack/supplement's input-rules.xml reaches (the review of C3).
     'stack-forbidwords-case': ('stack/engine.py', 'if any(n.value.lower() in {w.lower() for w in inp["forbidwords"]}',
                                'if any(n.value in set(inp["forbidwords"])', 1, (STACK,)),
     'stack-lowest-terms-negatives': ('stack/engine.py', '\n                                                              or num < 0 and den < 0):',
@@ -92,6 +94,14 @@ MUTATIONS = {
                              'if False:', 1, (STACK,)),
     'stack-max-matrix-entries': ('stack/expressions.py', 'MAX_MATRIX_ENTRIES = 64', 'MAX_MATRIX_ENTRIES = 65', 1, (STACK,)),
     'stack-logic-precedence': ('stack/expressions.py', '"or": 2, "and": 4', '"or": 4, "and": 2', 1, (STACK,)),
+    # The basis checks of the course's null-space questions, which only stack/questions-course reaches
+    # (with basis-independence above): assess_basis (ctm_checkers.matrix) through a PythonChecker,
+    # the model answer nullspace_basis(A), the assessment colours.
+    'stack-basis-dependent': ('matrix.py', 'dependent = rank < valid_count', 'dependent = False', 1, (STACK,)),
+    'stack-basis-zero-vector': ('matrix.py', 'zero = vector == zeros(*vector.shape)', 'zero = False', 1, (STACK,)),
+    'stack-basis-coverage': ('matrix.py', 'coverage = min(rank, target_dimension) / target_dimension', 'coverage = 1.0', 1, (STACK,)),
+    'stack-basis-model-space': ('stack/matrix_models.py', 'vectors = matrix.nullspace()', 'vectors = matrix.columnspace()', 1, (STACK,)),
+    'stack-checker-assessment': ('stack/checkers.py', 'result["assessment"] = {axis: list(statuses)}', 'pass', 1, (STACK,)),
 }
 
 # A few minutes: CI runs them in a step of their own (CTM_MUTATION_TESTS=1).
