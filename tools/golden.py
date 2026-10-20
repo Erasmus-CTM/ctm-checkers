@@ -5,6 +5,9 @@
     python tools/golden.py verify --adapter wheel|src|installed [--wheel FILE ...] [--variants DIR]
     python tools/golden.py record [--legacy DIR] [--stack-legacy DIR [--stack-probes DIR]]
     python tools/golden.py import-capture CAPTURE --math-exercise CHECKOUT [--record-with PYTHON ...]
+    python tools/golden.py update --change NAME --stack-legacy DIR [--legacy DIR] [--suite NAME ...]
+    python tools/golden.py diff [--base REF] [--rows]
+    python tools/golden.py check-changelog [--base REF]
 
 Authored rows are recorded with the umbrella's parity-harness recorder
 (integration/pyodide-parity/authored_record.py at the commit in
@@ -45,9 +48,20 @@ Adapters (what runs the rows):
   the prefix (_math_response_json as the object "response"). variants.py
   stays in math-exercise: its rows run the variants.py of --variants DIR.
 
+Grading changes (docs/goldens.md): `update` runs every row with
+ctm_checkers from src/ and writes the results that a change of the code
+changed; such a row keeps the legacy code's result as "legacy" (what the
+legacy adapter verifies) and names the change in "changes". `diff` writes
+the golden diff against a Git commit (rows per table, transitions,
+the changes named), and `check-changelog` holds a pull request to the
+rules: STACK's and math-exercise's tables never change together (H2), every
+changed result names its change, the version is a new MINOR one (0.x) and
+the CHANGELOG lists the change under "Grading changes".
+
 This file runs in native Python (3.9 or later) and inside Pyodide
 (tools/pyodide/verify.cjs): standard library only; subprocesses only for
-import-capture's --record-with.
+import-capture's --record-with, update's legacy results of new rows (`run`)
+and Git (diff, check-changelog).
 """
 import argparse
 import ast
@@ -191,8 +205,12 @@ def read_sources(root=GOLDEN):
     return sources
 
 
-def expected_output(row, minor=MINOR):
-    """(found, value): the row's result for this Python minor version."""
+def expected_output(row, minor=MINOR, legacy=False):
+    """(found, value): the row's result for this Python minor version.
+    `legacy`: the result of the legacy code, which differs from "output" on
+    the rows that a grading change after the recording changed ("legacy")."""
+    if legacy and 'legacy' in row:
+        return True, row['legacy']
     if 'output' in row:
         return True, row['output']
     if minor in row['by_python']:
@@ -578,7 +596,7 @@ def verify(adapter, patterns=(), max_diffs=20, out=print, fail_fast=False):
         for row in rows:
             if fail_fast and failures:
                 break
-            found, expected = expected_output(row)
+            found, expected = expected_output(row, legacy=adapter.name == 'legacy')
             if not found:
                 counts['missing'] += 1
                 failures += 1
@@ -889,6 +907,11 @@ def record(adapter, out=print, probes=None):
         changed = False
         for row in rows:
             result = run_row(adapter, row, sources)
+            if 'legacy' in row:
+                # Changed by a grading change: the legacy code gives its "legacy" result.
+                if canonical(result) != canonical(row['legacy']):
+                    conflicts.append((row, row['legacy'], result))
+                continue
             if 'output' in row:
                 if canonical(result) == canonical(row['output']):
                     continue
@@ -951,36 +974,42 @@ def _limited(function, seconds):
         signal.signal(signal.SIGALRM, previous)
 
 
+def stack_inputs(engine, folder, probes, wanted, out=print):
+    """The inputs of the STACK tables for which wanted(suite) is true, as
+    {suite: [(call, value, tags, extra)]} (golden_stack.py): the fixtures, the
+    supplement, the audit's probes (`probes`, its folder) and the questions,
+    generated with `engine` and the site pages of the stack-sympy checkout
+    `folder`."""
+    inputs = {}
+    for suite, fixture in (('stack/compliance', 'native_compliance/fixtures.json'),
+                           ('stack/regressions', 'port_regressions/fixtures.json')):
+        if wanted(suite):
+            inputs[suite] = golden_stack.case_inputs(ROOT / 'tests' / 'stack' / fixture)
+    if wanted('stack/reference'):
+        cases = json.loads((ROOT / 'tests' / 'stack' / 'reference_cases.json').read_text(encoding='utf-8'))
+        inputs['stack/reference'] = [('stack.answer_test', {key: case[key] for key in ('test', 'student', 'teacher', 'options')},
+                                      [case['test']], {}) for case in cases]
+    if wanted('stack/supplement'):
+        inputs['stack/supplement'] = golden_stack.supplement_inputs()
+    if wanted('stack/probes'):
+        if not probes:
+            raise SystemExit('Recording stack/probes needs --stack-probes DIR (ctm-assessment docs/consolidation/stack-sympy-audit-2026-10/probes)')
+        inputs['stack/probes'] = golden_stack.probe_inputs(Path(probes))
+    question_tables = [suite for suite in golden_stack.TABLES if suite.startswith(('stack/questions-', 'stack/probe-questions', 'stack/supplement'))]
+    if any(wanted(suite) for suite in question_tables):
+        for suite, items in golden_stack.question_inputs(engine, Path(folder), out).items():
+            if wanted(suite):
+                inputs.setdefault(suite, []).extend((call, value, tags, {}) for call, value, tags in items)
+    return inputs
+
+
 def record_stack(adapter, sources, probes, out=print):
     """Creates the STACK tables that are missing, with stack-sympy's code
     (golden_stack.py: the inputs). Rows slower than STACK_LIMIT are listed in
     excluded.json. Returns {suite: rows} of the tables created."""
     import time
     engine = adapter.stack
-    folder = Path(engine.describe()['stack-sympy'])
-    inputs = {}
-
-    def missing(suite):
-        return not suite_path(suite).exists()
-    for suite, fixture in (('stack/compliance', 'native_compliance/fixtures.json'),
-                           ('stack/regressions', 'port_regressions/fixtures.json')):
-        if missing(suite):
-            inputs[suite] = golden_stack.case_inputs(ROOT / 'tests' / 'stack' / fixture)
-    if missing('stack/reference'):
-        cases = json.loads((ROOT / 'tests' / 'stack' / 'reference_cases.json').read_text(encoding='utf-8'))
-        inputs['stack/reference'] = [('stack.answer_test', {key: case[key] for key in ('test', 'student', 'teacher', 'options')},
-                                      [case['test']], {}) for case in cases]
-    if missing('stack/supplement'):
-        inputs['stack/supplement'] = golden_stack.supplement_inputs()
-    if missing('stack/probes'):
-        if not probes:
-            raise SystemExit('Recording stack/probes needs --stack-probes DIR (ctm-assessment docs/consolidation/stack-sympy-audit-2026-10/probes)')
-        inputs['stack/probes'] = golden_stack.probe_inputs(Path(probes))
-    question_tables = [suite for suite in golden_stack.TABLES if suite.startswith(('stack/questions-', 'stack/probe-questions', 'stack/supplement'))]
-    if any(missing(suite) for suite in question_tables):
-        for suite, items in golden_stack.question_inputs(engine, folder, out).items():
-            if missing(suite):
-                inputs.setdefault(suite, []).extend((call, value, tags, {}) for call, value, tags in items)
+    inputs = stack_inputs(engine, engine.describe()['stack-sympy'], probes, lambda suite: not suite_path(suite).exists(), out)
     excluded = json.loads(EXCLUDED.read_text(encoding='utf-8')) if EXCLUDED.exists() else []
     known = {(entry['suite'], entry['id']) for entry in excluded}
     counts = {}
@@ -1059,6 +1088,332 @@ def read_manifest():
 
 def write_manifest(manifest):
     (GOLDEN / 'manifest.json').write_text(json.dumps(manifest, indent=1, sort_keys=True, ensure_ascii=False) + '\n', encoding='utf-8')
+
+
+# ---------------------------------------------------------------------------
+# Grading changes: update, diff, check-changelog (docs/goldens.md)
+# ---------------------------------------------------------------------------
+
+# A grading change's name: a finding (S-01) or a decision (B3, ...).
+CHANGE_NAME = re.compile(r'[A-Z][A-Za-z0-9.-]*')
+
+
+def package_version(text=None):
+    """ctm-checkers' version (src/ctm_checkers/__init__.py, or its `text`)."""
+    if text is None:
+        text = (ROOT / 'src' / 'ctm_checkers' / '__init__.py').read_text(encoding='utf-8')
+    return re.search(r'^__version__ = "([^"]+)"', text, re.M)[1]
+
+
+def release_of(version):
+    """X.Y.Z of a version (0.3.0.dev1: 0.3.0)."""
+    return re.match(r'\d+\.\d+\.\d+', version)[0]
+
+
+def legacy_results(rows, stack_legacy=None, legacy=None):
+    """The legacy code's results of `rows`, in a process of its own (the
+    legacy STACK engine stands in for ctm_checkers with a shim, so it cannot
+    run next to ctm_checkers from src/)."""
+    command = [sys.executable, str(Path(__file__).resolve()), 'run', '--adapter', 'legacy', '--umbrella', str(umbrella_folder())]
+    if stack_legacy:
+        command += ['--stack-legacy', str(stack_legacy)]
+    if legacy:
+        command += ['--legacy', str(legacy)]
+    text = ''.join(canonical({'call': row['call'], 'input': row['input']}) + '\n' for row in rows)
+    result = subprocess.run(command, input=text, capture_output=True, text=True, cwd=ROOT,
+                            env=dict(os.environ, PYTHONHASHSEED=os.environ.get('PYTHONHASHSEED', '0')))
+    if result.returncode:
+        raise SystemExit('The legacy code could not run the new rows:\n' + result.stderr[-4000:])
+    results = [loads(line) for line in result.stdout.splitlines()]
+    if len(results) != len(rows):
+        raise SystemExit(f'The legacy code returned {len(results)} results for {len(rows)} rows')
+    return results
+
+
+def run_lines(adapter, lines, out=print):
+    """Runs the rows given as JSON lines ({"call", "input"}) and writes each result as a line."""
+    sources = read_sources()
+    warnings.simplefilter('ignore')
+    for line in lines:
+        if line.strip():
+            row = loads(line)
+            out(canonical(run_row(adapter, row, sources)))
+    return 0
+
+
+def update(change, stack_legacy=None, legacy=None, probes=None, patterns=(), out=print):
+    """After a grading change named `change`: runs every row with
+    ctm_checkers from src/ and writes the new results. A row whose result
+    changes keeps the legacy code's result as "legacy" (the result it was
+    recorded with) and names the change in "changes"; a row that gives its
+    legacy result again loses both. Rows that the inputs written today
+    (golden_stack.py, for the STACK tables: generated with today's code) add
+    are recorded with this code, and with the legacy code in a process of its
+    own: where the two differ, the row gets "legacy" and "changes" too.
+    Nothing is written when a row kept per Python version changes, or when a
+    STACK table holds a row that today's inputs no longer give."""
+    if not CHANGE_NAME.fullmatch(change):
+        raise SystemExit(f'{change!r}: name the grading change as the CHANGELOG does (a finding such as S-01, or a decision)')
+    adapter = Adapters(CtmCheckers('src'), golden_stack.ctm())
+    sources = read_sources()
+    manifest = read_manifest()
+    warnings.simplefilter('ignore')
+    tables = {path: read_rows(path) for path in selected(table_files(), patterns)}
+    suites = {rows[0]['suite'] for rows in tables.values() if rows}
+    generated = {}
+    if any(suite.startswith('stack/') for suite in suites):
+        if not stack_legacy:
+            raise SystemExit('update needs --stack-legacy DIR (stack-sympy at the commit in tools/pins.json): its site pages give '
+                             'the questions\' seeds, and its code the legacy results of new rows')
+        generated = stack_inputs(adapter.stack, Path(stack_legacy).resolve(), probes,
+                                 lambda suite: suite in suites and (suite != 'stack/probes' or bool(probes)), out)
+    excluded = {(entry['suite'], entry['id']) for entry in json.loads(EXCLUDED.read_text(encoding='utf-8'))} if EXCLUDED.exists() else set()
+    problems, pending, counts = [], [], {}
+    for path, rows in tables.items():
+        if not rows:
+            continue
+        suite = rows[0]['suite']
+        reason = adapter.skipped(rows)
+        if reason:
+            out(f'{suite}: skipped: {reason}')
+            continue
+        count = counts.setdefault(suite, {'changed': 0, 'reverted': 0, 'added': 0})
+        for row in rows:
+            found, expected = expected_output(row)
+            result = run_row(adapter, row, sources)
+            if found and canonical(result) == canonical(expected):
+                continue
+            if 'output' not in row:
+                problems.append(f'{suite} {row["id"]}: its results are kept per Python version; update writes rows with one result')
+                continue
+            if 'legacy' in row and canonical(result) == canonical(row['legacy']):
+                row['output'] = result
+                del row['legacy'], row['changes']
+                count['reverted'] += 1
+                continue
+            row.setdefault('legacy', row['output'])
+            row['output'] = result
+            row['changes'] = row.get('changes', []) + ([] if change in row.get('changes', []) else [change])
+            count['changed'] += 1
+        if suite not in generated:
+            continue
+        known = {row['id'] for row in rows}
+        seen, new = set(), {}
+        for call, value, tags, extra in generated[suite]:
+            value = loads(canonical(value))
+            identifier = row_id(call, value)
+            seen.add(identifier)
+            if identifier in known or (suite, identifier) in excluded:
+                continue
+            if identifier in new:
+                new[identifier]['tags'] = sorted(set(new[identifier]['tags']) | set(tags), key=(tags + new[identifier]['tags']).index)
+                continue
+            row = {'suite': suite, 'id': identifier, 'call': call, 'input': value, 'tags': list(tags)}
+            if 'native' in extra:
+                row['native'] = loads(canonical(extra['native']))
+            row['output'] = run_row(adapter, row, sources)
+            new[identifier] = row
+        stale = sorted(known - seen)
+        if stale:
+            problems.append(f'{suite}: {len(stale)} rows that today\'s inputs no longer give (first: {stale[0]}); the inputs are '
+                            'generated with the code, so this change changes them: record the table again instead')
+        rows.extend(new.values())
+        pending.extend(new.values())
+        count['added'] = len(new)
+    for problem in problems:
+        out('PROBLEM ' + problem)
+    if problems:
+        out('Nothing written.')
+        return 1
+    if pending:
+        for row, result in zip(pending, legacy_results(pending, stack_legacy, legacy)):
+            if canonical(result) != canonical(row['output']):
+                row['legacy'] = result
+                row['changes'] = [change]
+    for path, rows in tables.items():
+        if rows and rows[0]['suite'] in counts:
+            write_rows(path, rows)
+            if rows[0]['suite'] in manifest.get('recorded', {}):
+                manifest['recorded'][rows[0]['suite']]['rows'] = len(rows)
+    entry = manifest.setdefault('changes', {}).setdefault(change, {})
+    entry.update({'version': release_of(package_version()), 'python': MINOR})
+    write_manifest(manifest)
+    if manifest.get('capture'):
+        write_provenance()
+    for suite, count in sorted(counts.items()):
+        if any(count.values()):
+            out(f'{suite}: {count["changed"]} rows changed, {count["added"]} added, {count["reverted"]} back to their legacy result')
+    out(f'Updated with ctm_checkers {package_version()} from src/ on Python {sys.version.split()[0]} ({change}).')
+    return 0
+
+
+def git_tables(base):
+    """The tables at the Git commit `base`: {path under tests/golden: rows}."""
+    def git(*args):
+        return subprocess.run(['git', '-C', str(ROOT)] + list(args), capture_output=True, text=True, check=True, encoding='utf-8').stdout
+    tables = {}
+    for name in git('ls-tree', '-r', '--name-only', base, '--', 'tests/golden').split():
+        relative = Path(name).relative_to('tests/golden')
+        if relative.suffix != '.jsonl' or relative.name.startswith('sources-') or 'files' in relative.parts:
+            continue
+        tables[relative.as_posix()] = [loads(line) for line in git('show', f'{base}:{name}').splitlines() if line]
+    return tables
+
+
+def golden_diff(base):
+    """{table: (added, removed, changed)} between the Git commit `base` and
+    the working tree; `changed` holds (before, after) pairs."""
+    previous = git_tables(base)
+    current = {path.relative_to(GOLDEN).as_posix(): read_rows(path) for path in table_files()}
+    report = {}
+    for name in sorted(set(previous) | set(current)):
+        before = {row['id']: row for row in previous.get(name, [])}
+        after = {row['id']: row for row in current.get(name, [])}
+        added = [after[i] for i in after if i not in before]
+        removed = [before[i] for i in before if i not in after]
+        changed = [(before[i], after[i]) for i in after if i in before and canonical(before[i]) != canonical(after[i])]
+        if added or removed or changed:
+            report[name] = (added, removed, changed)
+    return report
+
+
+def result_of(row):
+    return row['output'] if 'output' in row else row.get('by_python')
+
+
+def verdict(row, result=None):
+    """A result in a few words, for the diff's transitions."""
+    call = row['call']
+    value = result_of(row) if result is None else result
+    if not isinstance(value, dict):
+        return 'value'
+    if 'raised' in value:
+        return 'raised'
+    if call == 'stack.answer':
+        grade = value.get('grade', {})
+        return 'raised' if 'raised' in grade else f'{grade.get("status")} {grade.get("score")}'
+    if call == 'stack.tests':
+        return 'passed' if value.get('passed') else 'failed'
+    if 'status' in value:
+        return f'{value["status"]} {value.get("score", "")}'.strip()
+    if 'correct' in value:
+        return 'invalid' if value.get('valid') is False else ('true' if value['correct'] else 'false')
+    if 'outcome' in value:
+        return 'pass' if value['outcome'] == 'pass' else 'fail'
+    return 'other'
+
+
+def agrees_with_native(row):
+    """True or False for a row with a native verdict STACK gave for the same answer test; None otherwise."""
+    native, value = row.get('native'), row.get('output')
+    if isinstance(native, dict) and isinstance(value, dict) and 'correct' in native and 'correct' in value:
+        return native['correct'] == value['correct']
+    return None
+
+
+def diff_summary(report, rows=False):
+    """The golden diff in Markdown: rows per table, transitions, the grading
+    changes named, agreement with native STACK; with `rows`, each changed or
+    added STACK answer row."""
+    if not report:
+        return 'No golden row changed.\n'
+    lines = ['| Table | Changed | Added | Removed |', '|---|---|---|---|']
+    transitions, names, native = {}, {}, {'agree': 0, 'disagree': 0}
+    for name, (added, removed, changed) in report.items():
+        lines.append(f'| `{name}` | {len(changed)} | {len(added)} | {len(removed)} |')
+        for before, after in changed:
+            key = (name, verdict(before), verdict(after))
+            transitions[key] = transitions.get(key, 0) + 1
+            for change in set(after.get('changes', [])) - set(before.get('changes', [])):
+                names[change] = names.get(change, 0) + 1
+            if agrees_with_native(before) != agrees_with_native(after) and agrees_with_native(after) is not None:
+                native['agree' if agrees_with_native(after) else 'disagree'] += 1
+        for row in added:
+            key = (name, '(new)' if 'legacy' not in row else verdict(row, row['legacy']) + ' (legacy code)', verdict(row))
+            transitions[key] = transitions.get(key, 0) + 1
+            for change in row.get('changes', []):
+                names[change] = names.get(change, 0) + 1
+    lines += ['', '| Table | Before | After | Rows |', '|---|---|---|---|']
+    lines += [f'| `{name}` | {before} | {after} | {count} |' for (name, before, after), count in sorted(transitions.items())]
+    lines += ['', 'Grading changes named by the rows: ' + (', '.join(f'{name} ({count} rows)' for name, count in sorted(names.items())) or 'none') + '.',
+              f'Rows with a native STACK verdict that now agree with it: {native["agree"]}; that now disagree: {native["disagree"]}.']
+    if rows:
+        lines += ['', '| Table | File | Question | Seed | Answers | Before | After | Validation now |', '|---|---|---|---|---|---|---|---|']
+        for name, (added, removed, changed) in report.items():
+            pairs = [(before, after) for before, after in changed] + [(None, row) for row in added]
+            for before, after in sorted(pairs, key=lambda pair: (pair[1]['input'].get('file', ''), pair[1]['input'].get('question', ''),
+                                                                  pair[1]['input'].get('seed', 0), canonical(pair[1]['input']))):
+                if after['call'] != 'stack.answer':
+                    continue
+                value = after['input']
+                was = verdict(before) if before else ('(new) ' + verdict(after, after['legacy']) + ' with the legacy code' if 'legacy' in after else '(new)')
+                checks = after['output'].get('validate', {}).get('inputs', {}) if isinstance(after['output'], dict) else {}
+                messages = '; '.join(f'{key}: {item["feedback"]}' for key, item in checks.items() if not item.get('valid') and item.get('feedback'))
+                answers = ', '.join(f'{key}=`{text}`' for key, text in value['answers'].items())
+                lines.append(f'| `{name.rsplit("/", 1)[1][:-6]}` | `{value["file"][len("examples/stack/"):]}` | {value["question"]} | {value["seed"]} '
+                             f'| {answers} | {was} | {verdict(after)} | {messages} |')
+    return '\n'.join(lines) + '\n'
+
+
+def changelog_section(version, text=None):
+    """The CHANGELOG's section of release X.Y.Z of `version` ('' if it has none)."""
+    if text is None:
+        text = (ROOT / 'CHANGELOG.md').read_text(encoding='utf-8')
+    match = re.search(r'^## ' + re.escape(release_of(version)) + r'\b.*?(?=^## |\Z)', text, re.M | re.S)
+    return match[0] if match else ''
+
+
+def changelog_problems(report, version, base_version, changelog):
+    """What a golden diff (`report`, golden_diff) breaks of the rules for a
+    pull request: only STACK's or only math-exercise's tables (H2, design
+    §6.6); every changed result names a new grading change ("changes"); the
+    version (`version`, against the base's `base_version`) is a new MINOR one
+    or above (0.x); and the CHANGELOG's (`changelog`, its text) section of
+    that version has "Grading changes" naming each change."""
+    if not report:
+        return []
+    problems = []
+    families = sorted({name.split('/')[0] for name in report})
+    if len(families) > 1:
+        problems.append('H2: one pull request changes ' + ' and '.join(families) + ' rows; STACK and math-exercise grading changes '
+                        'come in pull requests of their own (design §6.6)')
+    names = set()
+    for name, (added, removed, changed) in report.items():
+        for before, after in changed:
+            new = set(after.get('changes', [])) - set(before.get('changes', []))
+            if canonical(result_of(before)) != canonical(result_of(after)) and not new:
+                problems.append(f'{name} {after["id"]}: its result changed, but the row names no new grading change '
+                                '("changes"; tools/golden.py update --change NAME writes it)')
+            names |= new
+        for row in added:
+            names |= set(row.get('changes', []))
+    key = lambda v: tuple(int(part) for part in release_of(v).split('.'))
+    if key(version)[:2] <= key(base_version)[:2]:
+        problems.append(f'version {version}: golden rows changed, so the release after {base_version} is a new MINOR '
+                        f'version or above (CHANGELOG: while 0.x, a release that changes a verdict is MINOR)')
+    section = changelog_section(version, changelog)
+    if not section:
+        problems.append(f'CHANGELOG.md has no section "## {release_of(version)}"')
+    elif 'Grading changes' not in section:
+        problems.append(f'CHANGELOG.md {release_of(version)}: no "Grading changes" for the changed golden rows')
+    else:
+        problems += [f'CHANGELOG.md {release_of(version)}: "Grading changes" does not name {name}' for name in sorted(names) if name not in section]
+    return problems
+
+
+def check_changelog(base, out=print):
+    """changelog_problems for the working tree against the Git commit `base`."""
+    report = golden_diff(base)
+    if not report:
+        out('No golden row changed.')
+        return 0
+    show = subprocess.run(['git', '-C', str(ROOT), 'show', f'{base}:src/ctm_checkers/__init__.py'], capture_output=True, text=True)
+    base_version = package_version(show.stdout) if show.returncode == 0 else '0.0.0'
+    problems = changelog_problems(report, package_version(), base_version, (ROOT / 'CHANGELOG.md').read_text(encoding='utf-8'))
+    out(diff_summary(report))
+    for problem in problems:
+        out('PROBLEM ' + problem)
+    return 1 if problems else 0
 
 
 # ---------------------------------------------------------------------------
@@ -1285,6 +1640,22 @@ def write_provenance():
                       'files have a table of their own (`course-b-rank-pivots.xml` is S-01\'s test case). No other table holds rows',
                       'of course material, and rows generated from the course repositories themselves (ctm-demo, ingmat3a) stay',
                       'in the umbrella\'s parity harness (step-2 design §13 item 7).']
+    changes = manifest.get('changes', {})
+    if changes:
+        counted = {}
+        for path in table_files():
+            for row in read_rows(path):
+                for change in row.get('changes', []):
+                    counted.setdefault(change, {}).setdefault(row['suite'], 0)
+                    counted[change][row['suite']] += 1
+        lines += ['', '## Grading changes', '',
+                  'A grading change after the recording (CHANGELOG, "Grading changes") wrote the rows it changed with',
+                  'ctm-checkers\' own code (`tools/golden.py update`), and the rows it added; a row whose result is not the',
+                  'legacy code\'s keeps that result as `legacy` and names the change in `changes`. Inputs and licences are',
+                  'those of the table.', '']
+        for change, info in sorted(changes.items()):
+            lines.append(f'- {change}: ctm-checkers {info["version"]} (Python {info["python"]}); rows naming it: '
+                         + ', '.join(f'`{suite}.jsonl` {count}' for suite, count in sorted(counted.get(change, {}).items())) + '.')
     (GOLDEN / 'PROVENANCE.md').write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
 
@@ -1316,6 +1687,23 @@ def main(argv=None):
     imp.add_argument('--record-with', action='append', default=[], metavar='PYTHON',
                      help='also record with this interpreter (each Python version CI tests)')
     imp.add_argument('--umbrella', help='ctm-assessment checkout at the commit in tools/pins.json (default: _ci/ctm-assessment)')
+    upd = commands.add_parser('update', help='after a grading change: run every row with ctm_checkers from src/ and write the results')
+    upd.add_argument('--change', required=True, help='the grading change, as the CHANGELOG names it (e.g. S-01)')
+    upd.add_argument('--stack-legacy', help='stack-sympy checkout (the commit in tools/pins.json): site seeds, legacy results of new rows')
+    upd.add_argument('--legacy', help='math-exercise checkout (the commit in tools/pins.json): legacy results of new rows')
+    upd.add_argument('--stack-probes', help="the stack-sympy audit's probes (to regenerate stack/probes too)")
+    upd.add_argument('--suite', action='append', default=[], help='regular expression on the table path (repeatable)')
+    upd.add_argument('--umbrella', help='ctm-assessment checkout at the commit in tools/pins.json (default: _ci/ctm-assessment)')
+    run = commands.add_parser('run', help='run the rows given as JSON lines on standard input; print each result as a line')
+    for name in ('legacy', 'stack-legacy', 'variants', 'umbrella'):
+        run.add_argument('--' + name)
+    run.add_argument('--adapter', default='legacy', choices=('legacy', 'wheel', 'src', 'installed'))
+    run.add_argument('--wheel', action='append')
+    dif = commands.add_parser('diff', help='the golden diff against a Git commit, in Markdown')
+    dif.add_argument('--base', default='origin/main', help='Git commit to compare with (default: origin/main)')
+    dif.add_argument('--rows', action='store_true', help='also list each changed or added STACK answer row')
+    chk = commands.add_parser('check-changelog', help='rules for a pull request that changes golden rows (H2, names, version, CHANGELOG)')
+    chk.add_argument('--base', default='origin/main', help='Git commit to compare with (the pull request\'s base)')
     options = parser.parse_args(argv)
     use_umbrella(getattr(options, 'umbrella', None))
     if options.command == 'verify':
@@ -1323,6 +1711,15 @@ def main(argv=None):
     if options.command == 'record':
         options.adapter = 'legacy'
         return 1 if record(make_adapter(options), probes=options.stack_probes) else 0
+    if options.command == 'update':
+        return update(options.change, options.stack_legacy, options.legacy, options.stack_probes, options.suite)
+    if options.command == 'run':
+        return run_lines(make_adapter(options), sys.stdin, lambda line: print(line, flush=True))
+    if options.command == 'diff':
+        print(diff_summary(golden_diff(options.base), rows=options.rows), end='')
+        return 0
+    if options.command == 'check-changelog':
+        return check_changelog(options.base)
     return 1 if import_capture(options) else 0
 
 

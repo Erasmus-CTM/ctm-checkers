@@ -22,6 +22,12 @@ def test_rows_are_canonical_sorted_and_complete():
         assert rows, name
         for row in rows:
             keys = set(row) - {'native'} if name.startswith('stack/') else set(row)
+            # A row that a grading change changed keeps the legacy code's result
+            # ("legacy") and names the change ("changes"): both or neither.
+            assert ('legacy' in row) == ('changes' in row), (name, row['id'])
+            if 'legacy' in row:
+                assert 'output' in row and row['changes'] and row['legacy'] != row['output'], (name, row['id'])
+                keys -= {'legacy', 'changes'}
             assert keys in ({'suite', 'id', 'call', 'input', 'output', 'tags'}, {'suite', 'id', 'call', 'input', 'by_python', 'tags'}), (name, row['id'])
             assert name == row['suite'] + '.jsonl', (name, row['id'])
             if 'by_python' in row:
@@ -237,3 +243,59 @@ def test_stack_inputs_are_stack_sympys():
                 continue
             assert here == path.read_bytes(), relative
     assert (golden.ROOT / 'tests' / 'stack' / 'reference_cases.json').read_bytes() == (legacy / 'tests' / 'reference_cases.json').read_bytes()
+
+
+def test_grading_changes_are_in_the_changelog_and_the_manifest():
+    # Every change a row names is listed under "Grading changes" in the
+    # CHANGELOG section of the version that made it (manifest.json "changes").
+    manifest = golden.read_manifest()
+    named = {change for rows in tables().values() for row in rows for change in row.get('changes', [])}
+    assert named <= set(manifest.get('changes', {})), named
+    changelog = (golden.ROOT / 'CHANGELOG.md').read_text(encoding='utf-8')
+    for change in named:
+        section = golden.changelog_section(manifest['changes'][change]['version'], changelog)
+        assert 'Grading changes' in section and change in section, change
+
+
+def row(identifier, output, **extra):
+    return dict({'suite': 'stack/x', 'id': identifier, 'call': 'stack.answer', 'input': {}, 'output': output, 'tags': []}, **extra)
+
+
+CHANGELOG = '# Changelog\n\n## 0.3.0 (date)\n\n### Grading changes\n\n- S-01: ...\n\n## 0.2.0 (date)\n\nNo grading changes.\n'
+
+
+def test_check_changelog_rules():
+    before = row('a', {'grade': {'status': 'graded', 'score': 1.0}})
+    after = row('a', {'grade': {'status': 'invalid', 'score': 0.0}}, legacy=before['output'], changes=['S-01'])
+    report = {'stack/x.jsonl': ([], [], [(before, after)])}
+    assert golden.changelog_problems(report, '0.3.0', '0.2.0', CHANGELOG) == []
+    assert golden.changelog_problems({}, '0.2.0', '0.2.0', '') == []
+    # The change is not named in the row, the version is not a new MINOR one, the CHANGELOG lacks it.
+    unnamed = {'stack/x.jsonl': ([], [], [(before, dict(after, changes=[]))])}
+    assert any('names no new grading change' in p for p in golden.changelog_problems(unnamed, '0.3.0', '0.2.0', CHANGELOG))
+    assert any('new MINOR' in p for p in golden.changelog_problems(report, '0.2.1', '0.2.0', CHANGELOG))
+    assert any('does not name S-01' in p for p in golden.changelog_problems(report, '0.3.0', '0.2.0', CHANGELOG.replace('S-01', 'S-02')))
+    assert any('no section' in p for p in golden.changelog_problems(report, '0.4.0.dev0', '0.3.0', CHANGELOG))
+    assert any('no "Grading changes"' in p for p in golden.changelog_problems(report, '0.2.0', '0.1.0', CHANGELOG))
+    # H2: STACK and math-exercise rows never change in one pull request.
+    both = dict(report, **{'math_exercise/y.jsonl': ([row('b', {'score': 1})], [], [])})
+    assert any(p.startswith('H2') for p in golden.changelog_problems(both, '0.3.0', '0.2.0', CHANGELOG))
+
+
+def test_the_diff_summary_counts_rows_and_transitions():
+    before = row('a', {'grade': {'status': 'graded', 'score': 1.0}})
+    after = row('a', {'grade': {'status': 'invalid', 'score': 0.0}, 'validate': {'inputs': {'ans': {'valid': False, 'feedback': 'F.'}}}},
+                legacy=before['output'], changes=['S-01'])
+    after['input'] = before['input'] = {'file': 'examples/stack/q.xml', 'question': 'q', 'seed': 1, 'answers': {'ans': 'ta'}}
+    text = golden.diff_summary({'stack/x.jsonl': ([], [], [(before, after)])}, rows=True)
+    assert '| `stack/x.jsonl` | 1 | 0 | 0 |' in text
+    assert '| `stack/x.jsonl` | graded 1.0 | invalid 0.0 | 1 |' in text
+    assert 'S-01 (1 rows)' in text and 'ans=`ta`' in text and 'ans: F.' in text
+    assert golden.diff_summary({}) == 'No golden row changed.\n'
+
+
+def test_legacy_results_are_what_the_legacy_adapter_verifies():
+    changed = row('a', {'score': 0}, legacy={'score': 1}, changes=['S-01'])
+    assert golden.expected_output(changed) == (True, {'score': 0})
+    assert golden.expected_output(changed, legacy=True) == (True, {'score': 1})
+    assert golden.expected_output(row('b', {'score': 1}), legacy=True) == (True, {'score': 1})

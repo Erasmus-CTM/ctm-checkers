@@ -5,8 +5,11 @@ name: Tests
 # matches src/ and no released version changed (neither its code nor, against
 # the base commit, its entry in tools/released.json); the golden tables are
 # reproduced by math-exercise 0.10.0's and stack-sympy f450bcd's own code
-# (legacy adapter, tools/pins.json) and by the built wheels, imported from the zips as builds
-# import them (authored rows recorded with the umbrella's recorder at the pin);
+# (legacy adapter, tools/pins.json; a row that a later grading change changed: its "legacy"
+# result) and by the built wheels, imported from the zips as builds
+# import them (authored rows recorded with the umbrella's recorder at the pin); a pull
+# request that changes golden rows names its grading change and has its CHANGELOG entry,
+# and changes STACK's or math-exercise's rows, never both (H2);
 # mutations of the checks make them fail; the tests run on src/ and on the
 # wheels; the wheels install with pip.
 on:
@@ -77,6 +80,11 @@ jobs:
           else
             python tools/build.py --check
           fi
+      - name: A pull request that changes golden rows follows the rules of grading changes (H2, names, version, CHANGELOG)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: python tools/golden.py check-changelog --base "$BASE"
       - name: Tests (src/)
         run: pytest -q tests
       - name: Tests (the built wheels)

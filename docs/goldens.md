@@ -93,6 +93,8 @@ of this repository; the legacy adapter runs them with stack-sympy's code,
 which finds `ctm_checkers.matrix` (imported by `examples/stack/matrix-checkers.py`)
 as its own `stack_sympy.basis_helper` (design §6.3: import shims). No row
 differs between Python versions or between native Python and Pyodide.
+Rows that a grading change after the move changed keep stack-sympy's result
+as `legacy` (below, "Grading changes").
 
 ## Rows
 
@@ -120,6 +122,44 @@ of the row's canonical `{call, input}`:
   3.9 to 3.13 is also recorded natively with the legacy code (3.12 and 3.13
   give the Pyodide results; 3.10 and 3.11 those of 3.12; 3.9 words 60 parse
   errors differently). Every version CI runs must be present.
+- `legacy` and `changes`, on a row that a grading change changed after the
+  row was recorded: `legacy` is the legacy code's result (what it was
+  recorded with, and what the legacy adapter still verifies), `changes` the
+  grading changes that changed it, as the CHANGELOG names them (`["S-01"]`).
+  A new row whose legacy result differs from `output` has them too.
+
+## Grading changes
+
+A change of ctm-checkers that changes a verdict changes golden rows, and the
+golden diff in its pull request is the evidence (design §6.6):
+
+```sh
+# after the change of src/: run every row with it and write what changed
+python tools/golden.py update --change S-01 --stack-legacy _ci/stack-sympy
+python tools/golden.py diff --base origin/main --rows     # the summary for the PR and the CHANGELOG
+python tools/golden.py check-changelog --base origin/main # what CI checks on a pull request
+```
+
+`update` runs every row with `ctm_checkers` from `src/` (one Python; then
+`verify` on each Python CI runs). A row whose result changes keeps its
+recorded result as `legacy` and names the change in `changes`; a row that
+gives its legacy result again loses both. For the STACK tables it also
+writes the inputs again with today's code (`tools/golden_stack.py`, with the
+site pages of the stack-sympy checkout) and adds the rows they add, with
+the legacy code's result in a process of its own; it writes nothing when a
+row kept per Python version changes or when a table holds a row that
+today's inputs no longer give (the inputs depend on the code: such a change
+records the table again). `manifest.json` `changes` names each change with
+its version.
+
+`check-changelog` (CI, on pull requests): STACK's and math-exercise's
+tables never change in one pull request (H2); every changed result names a
+new grading change in `changes`; the version is a new MINOR one or above
+(0.x); and the CHANGELOG section of that version names each change under
+"Grading changes". `diff` writes the rows per table, the transitions of
+the results (`graded 1.0 → invalid 0.0`), the changes named, the rows with a
+native STACK verdict that now agree or disagree with it and, with `--rows`,
+each changed STACK answer row.
 
 ## Verifying
 
