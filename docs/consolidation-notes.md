@@ -105,3 +105,7 @@ grading-change PR). The design is ctm-assessment
   that changes rows needs a "Grading changes" entry), design §6.4 and §7,
   are not implemented: 0.1.0 has no grading changes. They must exist before
   the first fix or B-row pull request relies on golden diffs as evidence.
+- The H2 golden rule (design §6.6) as a CI rule: a pull request that
+  changes STACK rows (`tests/golden/stack/`) must not change math-exercise
+  rows (`tests/golden/math_exercise/`), and vice versa. Today the review
+  checks it by hand (C3 changes no `math_exercise/*` row).

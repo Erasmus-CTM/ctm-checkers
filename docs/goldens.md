@@ -57,7 +57,7 @@ run them (`stack.import`, `stack.instantiate`, `stack.card`, `stack.tests`,
 | `questions-helm.jsonl` | 179 | The same for the two HELM questions (`examples/stack/upstream`). |
 | `probes.jsonl` | 207 | The stack-sympy audit's answer-test probes with STACK's and Maxima's native verdicts (`native`), and its performance probes. |
 | `probe-questions.jsonl` | 285 | The audit's question probes (`examples/stack/probes/`) with its answers. |
-| `supplement.jsonl` | 47 | Rules that only the mutation tests reached (below): NumAbsolute's strict bound with STACK's 1e-9 guard and NumRelative's inclusive one, for exact and irrational numbers; AlgEquiv's numeric rejection screen (1e-4 margin); response-tree scores beyond [0, 1] (`examples/stack/supplement/score-modes.xml`). |
+| `supplement.jsonl` | 153 | Rules that only the mutation tests reached (below): NumAbsolute's strict bound with STACK's 1e-9 guard and NumRelative's inclusive one, for exact and irrational numbers; AlgEquiv's numeric rejection screen (1e-4 margin); response-tree scores beyond [0, 1] (`examples/stack/supplement/score-modes.xml`); the input rules of `examples/stack/supplement/input-rules.xml` (forbidden words in any case, the numerical input's type, lowest terms with two negative numbers, and/or precedence in the validation's LaTeX, the 64-entry matrix limit), with the answer sets of the example questions and the answers in `golden_stack.PROBE_ANSWERS`. |
 
 `excluded.json` lists the inputs that run longer than 20 s (S-12:
 `sin(exp(exp(exp(5))))`, `sin(x)^99*cos(x)^99` against `(sin(2*x)/2)^99`):
@@ -205,7 +205,7 @@ round, the reject rule comparing expressions instead of their text, changes
 no verdict SymPy can produce here and is not listed.
 
 Mutations of the STACK engine must fail the STACK tables (the test stops at
-the first row that differs). Rows that differ in all (of 4,920), by table:
+the first row that differs). Rows that differ in all (of 5,026), by table:
 
 | Mutation | Rows | Tables |
 |---|---|---|
@@ -221,12 +221,25 @@ the first row that differs). Rows that differ in all (of 4,920), by table:
 | response trees: scores not clamped to [0, 1] | 17 | supplement |
 | question tests: no penalty for a wrong first attempt | 96 | questions-project 30, questions-library 59, questions-helm 1, probe-questions 3, supplement 3 |
 | `forbidfloat` ignored | 9 | questions-library 8, questions-helm 1 |
-| the 1,200-character input limit raised to 1,400 | 72 | questions-project 22, questions-library 31, questions-helm 7, probe-questions 11, supplement 1 |
+| the 1,200-character input limit raised to 1,400 | 77 | questions-project 22, questions-library 31, questions-helm 7, probe-questions 11, supplement 6 |
 | the card's JSON without `<` escaped | 39 | questions-project 12, questions-library 25, questions-helm 2 |
+| forbidden words compared with their case | 1 | supplement |
+| lowest terms: two negative numbers accepted | 1 | supplement |
+| a numerical input accepts a non-number | 2 | supplement |
+| the matrix limit raised from 64 to 65 entries | 1 | supplement |
+| the validation's LaTeX with `or` binding tighter than `and` | 82 | supplement |
 
-The rows of `supplement` were added for the first seven: the tables recorded
-first reached no row of those rules (NumAbsolute's guard and NumRelative's
-bound only for exact numbers, as the compliance runner's fixtures do).
+The rows of `supplement` were added for the first seven and the last five:
+the tables recorded first reached no row of those rules (NumAbsolute's guard
+and NumRelative's bound only for exact numbers, as the compliance runner's
+fixtures do; the last five rules, found by the review of C3, only pytest or
+nothing reached). Two mutations of the page's calls change no row and no
+answer, so no test can catch them: `stack.tests` with `seeds=[1]` (the
+engine's `run_question_tests` uses the card's variant and ignores `seeds`
+when it gets variants) and math-exercise's admission rule on the `stack.*`
+calls (it reads math-exercise's request fields, which a STACK request does
+not have). `tests/stack/test_page.py` catches the others: the envelope for
+every exception, and a variant of seed 1 instead of the card's.
 
 ## Refreshing the capture
 

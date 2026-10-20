@@ -44,11 +44,15 @@ as before, the STACK tables recorded from stack-sympy's own code included.
   runs in Pyodide 0.28.3 (ctm-libs' page runtime, which stack-sympy's worker
   now uses; before: 0.27.2) and installs the engine with the page scripts.
 - Golden tables: the STACK tables are verified with ctm_checkers.stack too
-  (from `src/`, the wheels, and the page scripts in Pyodide); 14 mutations
+  (from `src/`, the wheels, and the page scripts in Pyodide); 19 mutations
   of the STACK engine must fail them (`tests/test_mutations.py`), and
-  `stack/supplement` (47 rows, recorded with stack-sympy's code) reaches the
+  `stack/supplement` (153 rows, recorded with stack-sympy's code) reaches the
   rules that only mutations reached: NumAbsolute's and NumRelative's bounds,
-  AlgEquiv's numeric rejection screen, response-tree scores outside [0, 1].
+  AlgEquiv's numeric rejection screen, response-tree scores outside [0, 1],
+  and input rules (forbidden words in any case, the numerical input's type,
+  lowest terms with two negative numbers, and/or precedence in the
+  validation's LaTeX, the 64-entry matrix limit). `tests/stack/test_page.py`
+  tests the page's calls (`stack/page.py`).
 - The corpus baseline (`examples/stack/corpus/baseline.json`) names the
   engine it was recorded with: only its `engine_revision`,
   `adapter_source_sha256` and `python_version` changed.
@@ -59,11 +63,12 @@ as before, the STACK tables recorded from stack-sympy's own code included.
   `_ctm_builtins.__import__("ctm_checkers.browser", fromlist=["call"]).call(name, _ctm_builtins.globals())`.
   It looks up no name in the page's namespace, which learner code shares (a
   learner's `__import__ = None` stopped every check of math-exercise 0.10.0).
-  The install code leaves no name in the namespace (the `_ctm_import` and
-  `_ctm_globals` of the first 0.1.1.dev0 builds are gone; no released
-  version had them), and `browser.call` without `_ctm_request` raises a
+  The install code leaves no name in the namespace: the `_ctm_import` and
+  `_ctm_globals` that 0.1.0 (`4bd916d`, in CTM Assessment 0.10.0) left are
+  gone (ctm-libs removes them after an install of 0.1.0 and keeps doing so),
+  and `browser.call` without `_ctm_request` raises a
   `RuntimeError` naming the call instead of running an empty request.
-- STACK golden tables (`tests/golden/stack/`, 4,873 rows; docs/goldens.md),
+- STACK golden tables (`tests/golden/stack/`, 5,026 rows with `stack/supplement`; docs/goldens.md),
   recorded from stack-sympy `f450bcd` with its own code before its engine
   moves here: STACK's answer-test fixtures through the compliance runner,
   stack-sympy's port regressions and reference cases, every example question

@@ -364,6 +364,9 @@ def _answer_sets(engine, question, variant, full):
     return unique
 
 
+_INPUT_RULES = {'ans1': 'x', 'ans2': '1/2', 'ans3': '2/3', 'ans4': 'a or b and c', 'ans5': 'matrix([1,2],[3,4])'}
+
+
 # Extra answer sets of the audit's question probes (qprobe.py, crash.py,
 # overflow.cjs) and leak.py (S-01), by file.
 PROBE_ANSWERS = {
@@ -381,6 +384,17 @@ PROBE_ANSWERS = {
     'examples/stack/numerical-measurement.xml': [{'perimeter': 'ta_perimeter', 'area': 'ta_area', 'area2': 'ta_area'}],
     'examples/stack/python-checker.xml': [{'ans': 'd'}],
     'examples/stack/zero-product.xml': [{'ans': 'ta'}],
+    # The input rules no other row reached (the review of C3): forbidden
+    # words in any case, the numerical input's type, lowest terms with two
+    # negative numbers, and/or precedence in the validation's LaTeX, the
+    # 64-entry matrix limit.
+    'examples/stack/supplement/input-rules.xml': [
+        dict(_INPUT_RULES, **change) for change in (
+            {'ans1': 'sin(x)'}, {'ans1': 'x+SIN'}, {'ans2': 'x'}, {'ans2': 'sqrt(2)'},
+            {'ans3': '(-2)/(-3)'}, {'ans3': '-2/3'}, {'ans3': '2/(-3)'}, {'ans3': '(-4)/6'},
+            {'ans4': '(a or b) and c'}, {'ans4': 'a and b or c'}, {'ans4': 'a and (b or c)'}, {'ans4': 'not a or b'},
+            {'ans5': 'matrix(' + ','.join('[' + ','.join(['1'] * 13) + ']' for _ in range(5)) + ')'},
+            {'ans5': 'matrix(' + ','.join('[' + ','.join(['1'] * 8) + ']' for _ in range(8)) + ')'})],
 }
 
 

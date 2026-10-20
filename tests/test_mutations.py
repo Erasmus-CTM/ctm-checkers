@@ -83,7 +83,15 @@ MUTATIONS = {
                             'observed_penalty = 0.0', 1, (STACK,)),
     'stack-forbid-float': ('stack/engine.py', 'if inp["forbidfloat"] and any(', 'if False and any(', 1, (STACK,)),
     'stack-max-chars': ('stack/expressions.py', 'MAX_CHARS = 1200', 'MAX_CHARS = 1400', 1, (STACK,)),
-    'stack-card-json-escape': ('stack/cli.py', '.replace("<", "\\\\u003c")', '', 1, (STACK,)),
+    'stack-card-json-escape': ('stack/cli.py', '.replace("<", "\\\\u003c")', '', 1, (STACK,)),    # The input rules that only stack/supplement's input-rules.xml reaches (the review of C3).
+    'stack-forbidwords-case': ('stack/engine.py', 'if any(n.value.lower() in {w.lower() for w in inp["forbidwords"]}',
+                               'if any(n.value in set(inp["forbidwords"])', 1, (STACK,)),
+    'stack-lowest-terms-negatives': ('stack/engine.py', '\n                                                              or num < 0 and den < 0):',
+                                     '):', 1, (STACK,)),
+    'stack-numerical-type': ('stack/engine.py', 'if inp["type"] == "numerical" and getattr(value, "is_number", None) is not True:',
+                             'if False:', 1, (STACK,)),
+    'stack-max-matrix-entries': ('stack/expressions.py', 'MAX_MATRIX_ENTRIES = 64', 'MAX_MATRIX_ENTRIES = 65', 1, (STACK,)),
+    'stack-logic-precedence': ('stack/expressions.py', '"or": 2, "and": 4', '"or": 4, "and": 2', 1, (STACK,)),
 }
 
 # A few minutes: CI runs them in a step of their own (CTM_MUTATION_TESTS=1).
