@@ -98,6 +98,32 @@ grading-change PR). The design is ctm-assessment
   with `ctm-checkers-ref: <pin>`; its artifact `native-compliance-html` is the
   report to publish under `/compliance`.
 
+## AC's decisions on 0.2.0 (20 October 2026)
+
+After the independent review of C3 (ctm-checkers #4), AC decided:
+
+- **A. Course-derived STACK questions.** `course-b-rank-pivots.xml` (S-01's
+  test case), `course-b-nullspace.xml` and `course-c-nullspace.xml` have
+  their own golden table, `stack/questions-course`, labelled as course
+  material under CC BY-SA 4.0 with a provenance and licence notice
+  (`tests/golden/PROVENANCE.md`). No other table holds course rows, and
+  rows generated from the course repositories (ctm-demo, ingmat3a) stay in
+  the umbrella (design §13 item 7). The H2 rule (below) is unchanged.
+- **B. HELM samples.** The two HELM questions and their 179 rows
+  (`stack/questions-helm`, CC BY-NC 4.0) stay, with a licence notice of
+  their own wherever the licence is stated: test data only; the code is
+  AGPL-3.0-or-later.
+- **C. Accepted:**
+  - the second STACK wheel and page script (`ctm-checkers-stack`, about
+    150 KB in every course's `_extensions/ctm-checkers/`, never loaded on
+    math pages);
+  - the compliance report's browser parity on Pyodide 0.28.3 (ctm-libs'
+    runtime; it was 0.27.2 in stack-sympy), the goldens still verified on
+    both;
+  - the native-image validation (native STACK in Maxima, `native-stack.yml`)
+    in ctm-checkers;
+  - the CTM-authored example XML in `examples/stack/` keeps CC BY-SA 4.0.
+
 ## Before the first grading-change pull request (fixes, B rows)
 
 - `tools/golden.py diff --base origin/main` (the summary of a golden diff:

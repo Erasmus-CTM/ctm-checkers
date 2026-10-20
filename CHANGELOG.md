@@ -44,8 +44,10 @@ as before, the STACK tables recorded from stack-sympy's own code included.
   runs in Pyodide 0.28.3 (ctm-libs' page runtime, which stack-sympy's worker
   now uses; before: 0.27.2) and installs the engine with the page scripts.
 - Golden tables: the STACK tables are verified with ctm_checkers.stack too
-  (from `src/`, the wheels, and the page scripts in Pyodide); 19 mutations
-  of the STACK engine must fail them (`tests/test_mutations.py`), and
+  (from `src/`, the wheels, and the page scripts in Pyodide); 25 mutations
+  of the STACK engine and its basis checks must fail them
+  (`tests/test_mutations.py`; six of them only the course-material table
+  reaches), and
   `stack/supplement` (153 rows, recorded with stack-sympy's code) reaches the
   rules that only mutations reached: NumAbsolute's and NumRelative's bounds,
   AlgEquiv's numeric rejection screen, response-tree scores outside [0, 1],
@@ -68,16 +70,31 @@ as before, the STACK tables recorded from stack-sympy's own code included.
   gone (ctm-libs removes them after an install of 0.1.0 and keeps doing so),
   and `browser.call` without `_ctm_request` raises a
   `RuntimeError` naming the call instead of running an empty request.
-- STACK golden tables (`tests/golden/stack/`, 5,026 rows with `stack/supplement`; docs/goldens.md),
-  recorded from stack-sympy `f450bcd` with its own code before its engine
-  moves here: STACK's answer-test fixtures through the compliance runner,
-  stack-sympy's port regressions and reference cases, every example question
-  (import, cards, variants, question tests and generated answers), and the
-  probes of the stack-sympy audit with their native verdicts. The legacy
+- STACK golden tables (`tests/golden/stack/`, 5,821 rows in ten tables;
+  docs/goldens.md), recorded from stack-sympy `f450bcd` with its own code
+  before its engine moves here: STACK's answer-test fixtures through the
+  compliance runner, stack-sympy's port regressions and reference cases,
+  every example question (import, the cards of stack-sympy's site, variants
+  at the site's seeds and, for CTM's own and the course's questions, at 1 to
+  3, question tests and generated answers), and the probes of the
+  stack-sympy audit with their native verdicts. The legacy
   adapter (`golden.py verify --stack-legacy`, CI on Python 3.9 to 3.13 and in
   Pyodide 0.27.2 and 0.28.3) reproduces every row. The inputs: STACK's
   example questions in `examples/stack/` (their one home from now on,
   stack-sympy's `questions/`) and its fixtures in `tests/stack/`.
+- Licences of the STACK test data (AC, 20 October 2026), each with its
+  notice in `tests/golden/PROVENANCE.md`, README and `examples/stack/README.md`;
+  the code is AGPL-3.0-or-later whatever the licence of a table, and no
+  wheel or page script contains test data:
+  - `stack/questions-course` (232 rows) is course material, labelled as
+    such: the three questions derived from the course ingmat3a_ntnu
+    (Andrey Chesnokov), among them S-01's test case
+    `course-b-rank-pivots.xml`, under CC BY-SA 4.0 with their source record.
+    No other table holds course rows (design §13 item 7 still holds for
+    the math tables and for rows generated from course repositories).
+  - `stack/questions-helm` (179 rows) and the two HELM questions are
+    CC BY-NC 4.0 (NonCommercial), kept as test data only.
+  - The CTM-authored example XML keeps CC BY-SA 4.0.
 - Golden tables: three supplementary requests (88 in all) for rules that
   only mutations reached in the second round of the review: an imaginary part
   between 1e-9 and 1e-3, boolean graph node identifiers, and how
