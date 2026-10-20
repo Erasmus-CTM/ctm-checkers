@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<quiz><question type="stack">
+<name><text>power-I</text></name>
+<questionvariables><text>ta:I^2*R;</text></questionvariables>
+<questiontext format="html"><text><![CDATA[<p>A current I flows through a resistor R. Give the dissipated power P in terms of I and R.</p><p>P = [[input:ans1]] [[validation:ans1]] [[feedback:prt1]]</p>]]></text></questiontext>
+<defaultgrade>1</defaultgrade><penalty>0.1</penalty><questionsimplify>1</questionsimplify>
+<input><name>ans1</name><type>algebraic</type><tans>ta</tans></input>
+<prt><name>prt1</name><value>1</value><autosimplify>1</autosimplify>
+<node><name>0</name><answertest>AlgEquiv</answertest><sans>ans1</sans><tans>ta</tans>
+<truescoremode>=</truescoremode><truescore>1</truescore><truenextnode>-1</truenextnode><trueanswernote>prt1-1-T</trueanswernote>
+<falsescoremode>=</falsescoremode><falsescore>0</falsescore><falsenextnode>-1</falsenextnode><falseanswernote>prt1-1-F</falseanswernote></node>
+</prt>
+<qtest><testcase>1</testcase><testinput><name>ans1</name><value>-R</value></testinput>
+<expected><name>prt1</name><expectedscore>0</expectedscore><expectedpenalty>0.1</expectedpenalty><expectedanswernote>prt1-1-F</expectedanswernote></expected></qtest>
+</question></quiz>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Written for ctm-checkers' golden tables (stack/supplement): the input rules that no example reached. AGPL-3.0-or-later. -->
+<quiz><question type="stack">
+<name><text>input-rules</text></name>
+<questionvariables><text>M:matrix([1,2],[3,4]);</text></questionvariables>
+<questiontext format="html"><text><![CDATA[<p>[[input:ans1]] [[validation:ans1]] [[feedback:prt1]] [[input:ans2]] [[validation:ans2]] [[feedback:prt2]] [[input:ans3]] [[validation:ans3]] [[feedback:prt3]] [[input:ans4]] [[validation:ans4]] [[feedback:prt4]] [[input:ans5]] [[validation:ans5]] [[feedback:prt5]]</p>]]></text></questiontext>
+<defaultgrade>1</defaultgrade><penalty>0.1</penalty><questionsimplify>1</questionsimplify>
+<input><name>ans1</name><type>algebraic</type><tans>x</tans><forbidwords>SIN</forbidwords></input>
+<input><name>ans2</name><type>numerical</type><tans>1/2</tans></input>
+<input><name>ans3</name><type>algebraic</type><tans>2/3</tans><requirelowestterms>1</requirelowestterms></input>
+<input><name>ans4</name><type>algebraic</type><tans>a or b and c</tans></input>
+<input><name>ans5</name><type>algebraic</type><tans>M</tans></input>
+<prt><name>prt1</name><value>1</value><autosimplify>1</autosimplify><node><name>0</name><answertest>AlgEquiv</answertest><sans>ans1</sans><tans>x</tans><truescoremode>=</truescoremode><truescore>1</truescore><truenextnode>-1</truenextnode><trueanswernote>prt1-T</trueanswernote><falsescoremode>=</falsescoremode><falsescore>0</falsescore><falsenextnode>-1</falsenextnode><falseanswernote>prt1-F</falseanswernote></node></prt>
+<prt><name>prt2</name><value>1</value><autosimplify>1</autosimplify><node><name>0</name><answertest>AlgEquiv</answertest><sans>ans2</sans><tans>1/2</tans><truescoremode>=</truescoremode><truescore>1</truescore><truenextnode>-1</truenextnode><trueanswernote>prt2-T</trueanswernote><falsescoremode>=</falsescoremode><falsescore>0</falsescore><falsenextnode>-1</falsenextnode><falseanswernote>prt2-F</falseanswernote></node></prt>
+<prt><name>prt3</name><value>1</value><autosimplify>1</autosimplify><node><name>0</name><answertest>AlgEquiv</answertest><sans>ans3</sans><tans>2/3</tans><truescoremode>=</truescoremode><truescore>1</truescore><truenextnode>-1</truenextnode><trueanswernote>prt3-T</trueanswernote><falsescoremode>=</falsescoremode><falsescore>0</falsescore><falsenextnode>-1</falsenextnode><falseanswernote>prt3-F</falseanswernote></node></prt>
+<prt><name>prt4</name><value>1</value><autosimplify>1</autosimplify><node><name>0</name><answertest>AlgEquiv</answertest><sans>ans4</sans><tans>a or b and c</tans><truescoremode>=</truescoremode><truescore>1</truescore><truenextnode>-1</truenextnode><trueanswernote>prt4-T</trueanswernote><falsescoremode>=</falsescoremode><falsescore>0</falsescore><falsenextnode>-1</falsenextnode><falseanswernote>prt4-F</falseanswernote></node></prt>
+<prt><name>prt5</name><value>1</value><autosimplify>1</autosimplify><node><name>0</name><answertest>AlgEquiv</answertest><sans>ans5</sans><tans>M</tans><truescoremode>=</truescoremode><truescore>1</truescore><truenextnode>-1</truenextnode><trueanswernote>prt5-T</trueanswernote><falsescoremode>=</falsescoremode><falsescore>0</falsescore><falsenextnode>-1</falsenextnode><falseanswernote>prt5-F</falseanswernote></node></prt>
+</question></quiz>

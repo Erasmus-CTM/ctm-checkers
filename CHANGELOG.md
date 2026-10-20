@@ -6,9 +6,58 @@ release. Every grading change is listed under "Grading changes" with the
 finding or decision it implements, its test and the summary of its golden
 diff (docs/goldens.md).
 
-## Unreleased (0.1.1.dev0)
+## 0.2.0 (20 October 2026)
 
-No grading changes: every golden row is reproduced as before.
+stack-sympy's STACK engine moves here (consolidation step 2, C3): its Python
+code as it was at stack-sympy `f450bcd`, relicensed AGPL-3.0-or-later by the
+CTM team, its authors. No grading changes: every golden row is reproduced
+as before, the STACK tables recorded from stack-sympy's own code included.
+
+- `ctm_checkers.stack`: stack-sympy's `stack_sympy` package (its 14 modules
+  but `basis_helper.py`, whose `assess_basis` is `ctm_checkers.matrix`'s,
+  the same function), with its build-time command line
+  (`python -m ctm_checkers.stack.cli render|test`, the card's HTML as
+  before) and the page's calls `stack.validate`, `stack.grade` and
+  `stack.tests` of `browser.call` (stack-sympy's worker requests, with their
+  envelope; `ctm_checkers.stack.page`).
+- A wheel and a page script of its own for the STACK engine
+  (`ctm_checkers_stack-<version>-py3-none-any.whl`, `ctm-checkers-stack.js`
+  with `CTMCheckersStack.install(py)`, `checkers.json` `parts.stack`), so
+  that pages with math-exercise never carry it (design §13 item 5);
+  ctm-libs' load of the installed package (`pkgutil.walk_packages`) sees no
+  STACK module there. `ctm_checkers/__init__.py` joins the two wheels on
+  `sys.path` (`pkgutil.extend_path`); pip installs them as `ctm-checkers` and
+  `ctm-checkers-stack`. The page scripts give their URL (`scriptURL`) for
+  workers that load them.
+- `examples/stack/`: the STACK question XML, its one home (stack-sympy's
+  `questions/`, which its site now copies from here), with each folder's
+  licence; `matrix-checkers.py` imports `ctm_checkers.matrix`.
+- `tests/stack/`: 24 of stack-sympy's 26 test modules (not its render test,
+  nor the corpus-page test, which stay with its site), its fixtures, and its
+  browser tests of the report's pages (`test_report_ui.py`, run by
+  `native-stack.yml` after the report);
+  `tools/stack_native/`: its native STACK comparison, compliance report,
+  corpus replay and fixture import, and the stack-sympy audit's `dual.py`;
+  `reports/stack-compliance/`: the report's Quarto project;
+  `.github/workflows/native-stack.yml`: its CI (reusable: stack-sympy's site
+  calls it at its pin and publishes the report). The report's browser parity
+  runs in Pyodide 0.28.3 (ctm-libs' page runtime, which stack-sympy's worker
+  now uses; before: 0.27.2) and installs the engine with the page scripts.
+- Golden tables: the STACK tables are verified with ctm_checkers.stack too
+  (from `src/`, the wheels, and the page scripts in Pyodide); 25 mutations
+  of the STACK engine and its basis checks must fail them
+  (`tests/test_mutations.py`; six of them only the course-material table
+  reaches), and
+  `stack/supplement` (153 rows, recorded with stack-sympy's code) reaches the
+  rules that only mutations reached: NumAbsolute's and NumRelative's bounds,
+  AlgEquiv's numeric rejection screen, response-tree scores outside [0, 1],
+  and input rules (forbidden words in any case, the numerical input's type,
+  lowest terms with two negative numbers, and/or precedence in the
+  validation's LaTeX, the 64-entry matrix limit). `tests/stack/test_page.py`
+  tests the page's calls (`stack/page.py`).
+- The corpus baseline (`examples/stack/corpus/baseline.json`) names the
+  engine it was recorded with: only its `engine_revision`,
+  `adapter_source_sha256` and `python_version` changed.
 
 - The page's call text is ctm-libs' (`MathExerciseRuntime.callCheckers`),
   documented exactly in docs/api.md:
@@ -16,10 +65,39 @@ No grading changes: every golden row is reproduced as before.
   `_ctm_builtins.__import__("ctm_checkers.browser", fromlist=["call"]).call(name, _ctm_builtins.globals())`.
   It looks up no name in the page's namespace, which learner code shares (a
   learner's `__import__ = None` stopped every check of math-exercise 0.10.0).
-  The install code leaves no name in the namespace (the `_ctm_import` and
-  `_ctm_globals` of the first 0.1.1.dev0 builds are gone; no released
-  version had them), and `browser.call` without `_ctm_request` raises a
+  The install code leaves no name in the namespace: the `_ctm_import` and
+  `_ctm_globals` that 0.1.0 (`4bd916d`, in CTM Assessment 0.10.0) left are
+  gone (ctm-libs removes them after an install of 0.1.0 and keeps doing so),
+  and `browser.call` without `_ctm_request` raises a
   `RuntimeError` naming the call instead of running an empty request.
+- STACK golden tables (`tests/golden/stack/`, 5,821 rows in ten tables;
+  docs/goldens.md), recorded from stack-sympy `f450bcd` with its own code
+  before its engine moves here: STACK's answer-test fixtures through the
+  compliance runner, stack-sympy's port regressions and reference cases,
+  every example question (import, the cards of stack-sympy's site, variants
+  at the site's seeds and, for CTM's own and the course's questions, at 1 to
+  3, question tests and generated answers), and the probes of the
+  stack-sympy audit with their native verdicts. The legacy
+  adapter (`golden.py verify --stack-legacy`, CI on Python 3.9 to 3.13 and in
+  Pyodide 0.27.2 and 0.28.3) reproduces every row. The inputs: STACK's
+  example questions in `examples/stack/` (their one home from now on,
+  stack-sympy's `questions/`) and its fixtures in `tests/stack/`.
+- Licences of the STACK test data (AC, 20 October 2026), each with its
+  notice in `tests/golden/PROVENANCE.md`, README and `examples/stack/README.md`;
+  the code is AGPL-3.0-or-later whatever the licence of a table, and no
+  wheel or page script contains test data:
+  - `stack/questions-course` (232 rows) is course material, labelled as
+    such: the three questions derived from the course ingmat3a_ntnu
+    (Andrey Chesnokov), among them S-01's test case
+    `course-b-rank-pivots.xml`, under CC BY-SA 4.0 with their source record;
+    as in `stack/questions-project`, the checker file they use
+    (`examples/stack/matrix-checkers.py`) and the generated answers are
+    AGPL-3.0-or-later.
+    No other table holds course rows (design §13 item 7 still holds for
+    the math tables and for rows generated from course repositories).
+  - `stack/questions-helm` (179 rows) and the two HELM questions are
+    CC BY-NC 4.0 (NonCommercial), kept as test data only.
+  - The CTM-authored example XML keeps CC BY-SA 4.0.
 - Golden tables: three supplementary requests (88 in all) for rules that
   only mutations reached in the second round of the review: an imaginary part
   between 1e-9 and 1e-3, boolean graph node identifiers, and how

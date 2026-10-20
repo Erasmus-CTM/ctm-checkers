@@ -80,7 +80,9 @@
  "format": 1,
  "legacy": {
   "library_sha256": "dec19bf05f66bcb723b00759ed06c1c5b76fa88bd2fe30295967aa31daf2abd4",
-  "math-exercise": "905d06fc89d173af224c6460139a32b12033867b"
+  "math-exercise": "905d06fc89d173af224c6460139a32b12033867b",
+  "stack-sympy": "f450bcd6adbd9a6fc23462ceeae6e27d3681bce5",
+  "stack_sympy_sha256": "7ae21c6971f4929e9f14ca1de4e3908f0a0cfc6b7bf10a197c87841424c79dea"
  },
  "python": {
   "captured": [
@@ -167,6 +169,106 @@
     "3.13"
    ],
    "rows": 561
+  },
+  "stack/compliance": {
+   "python": [
+    "3.9",
+    "3.10",
+    "3.11",
+    "3.12",
+    "3.13"
+   ],
+   "rows": 2303
+  },
+  "stack/probe-questions": {
+   "python": [
+    "3.9",
+    "3.10",
+    "3.11",
+    "3.12",
+    "3.13"
+   ],
+   "rows": 285
+  },
+  "stack/probes": {
+   "python": [
+    "3.9",
+    "3.10",
+    "3.11",
+    "3.12",
+    "3.13"
+   ],
+   "rows": 207
+  },
+  "stack/questions-course": {
+   "python": [
+    "3.9",
+    "3.10",
+    "3.11",
+    "3.12",
+    "3.13"
+   ],
+   "rows": 232
+  },
+  "stack/questions-helm": {
+   "python": [
+    "3.9",
+    "3.10",
+    "3.11",
+    "3.12",
+    "3.13"
+   ],
+   "rows": 179
+  },
+  "stack/questions-library": {
+   "python": [
+    "3.9",
+    "3.10",
+    "3.11",
+    "3.12",
+    "3.13"
+   ],
+   "rows": 1049
+  },
+  "stack/questions-project": {
+   "python": [
+    "3.9",
+    "3.10",
+    "3.11",
+    "3.12",
+    "3.13"
+   ],
+   "rows": 1178
+  },
+  "stack/reference": {
+   "python": [
+    "3.9",
+    "3.10",
+    "3.11",
+    "3.12",
+    "3.13"
+   ],
+   "rows": 65
+  },
+  "stack/regressions": {
+   "python": [
+    "3.9",
+    "3.10",
+    "3.11",
+    "3.12",
+    "3.13"
+   ],
+   "rows": 170
+  },
+  "stack/supplement": {
+   "python": [
+    "3.9",
+    "3.10",
+    "3.11",
+    "3.12",
+    "3.13"
+   ],
+   "rows": 153
   }
  }
 }

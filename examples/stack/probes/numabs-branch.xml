@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<quiz><question type="stack">
+<name><text>numabs-branch</text></name>
+<questionvariables><text>ta:pi/4;</text></questionvariables>
+<questiontext format="html"><text><![CDATA[<p>Give the angle in radians: [[input:ans1]] [[validation:ans1]] [[feedback:prt1]]</p>]]></text></questiontext>
+<defaultgrade>1</defaultgrade><penalty>0.1</penalty><questionsimplify>1</questionsimplify>
+<input><name>ans1</name><type>algebraic</type><tans>ta</tans></input>
+<prt><name>prt1</name><value>1</value><autosimplify>1</autosimplify>
+<node><name>0</name><answertest>NumAbsolute</answertest><sans>ans1</sans><tans>ta</tans><testoptions>0.01</testoptions>
+<truescoremode>=</truescoremode><truescore>1</truescore><truenextnode>-1</truenextnode><trueanswernote>prt1-1-T</trueanswernote>
+<falsescoremode>=</falsescoremode><falsescore>0</falsescore><falsenextnode>1</falsenextnode><falseanswernote>prt1-1-F</falseanswernote>
+<falsefeedback format="html"><text><![CDATA[<p>Not within 0.01 of the angle.</p>]]></text></falsefeedback></node>
+<node><name>1</name><answertest>AlgEquiv</answertest><sans>ans1</sans><tans>45*x</tans>
+<truescoremode>=</truescoremode><truescore>0.5</truescore><truenextnode>-1</truenextnode><trueanswernote>prt1-2-T</trueanswernote>
+<truefeedback format="html"><text><![CDATA[<p>Use radians, not a symbolic degree count.</p>]]></text></truefeedback>
+<falsescoremode>=</falsescoremode><falsescore>0</falsescore><falsenextnode>-1</falsenextnode><falseanswernote>prt1-2-F</falseanswernote></node>
+</prt>
+<qtest><testcase>1</testcase><testinput><name>ans1</name><value>45*x</value></testinput>
+<expected><name>prt1</name><expectedscore>0.5</expectedscore><expectedpenalty>0.1</expectedpenalty><expectedanswernote>prt1-2-T</expectedanswernote></expected></qtest>
+</question></quiz>

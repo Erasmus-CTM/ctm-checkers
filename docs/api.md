@@ -1,10 +1,25 @@
 # ctm-checkers: API and packaging
 
-ctm-checkers 0.1 holds math-exercise's grading code, moved verbatim from
-math-exercise 0.10.0 (consolidation step 2; design in ctm-assessment
+ctm-checkers holds math-exercise's grading code, moved verbatim from
+math-exercise 0.10.0 (0.1), and stack-sympy's STACK engine, moved as it was at
+stack-sympy `f450bcd` (0.2; consolidation step 2, design in ctm-assessment
 `docs/consolidation/2026-10-step2.md`). Every verdict is the same: the golden
-tables ([goldens.md](goldens.md)) are reproduced by the built wheel natively
-and in Pyodide. STACK's engine follows in 0.2.0.
+tables ([goldens.md](goldens.md)) are reproduced by the built wheels natively
+and in Pyodide.
+
+The STACK engine (`ctm_checkers.stack`) comes in a wheel and a page script of
+its own, so that pages with math-exercise never carry it (design §13 item 5):
+
+| | ctm-checkers | its STACK engine |
+|---|---|---|
+| modules | `ctm_checkers` but `ctm_checkers.stack`: `browser`, `core`, `matrix`, `graph`, `testing`, `math_exercise` | `ctm_checkers.stack` |
+| wheel (pip: one distribution each) | `ctm_checkers-<version>-py3-none-any.whl` (`ctm-checkers`) | `ctm_checkers_stack-<version>-py3-none-any.whl` (`ctm-checkers-stack`, requires `ctm-checkers==<version>`) |
+| page script, global | `ctm-checkers.js`, `CTMCheckers` | `ctm-checkers-stack.js`, `CTMCheckersStack` (after `ctm-checkers.js`) |
+| `checkers.json` | `wheel`, `sha256`, `script`, `dependency` | `parts.stack`: `name`, `wheel`, `sha256`, `script`, `dependency` |
+
+With both wheels on `sys.path`, `ctm_checkers/__init__.py` adds the second
+one's `ctm_checkers/` to the package (`pkgutil.extend_path`); installed with
+pip, both land in one folder. The two engines never import each other (H2).
 
 `ctm_checkers.__version__` is the package version, `ctm_checkers.API` (an
 integer, now 1) the level of the contracts below; it rises only for an
@@ -22,7 +37,20 @@ loaded by ctm-libs) defines `globalThis.CTMCheckers`:
 | `name`, `version`, `api` | `ctm-checkers`, the package version, the API level |
 | `dependency` | the HTML dependency version: the version of a release (whose content never changes, `tools/released.json`), or for a development version `X.Y.Z.devN+<first 8 hex digits of the wheel's sha256>`, so a changed wheel gets a new path |
 | `wheel`, `sha256`, `data` | the wheel's file name, its SHA-256 and the wheel itself (base64) |
+| `scriptURL` | the script's own URL (for a worker that loads it with `importScripts`), or `null` |
 | `install(py)` | installs the wheel into the Pyodide runtime `py`; returns a promise |
+
+`ctm-checkers-stack.js` (HTML dependency `ctm-checkers-stack`, after
+`ctm-checkers.js`; stack-sympy's worker loads both) defines
+`globalThis.CTMCheckersStack` with the same fields for the STACK engine's
+wheel (`name` `ctm-checkers-stack`, `part` `stack`). Its `install(py)`
+installs ctm-checkers first (`CTMCheckers.install`, which must be on the
+page at the same version; otherwise it fails naming both), then its wheel:
+it checks the SHA-256 and the version of the `ctm_checkers` just installed,
+writes the wheel next to the first, puts it on `sys.path` and adds its
+`ctm_checkers/` to the package, with the same rules as below (a function,
+its own names deleted, no lookup in the page's namespace). A math page
+carries `ctm-checkers.js` alone, so the package has no `stack` module there.
 
 `install` uses only `py.globals.set` and `py.runPythonAsync`, the two calls
 that every runtime on a page offers, pyodide-interaktiv's worker proxy
@@ -73,11 +101,21 @@ page as before.
 |---|---|---|
 | `math_exercise.check` | `math_exercise.check(request)` | `{"status", "score"}`, or `{"status": "error", "message"}` |
 | `math_exercise.check_custom` | `math_exercise.check_custom(request)` | `{"status", "score", "show_score", "feedback", "assessment"}`, or `{"status": "error", "message"}` |
+| `stack.validate` | `stack.engine.validate(question, answers, variant=variant)` | `{"ok": true, "result": …}`, or `{"ok": false, "error": …}` for an unsupported question |
+| `stack.grade` | `stack.engine.grade(question, answers, variant=variant)` | the same envelope |
+| `stack.tests` | `stack.engine.run_question_tests(question, seeds=[variant["seed"]], variants=[variant])` | the same envelope |
+
+The `stack.*` calls are stack-sympy's worker requests (its `worker.js` at
+`f450bcd`), moved into `ctm_checkers.stack.page`: the request is
+`{"question", "variant", "answers"}` as the card's data holds them, the result
+what `json.dumps(…, default=str)` wrote, and any other exception reaches the
+page as before. They have no admission rule: STACK's grammar never evaluates
+learner text as Python.
 
 Statuses: `correct`, `partial`, `wrong`, `not_exact`, `not_form`, `rejected`,
 `error` (`core.result.STATUSES`).
 
-Admission (both calls): a learner string that contains `__` stops the call
+Admission (math-exercise's calls): a learner string that contains `__` stops the call
 with `ValueError("SyntaxError: unsupported input")` before anything runs. The
 learner strings are the answer (`student`, unless `mode` is `string` or
 `string_ci`, which are never evaluated) and the response's `raw` values and
@@ -113,6 +151,31 @@ ctm_checkers.matrix.assess_basis(matrix, *, axis, target_dimension, belongs, nam
 ctm_checkers.graph.graph_from_response(response, *, directed=False)
 ctm_checkers.testing.run_tests(check, symbols, tests, *, namespace, base)   # check=None: the namespace's check after the tests ran
 ```
+
+The STACK engine, moved as it was (its modules and names are stack-sympy's
+`stack_sympy` at `f450bcd` under `ctm_checkers.stack`):
+
+```python
+ctm_checkers.stack: InvalidAnswer, Node, Unsupported, assignments, canonical_form, evaluate, parse, answer_test
+ctm_checkers.stack.importer: import_xml(source, *, python_checkers=None), UnsupportedQuestion
+ctm_checkers.stack.engine: instantiate(question, seed=1), validate(question, answers, seed=1, *, variant=None),
+    grade(question, answers, seed=1, *, variant=None), run_question_tests(question, seeds=(1,), variants=None)
+ctm_checkers.stack.assessment: answer_test(name, student, teacher, options="", *, env=None, raw=None, assumptions=None, python_checkers=None)
+ctm_checkers.stack.expressions: parse, evaluate, form_latex, canonical_form, ...   # the bounded STACK grammar
+ctm_checkers.stack.checkers, ctm_checkers.stack.checker_api                          # PythonChecker API 1 (author checker files)
+ctm_checkers.stack.cli: render(path, question, identifier, count=3, seed=1, review=False, diagnostics=False,
+    python_checkers=None) -> the card's HTML; main(argv)
+ctm_checkers.stack.page: validate(request), grade(request), tests(request)        # the page's stack.* calls
+python -m ctm_checkers.stack.cli render --file F --question NAME --id ID [--variants N] [--seed S] [--review] [--diagnostics] [--python-checkers P]
+python -m ctm_checkers.stack.cli test --file F [--question NAME] [--seed S ...] [--python-checkers P]
+```
+
+`ctm_checkers.stack.cli` still writes the card's HTML (stack-sympy's
+`cli.py`): moving the card's shell into stack-sympy's Lua is left for step 6
+(design §13, "Cut"). Author checker files import the shared helpers from
+`ctm_checkers.matrix` (`assess_basis`) and the value vocabulary from
+`ctm_checkers.stack.checker_api` (stack-sympy: `stack_sympy.basis_helper`,
+`stack_sympy.checker_api`).
 
 Importing `ctm_checkers` or `ctm_checkers.math_exercise` imports no SymPy;
 the names of `math_exercise` load their module on first use, and
@@ -151,7 +214,9 @@ values of earlier requests that math-exercise 0.10.0's module still held
 ## At build time
 
 Components run Python with the wheel on `sys.path` (`PYTHONPATH`), so it is
-imported from the zip; authors install nothing. math-exercise's documented
+imported from the zip; authors install nothing. A component that grades
+STACK questions puts both wheels there (stack-sympy:
+`python -m ctm_checkers.stack.cli render …`, as it ran `stack_sympy.cli`). math-exercise's documented
 command, `python _extensions/math-exercise/question-tests.py lesson.qmd`
 (Quarto: `--stdin`), stays a script that puts the wheel on `sys.path` and
 calls `ctm_checkers.math_exercise.authored.main(argv)`, which prints the same
@@ -164,17 +229,20 @@ folder, first on `sys.path`).
 `python tools/build.py` writes `_extensions/ctm-checkers/` from `src/`:
 `_extension.yml` (an extension that only contributes metadata; authors never
 list it), `checkers.json` (name, version, api, dependency, wheel, sha256,
-script), the wheel and `ctm-checkers.js`. These files are generated and
-committed (marked in `.gitattributes`); `python tools/build.py --check` (CI)
-fails when they do not match `src/`. The wheel is deterministic in content
-(sorted entries, fixed timestamps and modes); compressed bytes may differ
-between zlib builds, so a rebuild keeps the committed wheel while its
-contents are current, and the SHA-256 of the committed wheel identifies what
-runs. The wheel also installs with pip.
+script, and `parts.stack` for the STACK engine's wheel), the two wheels and
+their page scripts `ctm-checkers.js` and `ctm-checkers-stack.js`. These files
+are generated and committed (marked in `.gitattributes`);
+`python tools/build.py --check` (CI) fails when they do not match `src/`. A
+wheel is deterministic in content (sorted entries, fixed timestamps and
+modes); compressed bytes may differ between zlib builds, so a rebuild keeps
+a committed wheel while its contents are current, and the SHA-256 of a
+committed wheel identifies what runs. The wheels also install with pip
+(`ctm-checkers`, `ctm-checkers-stack`).
 
 A released version never changes. There are no tags (builds pin commits),
 so `tools/released.json` records each release: the SHA-256 of its contents
-(the wheel's RECORD), of the wheel file and of the page script. `build.py`
+(the wheel's RECORD), of the wheel file and of the page script, and the same
+for the STACK engine's wheel (`stack`, from 0.2.0). `build.py`
 and `--check` refuse a released version whose code, wheel or script differ
 from its entry, and a development version that is not above every release.
 A version's dependency path (`site_libs/quarto-contrib/ctm-checkers-<version>/`)

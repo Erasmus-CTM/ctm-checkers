@@ -5,7 +5,11 @@
 // the page's namespace, serves math-exercise's request protocol through
 // ctm-libs' call text (which looks up no name there: learner code may rebind
 // `__import__`, `globals` and `builtins`), installs again after learner code
-// removed it, and refuses a damaged payload.
+// removed it, and refuses a damaged payload. A math page's script carries no
+// STACK engine; stack-sympy's worker adds ctm-checkers-stack.js, whose install
+// installs both, serves its requests (stack.validate, stack.grade,
+// stack.tests) and refuses a damaged payload, another version or a page
+// without ctm-checkers.js.
 //   node tests/pyodide/payload.cjs --umbrella DIR --version 0.28.3
 'use strict';
 const assert = require('node:assert/strict');
@@ -25,6 +29,17 @@ function loadScript(change = text => text) {
   vm.runInContext(change(fs.readFileSync(path.join(ROOT, '_extensions/ctm-checkers', manifest.script), 'utf8')), sandbox);
   return {manifest, checkers: sandbox.CTMCheckers};
 }
+
+// ctm-checkers.js and then ctm-checkers-stack.js, as stack-sympy's worker loads them.
+function loadStackScripts(changeBase = text => text, changeStack = text => text, withBase = true) {
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, '_extensions/ctm-checkers/checkers.json'), 'utf8'));
+  const sandbox = {};
+  vm.createContext(sandbox);
+  if (withBase) vm.runInContext(changeBase(fs.readFileSync(path.join(ROOT, '_extensions/ctm-checkers', manifest.script), 'utf8')), sandbox);
+  vm.runInContext(changeStack(fs.readFileSync(path.join(ROOT, '_extensions/ctm-checkers', manifest.parts.stack.script), 'utf8')), sandbox);
+  return {manifest, base: sandbox.CTMCheckers, stack: sandbox.CTMCheckersStack};
+}
+const DAMAGE = text => text.replace(/data: '([A-Za-z0-9+\/]{24})/, (match, start) => "data: '" + [...start].reverse().join(''));
 
 (async () => {
   const parity = path.join(path.resolve(option('umbrella')), 'integration', 'pyodide-parity');
@@ -116,6 +131,70 @@ function loadScript(change = text => text) {
   assert.notEqual(damaged.data, checkers.data);
   await assert.rejects(damaged.install(proxy), /payload is damaged/);
   assert.deepEqual(names(), before);
-  console.log(`Payload of ${manifest.wheel} in Pyodide ${version} (Python ${python}): install, request, reinstall, no request, learner globals, overlapping installs, damaged: ok`);
+
+  // Python run in a namespace of its own (the page's stays as it is).
+  const inspect = (code, values = {}) => {
+    const scope = py.toPy(values);
+    try { return JSON.parse(py.runPython(code, {globals: scope})); } finally { scope.destroy(); }
+  };
+  const WALK = 'import json, pkgutil, ctm_checkers\njson.dumps(sorted(m.name for m in pkgutil.walk_packages(ctm_checkers.__path__, "ctm_checkers.")))';
+  // A math page carries ctm-checkers.js alone: no STACK engine (design §13 item 5), also for
+  // ctm-libs' load, which walks the package (MathExerciseRuntime.ensureCheckers).
+  await checkers.install(proxy);
+  assert.equal(inspect('import json, importlib.util as u\njson.dumps(u.find_spec("ctm_checkers.stack") is None)'), true);
+  const math = inspect(WALK);
+  assert.ok(math.includes('ctm_checkers.math_exercise.checks') && !math.some(name => name.startsWith('ctm_checkers.stack')), math.join());
+
+  // stack-sympy's worker: ctm-checkers-stack.js after ctm-checkers.js; its install installs both.
+  const {base, stack} = loadStackScripts();
+  assert.equal(stack.version, manifest.version);
+  assert.equal(stack.sha256, manifest.parts.stack.sha256);
+  assert.equal(stack.wheel, manifest.parts.stack.wheel);
+  await stack.install(proxy);
+  await stack.install(proxy);   // and again: idempotent
+  assert.deepEqual(names(), before);
+  const all = inspect(WALK);
+  assert.ok(all.includes('ctm_checkers.stack.engine') && all.includes('ctm_checkers.math_exercise.checks'), all.join());
+  // Its requests, through ctm-libs' call text: stack-sympy's worker requests and envelope.
+  const xml = fs.readFileSync(path.join(ROOT, 'examples/stack/polynomial-expansion.xml'), 'utf8');
+  const prepared = inspect('import json\nfrom ctm_checkers.stack.importer import import_xml\nfrom ctm_checkers.stack.engine import instantiate\n'
+    + 'q = import_xml(xml)[0]\njson.dumps({"question": q, "variant": instantiate(q, 1)})', {xml});
+  const stackCall = async (name, request) => {
+    await proxy.globals.set('_ctm_request', JSON.stringify(request));
+    return JSON.parse(await call_(name));
+  };
+  const call_ = async name => {
+    try {
+      return await proxy.runPythonAsync('import builtins as _ctm_builtins\n'
+        + `_ctm_builtins.__import__("ctm_checkers.browser", fromlist=["call"]).call(${JSON.stringify(name)}, _ctm_builtins.globals())`);
+    } finally { drop('_ctm_builtins'); }
+  };
+  const graded = await stackCall('stack.grade', {...prepared, answers: {ans: 'x^2+7*x+12'}});
+  assert.equal(graded.ok, true);
+  assert.equal(graded.result.status, 'graded');
+  assert.equal(graded.result.score, 1);
+  assert.equal((await stackCall('stack.grade', {...prepared, answers: {ans: '(x+3)*(x+4)'}})).result.score < 1, true);
+  assert.equal((await stackCall('stack.validate', {...prepared, answers: {ans: 'x^2+'}})).result.status, 'invalid');
+  assert.equal((await stackCall('stack.tests', {...prepared, answers: {}})).result.passed, true);
+  const unsupported = await stackCall('stack.grade', {...prepared, question: {...prepared.question, variables: 'a:1; a:2'}, answers: {ans: 'x'}});
+  assert.equal(unsupported.ok, false);
+  assert.match(unsupported.error, /reassigned variable is unsupported/);
+  assert.deepEqual(names(), before);
+  // ctm-checkers alone installed again (a math cell's retry) leaves no STACK engine until its payload installs again.
+  await checkers.install(proxy);
+  await proxy.globals.set('_ctm_request', JSON.stringify({...prepared, answers: {ans: 'x'}}));
+  await assert.rejects(call_('stack.grade'), /No module named 'ctm_checkers.stack'/);
+  drop('_ctm_request');
+  await stack.install(proxy);
+  assert.equal((await stackCall('stack.grade', {...prepared, answers: {ans: 'x^2+7*x+12'}})).result.score, 1);
+  // Refused: a damaged payload, another version of ctm-checkers on the page, a page without ctm-checkers.js.
+  await assert.rejects(loadStackScripts(text => text, DAMAGE).stack.install(proxy), /RuntimeError: ctm-checkers: the payload of ctm-checkers-stack is damaged/);
+  await assert.rejects(loadStackScripts(text => text.replace(`version: ${JSON.stringify(base.version)}`, 'version: "0.0.0"')).stack.install(proxy),
+    /needs ctm-checkers .* the page has 0\.0\.0/);
+  await assert.rejects(loadStackScripts(undefined, undefined, false).stack.install(proxy), /needs ctm-checkers\.js on the page/);
+  assert.deepEqual(names(), before);
+  console.log(`Payload of ${manifest.wheel} and ${manifest.parts.stack.wheel} in Pyodide ${version} (Python ${python}): install, request, `
+    + 'reinstall, no request, learner globals, overlapping installs, damaged; no STACK engine on math pages; the STACK part, its requests, '
+    + 'reinstall, damaged, version, missing ctm-checkers.js: ok');
   process.exit(0);
 })().catch(error => { console.error(error); process.exit(1); });

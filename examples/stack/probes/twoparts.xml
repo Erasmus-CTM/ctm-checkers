@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<quiz><question type="stack">
+<name><text>two-parts</text></name>
+<questionvariables><text>a:2;b:3;</text></questionvariables>
+<questiontext format="html"><text><![CDATA[<p>(a) [[input:ans1]] [[validation:ans1]] [[feedback:prt1]]</p><p>(b) [[input:ans2]] [[validation:ans2]] [[feedback:prt2]]</p>]]></text></questiontext>
+<defaultgrade>2</defaultgrade><penalty>0.1</penalty><questionsimplify>1</questionsimplify>
+<input><name>ans1</name><type>algebraic</type><tans>a</tans></input>
+<input><name>ans2</name><type>algebraic</type><tans>b</tans></input>
+<prt><name>prt1</name><value>1</value><autosimplify>1</autosimplify>
+<node><name>0</name><answertest>AlgEquiv</answertest><sans>ans1</sans><tans>a</tans>
+<truescoremode>=</truescoremode><truescore>1</truescore><truenextnode>-1</truenextnode><trueanswernote>prt1-1-T</trueanswernote>
+<falsescoremode>=</falsescoremode><falsescore>0</falsescore><falsenextnode>-1</falsenextnode><falseanswernote>prt1-1-F</falseanswernote></node></prt>
+<prt><name>prt2</name><value>1</value><autosimplify>1</autosimplify>
+<node><name>0</name><answertest>AlgEquiv</answertest><sans>ans2</sans><tans>b</tans>
+<truescoremode>=</truescoremode><truescore>1</truescore><truenextnode>-1</truenextnode><trueanswernote>prt2-1-T</trueanswernote>
+<falsescoremode>=</falsescoremode><falsescore>0</falsescore><falsenextnode>-1</falsenextnode><falseanswernote>prt2-1-F</falseanswernote></node></prt>
+</question></quiz>

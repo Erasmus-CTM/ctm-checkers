@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Golden verdict tables of ctm-checkers: verify, record, import (docs/goldens.md).
 
-    python tools/golden.py verify --adapter legacy --legacy DIR [--suite NAME ...] [--max-diffs N]
-    python tools/golden.py verify --adapter wheel|src|installed [--wheel FILE] [--variants DIR]
-    python tools/golden.py record --legacy DIR
+    python tools/golden.py verify --adapter legacy [--legacy DIR] [--stack-legacy DIR] [--suite NAME ...] [--max-diffs N] [--fail-fast]
+    python tools/golden.py verify --adapter wheel|src|installed [--wheel FILE ...] [--variants DIR]
+    python tools/golden.py record [--legacy DIR] [--stack-legacy DIR [--stack-probes DIR]]
     python tools/golden.py import-capture CAPTURE --math-exercise CHECKOUT [--record-with PYTHON ...]
 
 Authored rows are recorded with the umbrella's parity-harness recorder
@@ -20,6 +20,9 @@ sources-<corpus>.jsonl and referenced as {"$source": "<sha256>"}; files that
 authored tests name are under files/. A number that JSON cannot hold is
 {"$float": "NaN" | "Infinity" | "-Infinity"}.
 
+The STACK tables (tests/golden/stack/) are recorded with stack-sympy's own
+code; tools/golden_stack.py holds their calls, inputs and engines.
+
 Adapters (what runs the rows):
   legacy     math-exercise 0.10.0's own code, from a checkout (--legacy DIR,
              the commit in tools/pins.json): the Python array of
@@ -28,11 +31,15 @@ Adapters (what runs the rows):
              _math_run with the request values as the page's globals, as
              math-exercise.js calls it; question-tests.py for the authored
              tests; variants.py for its rounding helpers.
-  wheel      ctm-checkers from a wheel by zipimport, as builds use it
-             (--wheel FILE; default: the one in _extensions/ctm-checkers/).
+  wheel      ctm-checkers from its wheels by zipimport, as builds use them
+             (--wheel FILE, repeatable: ctm-checkers' wheel and the STACK
+             engine's; default: those in _extensions/ctm-checkers/).
   src        ctm-checkers from src/.
   installed  the ctm_checkers that is importable (in Pyodide: installed by
              the payload's own install code, tools/pyodide/verify.cjs).
+  For the STACK tables, legacy is stack-sympy's code from a checkout
+  (--stack-legacy DIR, the commit in tools/pins.json); the others run
+  ctm_checkers.stack (the tables are skipped where it is missing).
   With ctm-checkers, a request goes through browser.call as the page sends
   it: one JSON request whose fields are the _math_* values' names without
   the prefix (_math_response_json as the object "response"). variants.py
@@ -62,6 +69,10 @@ import warnings
 
 ROOT = Path(__file__).resolve().parents[1]
 GOLDEN = ROOT / 'tests' / 'golden'
+# tools/golden_stack.py, also when this file runs with runpy (Pyodide).
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+import golden_stack  # noqa: E402
 MINOR = '%d.%d' % sys.version_info[:2]
 FORMAT = 1
 
@@ -366,31 +377,36 @@ REQUEST_FIELDS = {'_math_student': 'student', '_math_correct': 'correct', '_math
                   '_math_form_credit': 'form_credit', '_math_response_json': 'response', '_math_checker': 'checker'}
 
 
-def default_wheel():
+def default_wheels():
+    """The committed wheels: ctm-checkers' and the STACK engine's (checkers.json parts)."""
     folder = ROOT / '_extensions' / 'ctm-checkers'
     manifest = json.loads((folder / 'checkers.json').read_text(encoding='utf-8'))
-    return folder / manifest['wheel']
+    return [folder / manifest['wheel']] + [folder / part['wheel'] for part in manifest.get('parts', {}).values()]
 
 
 class CtmCheckers:
     """ctm-checkers (see the module docstring)."""
 
-    def __init__(self, mode, wheel=None, variants=None):
+    def __init__(self, mode, wheels=None, variants=None):
         import importlib
         self.name = mode
-        location = None
+        locations = []
         if mode == 'src':
-            location = ROOT / 'src'
+            locations = [ROOT / 'src']
         elif mode == 'wheel':
-            location = Path(wheel).resolve() if wheel else default_wheel()
+            # --wheel: a wheel (repeatable: ctm-checkers' first, then the STACK engine's) or a folder holding ctm_checkers.
+            locations = [Path(wheel).resolve() for wheel in wheels] if wheels else default_wheels()
         elif mode != 'installed':
             raise SystemExit('Unknown adapter: ' + mode)
-        if location is not None:
-            if not location.exists():
-                raise SystemExit(f'{location}: not found')
+        if locations:
+            for location in locations:
+                if not location.exists():
+                    raise SystemExit(f'{location}: not found')
             for name in [n for n in sys.modules if n == 'ctm_checkers' or n.startswith('ctm_checkers.')]:
                 del sys.modules[name]
-            sys.path.insert(0, str(location))
+            for location in reversed(locations):
+                sys.path.insert(0, str(location))
+        location = locations[0] if locations else None
         package = importlib.import_module('ctm_checkers')
         if location is not None and not os.path.abspath(package.__file__).startswith(os.path.abspath(str(location)) + os.sep):
             raise SystemExit(f'ctm_checkers was imported from {package.__file__}, not from {location}')
@@ -432,12 +448,45 @@ class CtmCheckers:
         return self._variants[name.split('.', 1)[1]](*args)
 
 
+class Adapters:
+    """What runs the rows: an adapter for math-exercise's tables and an
+    engine for the STACK tables (either may be missing: its tables are skipped)."""
+
+    def __init__(self, math, stack):
+        self.math, self.stack = math, stack
+        self.name = (math or stack).name
+
+    def describe(self):
+        out = dict(self.math.describe()) if self.math else {'adapter': self.name}
+        if self.stack:
+            out['stack'] = self.stack.describe()
+        return out
+
+    def skipped(self, rows):
+        """Why these rows cannot run here (None: they can)."""
+        if rows and rows[0]['call'] in golden_stack.CALLS:
+            return None if self.stack else ('they run STACK\'s engine: --stack-legacy DIR (legacy), or ctm_checkers.stack'
+                                            if self.name == 'legacy' else 'this ctm_checkers has no stack module')
+        if not self.math:
+            return 'they run math-exercise\'s code: --legacy DIR'
+        if not self.math.runs(rows):
+            return 'they run math-exercise\'s variants.py (--variants DIR)'
+        return None
+
+    def __getattr__(self, name):   # call, run_question, numeric: math-exercise's adapter
+        return getattr(self.math, name)
+
+
 def make_adapter(options):
     if options.adapter == 'legacy':
-        if not options.legacy:
-            raise SystemExit('--adapter legacy needs --legacy DIR (a math-exercise checkout at the commit in tools/pins.json)')
-        return Legacy(options.legacy)
-    return CtmCheckers(options.adapter, options.wheel, options.variants)
+        if not options.legacy and not getattr(options, 'stack_legacy', None):
+            raise SystemExit('--adapter legacy needs --legacy DIR (a math-exercise checkout at the commit in tools/pins.json) '
+                             'and/or --stack-legacy DIR (a stack-sympy checkout at the commit in tools/pins.json)')
+        math = Legacy(options.legacy) if options.legacy else None
+        stack = golden_stack.legacy(options.stack_legacy) if getattr(options, 'stack_legacy', None) else None
+        return Adapters(math, stack)
+    math = CtmCheckers(options.adapter, options.wheel, options.variants)
+    return Adapters(math, golden_stack.ctm())
 
 
 # ---------------------------------------------------------------------------
@@ -469,7 +518,24 @@ def run_row(adapter, row, sources):
         except Exception as error:
             return {'raised': raised(error)}
         return loads(canonical({'value': result}))
+    if call in golden_stack.CALLS:
+        random.seed(0)   # as before every grading call
+        try:
+            return loads(canonical(golden_stack.run(adapter.stack, call, plain(value), golden_stack.raised)))
+        except Exception as error:
+            return {'raised': golden_stack.raised(error)}
     raise SystemExit('Unknown call: ' + call)
+
+
+def plain(value):
+    """An input as plain Python values (numbers as Python writes them)."""
+    if isinstance(value, Raw):
+        return python_value(value)
+    if isinstance(value, list):
+        return [plain(item) for item in value]
+    if isinstance(value, dict):
+        return {key: plain(item) for key, item in value.items()}
+    return value
 
 
 def annotate(path, message):
@@ -485,8 +551,9 @@ def selected(files, patterns):
     return [f for f in files if any(re.search(p, f.relative_to(GOLDEN).as_posix()) for p in patterns)]
 
 
-def verify(adapter, patterns=(), max_diffs=20, out=print):
-    """Runs every row; returns the number of rows that do not reproduce."""
+def verify(adapter, patterns=(), max_diffs=20, out=print, fail_fast=False):
+    """Runs every row; returns the number of rows that do not reproduce.
+    `fail_fast`: stops at the first row that does not (the mutation tests)."""
     sources = read_sources()
     failures = total = 0
     # Deprecation warnings of SymPy (set up when it is imported) are not results.
@@ -502,12 +569,15 @@ def verify(adapter, patterns=(), max_diffs=20, out=print):
     skipped = []
     for path in selected(table_files(), patterns):
         rows = read_rows(path)
-        if not adapter.runs(rows):
+        reason = adapter.skipped(rows)
+        if reason:
             skipped.append(path.relative_to(GOLDEN).as_posix())
-            out(f'{skipped[-1]}: {len(rows)} rows; skipped: they run math-exercise\'s variants.py (--variants DIR)')
+            out(f'{skipped[-1]}: {len(rows)} rows; skipped: {reason}')
             continue
         counts = {'reproduced': 0, 'different': 0, 'missing': 0}
         for row in rows:
+            if fail_fast and failures:
+                break
             found, expected = expected_output(row)
             if not found:
                 counts['missing'] += 1
@@ -527,6 +597,9 @@ def verify(adapter, patterns=(), max_diffs=20, out=print):
                                f'| actual {canonical(actual)[:900]} | input {canonical(row["input"])[:600]}')
         total += len(rows)
         out(f'{path.relative_to(GOLDEN).as_posix()}: {len(rows)} rows; ' + ', '.join(f'{k} {v}' for k, v in counts.items()))
+        if fail_fast and failures:
+            out('Stopped at the first row that is not reproduced (--fail-fast).')
+            break
     out(f'{total} rows, {total - failures} reproduced, {failures} not.' + (f' Skipped: {", ".join(skipped)}.' if skipped else ''))
     return failures
 
@@ -760,14 +833,16 @@ def suite_path(suite):
     return GOLDEN / (suite + '.jsonl')
 
 
-def record(adapter, out=print):
+def record(adapter, out=print, probes=None):
     """Adds this Python's results with the legacy code. The recorded suites
     are created if absent. A row kept per version gains this version's result.
     A row with one result that this version does not reproduce becomes per
     version: a platform difference of today's code, reported. A result that
     differs from one this version already has (or, for a captured row, from
     the Pyodide build of the same version) is a conflict: nothing is changed
-    for that row and the command fails."""
+    for that row and the command fails. Tables whose code the adapter lacks
+    (math-exercise's without --legacy, STACK's without --stack-legacy) are
+    left as they are."""
     sources = read_sources()
     manifest = read_manifest()
     environment = record_environment(manifest)
@@ -778,9 +853,19 @@ def record(adapter, out=print):
     recorded_before = list(pythons.setdefault('recorded', []))
     recorded = manifest.setdefault('recorded', {})
     findings, conflicts, created = [], [], set()
+    if adapter.stack is not None:
+        legacy_info = manifest.setdefault('legacy', {})
+        pin = json.loads((ROOT / 'tools' / 'pins.json').read_text(encoding='utf-8'))['stack-sympy']['commit']
+        digest = adapter.stack.describe()['stack_sympy_sha256']
+        if legacy_info.get('stack_sympy_sha256', digest) != digest:
+            raise SystemExit('The STACK tables were recorded with other stack-sympy code (manifest.json legacy.stack_sympy_sha256)')
+        legacy_info.update({'stack-sympy': pin, 'stack_sympy_sha256': digest})
+        for suite, count in record_stack(adapter, sources, probes, out).items():
+            recorded[suite] = {'python': [MINOR], 'rows': count}
+            created.add(suite)
     for suite, make in RECORDED.items():
         path = suite_path(suite)
-        if path.exists():
+        if path.exists() or adapter.math is None:
             continue
         rows = []
         for row in make():
@@ -797,7 +882,7 @@ def record(adapter, out=print):
     for path in table_files():
         rows = read_rows(path)
         suite = rows[0]['suite'] if rows else ''
-        if suite in created:
+        if suite in created or adapter.skipped(rows):
             continue
         # The versions a single result stands for.
         single = recorded[suite]['python'] if suite in recorded else sorted(set(captured) | set(recorded_before), key=version_key)
@@ -835,8 +920,114 @@ def record(adapter, out=print):
     if MINOR not in pythons['recorded']:
         pythons['recorded'] = sorted(pythons['recorded'] + [MINOR], key=version_key)
     write_manifest(manifest)
+    if manifest.get('capture'):
+        write_provenance()
     out(f'Recorded on Python {sys.version.split()[0]}: {len(findings)} platform differences, {len(conflicts)} conflicts.')
     return len(conflicts)
+
+
+# A STACK row that runs longer than this (seconds, native Python) is listed in
+# tests/golden/stack/excluded.json instead of recorded (design §6.2: S-12's
+# long runs; they become rows when S-12 bounds them).
+STACK_LIMIT = 20
+EXCLUDED = GOLDEN / 'stack' / 'excluded.json'
+
+
+class _TimedOut(BaseException):
+    """A row ran out of time (not an Exception: the calls catch those)."""
+
+
+def _limited(function, seconds):
+    import signal
+
+    def expired(signum, frame):
+        raise _TimedOut()
+    previous = signal.signal(signal.SIGALRM, expired)
+    signal.alarm(seconds)
+    try:
+        return function()
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, previous)
+
+
+def record_stack(adapter, sources, probes, out=print):
+    """Creates the STACK tables that are missing, with stack-sympy's code
+    (golden_stack.py: the inputs). Rows slower than STACK_LIMIT are listed in
+    excluded.json. Returns {suite: rows} of the tables created."""
+    import time
+    engine = adapter.stack
+    folder = Path(engine.describe()['stack-sympy'])
+    inputs = {}
+
+    def missing(suite):
+        return not suite_path(suite).exists()
+    for suite, fixture in (('stack/compliance', 'native_compliance/fixtures.json'),
+                           ('stack/regressions', 'port_regressions/fixtures.json')):
+        if missing(suite):
+            inputs[suite] = golden_stack.case_inputs(ROOT / 'tests' / 'stack' / fixture)
+    if missing('stack/reference'):
+        cases = json.loads((ROOT / 'tests' / 'stack' / 'reference_cases.json').read_text(encoding='utf-8'))
+        inputs['stack/reference'] = [('stack.answer_test', {key: case[key] for key in ('test', 'student', 'teacher', 'options')},
+                                      [case['test']], {}) for case in cases]
+    if missing('stack/supplement'):
+        inputs['stack/supplement'] = golden_stack.supplement_inputs()
+    if missing('stack/probes'):
+        if not probes:
+            raise SystemExit('Recording stack/probes needs --stack-probes DIR (ctm-assessment docs/consolidation/stack-sympy-audit-2026-10/probes)')
+        inputs['stack/probes'] = golden_stack.probe_inputs(Path(probes))
+    question_tables = [suite for suite in golden_stack.TABLES if suite.startswith(('stack/questions-', 'stack/probe-questions', 'stack/supplement'))]
+    if any(missing(suite) for suite in question_tables):
+        for suite, items in golden_stack.question_inputs(engine, folder, out).items():
+            if missing(suite):
+                inputs.setdefault(suite, []).extend((call, value, tags, {}) for call, value, tags in items)
+    excluded = json.loads(EXCLUDED.read_text(encoding='utf-8')) if EXCLUDED.exists() else []
+    known = {(entry['suite'], entry['id']) for entry in excluded}
+    counts = {}
+    for suite, items in inputs.items():
+        rows = {}
+        started = time.monotonic()
+        for call, value, tags, extra in items:
+            value = loads(canonical(value))
+            identifier = row_id(call, value)
+            if identifier in rows:
+                rows[identifier]['tags'] = sorted(set(rows[identifier]['tags']) | set(tags), key=(tags + rows[identifier]['tags']).index)
+                continue
+            if (suite, identifier) in known:
+                continue
+            row = {'suite': suite, 'id': identifier, 'call': call, 'input': value, 'tags': list(tags)}
+            audit = extra.get('port_audit')
+            if 'native' in extra:
+                row['native'] = loads(canonical(extra['native']))
+            start = time.monotonic()
+            try:
+                result = _limited(lambda: run_row(adapter, row, sources), STACK_LIMIT)
+            except _TimedOut:
+                excluded.append({'suite': suite, 'id': identifier, 'call': call, 'input': value,
+                                 'reason': f'runs longer than {STACK_LIMIT} s on Python {MINOR} (S-12)'})
+                known.add((suite, identifier))
+                out(f'  {suite} {identifier}: longer than {STACK_LIMIT} s, excluded: {canonical(value)[:160]}')
+                continue
+            seconds = time.monotonic() - start
+            if seconds > 5:
+                out(f'  {suite} {identifier}: {seconds:.1f} s: {canonical(value)[:160]}')
+            if audit is not None:
+                # The audit's own record of the port's verdict (out*.json) must agree.
+                mine = ({'exception': result['raised']} if 'raised' in result
+                        else {key: result.get(key) for key in audit if key != 'seconds'})
+                theirs = {key: value for key, value in audit.items() if key != 'seconds'}
+                if canonical(loads(canonical(mine))) != canonical(loads(canonical(theirs))):
+                    out(f'  NOTE {suite} {identifier}: the audit recorded {canonical(theirs)[:200]}, today {canonical(mine)[:200]}')
+            row['output'] = result
+            rows[identifier] = row
+        write_rows(suite_path(suite), list(rows.values()))
+        counts[suite] = len(rows)
+        out(f'{suite}: recorded {len(rows)} rows on Python {MINOR} in {time.monotonic() - started:.0f} s')
+    if excluded:
+        EXCLUDED.parent.mkdir(parents=True, exist_ok=True)
+        excluded.sort(key=lambda entry: (entry['suite'], entry['id']))
+        EXCLUDED.write_text(json.dumps(excluded, indent=1, ensure_ascii=False, sort_keys=True) + '\n', encoding='utf-8')
+    return counts
 
 
 def version_key(version):
@@ -981,6 +1172,8 @@ def import_capture(options, out=print):
         target = folder / 'files' / name
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(git_show(checkout, commit, name))
+    # The STACK tables are not math-exercise's capture: their entries stay.
+    before = read_manifest()
     manifest = {'format': FORMAT,
                 'capture': {'harness': captured.get('harness'), 'umbrella': captured.get('umbrella'),
                             'runs': captured.get('runs'), 'components': captured.get('components'),
@@ -991,12 +1184,13 @@ def import_capture(options, out=print):
                 'files': sorted(named),
                 'python': {'captured': sorted({minor_of(run.get('runtime') or '') for run in captured.get('runs') or []} - {''}, key=version_key),
                            'recorded': []},
-                'recorded': {}}
+                'recorded': {suite: info for suite, info in before.get('recorded', {}).items() if suite.startswith('stack/')}}
+    manifest['legacy'].update({key: value for key, value in before.get('legacy', {}).items() if key.startswith(('stack-sympy', 'stack_sympy'))})
     write_manifest(manifest)
     out(f'Imported {", ".join(f"{name} ({len(text.splitlines())} rows)" for name, text in sorted(tables.items()))} '
         f'and {len(named)} files authored tests name, captured at math-exercise {commit[:12]} by umbrella {str(captured.get("umbrella"))[:12]}.')
     try:
-        problems = record(legacy, out)
+        problems = record(Adapters(legacy, None), out)
         for python in options.record_with:
             out(f'Recording with {python} ...')
             result = subprocess.run([python, str(Path(__file__).resolve()), 'record', '--legacy', str(legacy_dir)])
@@ -1017,12 +1211,13 @@ def write_provenance():
     capture = manifest['capture']
     corpus = capture['corpus']
     lines = ['# Provenance of the golden tables', '',
-             'Generated by `tools/golden.py import-capture`; do not edit.', '',
+             'Generated by `tools/golden.py import-capture` and `record`; do not edit.', '',
              'Captured rows come from math-exercise\'s own examples (licence: ' + str(corpus.get('licence')) + '),',
              f'rendered at math-exercise `{corpus.get("commit")}` with CTM Assessment and graded by the umbrella\'s',
              f'parity harness (`{capture.get("harness")}`, ctm-assessment `{capture.get("umbrella")}`) at the runtime',
              'boundary of math-exercise.js under ' + ', '.join(run.get('runtime') or run.get('name') for run in capture.get('runs') or []) + '.',
-             'Rows derived from courses or the umbrella\'s example site are not committed here (step-2 design §13 item 7).',
+             'No math_exercise table holds rows derived from courses or the umbrella\'s example site (step-2 design §13 item 7);',
+             'the one table of course material is STACK\'s `stack/questions-course.jsonl` (below).',
              'Inputs: each captured request is what a rendered page of math-exercise\'s example site sent to the checker library;',
              'the answers typed into the pages come from math-exercise itself (answer keys, authored tests, variant fixtures) or',
              'were written for the harness in the umbrella under AGPL-3.0-or-later (probe sets and boundary probes, the audit\'s',
@@ -1033,9 +1228,63 @@ def write_provenance():
     for name, info in sorted(capture['files'].items()):
         lines.append(f'| `{name}` | {info.get("rows")} | captured from math-exercise `{corpus.get("commit", "")[:12]}` | {info.get("licence")} |')
     for suite, info in sorted(manifest.get('recorded', {}).items()):
+        if suite in golden_stack.TABLES:
+            continue  # the STACK section below
         lines.append(f'| `{suite}.jsonl` | {info["rows"]} | recorded with math-exercise `{manifest["legacy"]["math-exercise"][:12]}` (Python {", ".join(info["python"])}) | AGPL-3.0-or-later |')
     for name in manifest.get('files', []):
         lines.append(f'| `math_exercise/files/{name}` | — | math-exercise `{corpus.get("commit", "")[:12]}`, named by an authored test | {corpus.get("licence")} |')
+    stack = manifest.get('legacy', {}).get('stack-sympy')
+    if stack:
+        lines += ['', '## STACK', '',
+                  f'The STACK tables were recorded with stack-sympy\'s own code at `{stack}` (`tools/golden.py record',
+                  '--stack-legacy`), before its engine moved into `ctm_checkers.stack`; their inputs are written in',
+                  '`tools/golden_stack.py` from the files named below. Each table holds rows derived from one kind of',
+                  'source, under that source\'s licence; rows derived from course material are in `stack/questions-course.jsonl`',
+                  'only (below). The tables are test data: neither wheel nor any page script holds them, and the licence',
+                  'of a table is not the licence of ctm-checkers\' code, which is AGPL-3.0-or-later.',
+                  'Rows that ran longer than ' + str(STACK_LIMIT) + ' s are listed in `stack/excluded.json`, not recorded.', '',
+                  '| File | Rows | Source | Licence |', '|---|---|---|---|']
+        for suite, (source, licence) in golden_stack.TABLES.items():
+            info = manifest.get('recorded', {}).get(suite)
+            if info:
+                lines.append(f'| `{suite}.jsonl` | {info["rows"]} | {source}; recorded with stack-sympy `{stack[:12]}` '
+                             f'(Python {", ".join(info["python"])}) | {licence} |')
+        helm = manifest.get('recorded', {}).get('stack/questions-helm')
+        if helm:
+            sources = {entry['file']: entry for entry in
+                       json.loads((ROOT / 'examples' / 'stack' / 'upstream' / 'sources.json').read_text(encoding='utf-8'))}
+            files = [sources[path.rsplit('/', 1)[1]] for path in golden_stack.HELM]
+            lines += ['', '### HELM samples, CC BY-NC 4.0: `stack/questions-helm.jsonl`', '',
+                      f'**This table is NonCommercial test data.** Its {helm["rows"]} rows are derived from two HELM questions of',
+                      f'STACK\'s sample library (`{files[0]["repository"]}` at `{files[0]["commit"][:12]}`, '
+                      + ', '.join(f'`{entry["path"]}`' for entry in files) + '),',
+                      'copied unchanged as ' + ', '.join(f'`{path}`' for path in golden_stack.HELM) + ' (`examples/stack/upstream/sources.json`).',
+                      '**Licence: CC-BY-NC-4.0** (Creative Commons Attribution-NonCommercial 4.0,',
+                      '`examples/stack/upstream/HELM-COPYING.txt`), for the two questions and for the rows derived from them.',
+                      'They are test data only: no wheel, page script or package of ctm-checkers contains them, and the',
+                      'NonCommercial condition does not apply to ctm-checkers\' code, which is AGPL-3.0-or-later. Whoever reuses',
+                      'the two questions or these rows must respect CC BY-NC 4.0 (no commercial use; credit HELM and STACK).',
+                      'AC decided on 20 October 2026 to keep them, clearly labelled.']
+        course = manifest.get('recorded', {}).get('stack/questions-course')
+        if course:
+            record = json.loads((ROOT / 'examples' / 'stack' / 'course-examples-provenance.json').read_text(encoding='utf-8'))
+            rows = [json.loads(line) for line in (GOLDEN / 'stack' / 'questions-course.jsonl').read_text(encoding='utf-8').splitlines() if line]
+            checkers = sorted({row['input']['python_checkers'] for row in rows if 'python_checkers' in row['input']})
+            lines += ['', '### Course material: `stack/questions-course.jsonl`', '',
+                      f'**This table is course material.** Its {course["rows"]} rows are derived from three STACK questions that CTM',
+                      f'wrote from the course `{record["repository"]}` by {record["author"]} ({record["source"]};',
+                      '`examples/stack/course-sources/uke3-excerpts.md` holds the excerpts):',
+                      ', '.join(f'`{path}`' for path in golden_stack.COURSE_DERIVED) + '.',
+                      '`examples/stack/course-examples-provenance.json` records the source, its SHA-256 and every change.',
+                      f'**Licence: {record["license"]}** (Creative Commons Attribution-ShareAlike 4.0), for the questions and for',
+                      f'what the rows derive from them; credit {record["author"]} and the course when you reuse them. As in the',
+                      'project table, the checker files (' + ', '.join(f'`{path}`' for path in checkers) + '), which rows name and whose',
+                      'source the imports of the questions that use them hold, and the generated answers (`tools/golden_stack.py`) are',
+                      'AGPL-3.0-or-later. CC BY-SA 4.0 is not the licence of ctm-checkers\' code (AGPL-3.0-or-later).',
+                      'AC decided on 20 October 2026 that these committed',
+                      'files have a table of their own (`course-b-rank-pivots.xml` is S-01\'s test case). No other table holds rows',
+                      'of course material, and rows generated from the course repositories themselves (ctm-demo, ingmat3a) stay',
+                      'in the umbrella\'s parity harness (step-2 design §13 item 7).']
     (GOLDEN / 'PROVENANCE.md').write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
 
@@ -1047,13 +1296,18 @@ def main(argv=None):
     check = commands.add_parser('verify', help='run every row and compare')
     check.add_argument('--adapter', default='legacy', choices=('legacy', 'wheel', 'src', 'installed'))
     check.add_argument('--legacy', help='math-exercise checkout (legacy adapter)')
-    check.add_argument('--wheel', help='the wheel (adapter wheel; default: the one in _extensions/ctm-checkers/)')
+    check.add_argument('--wheel', action='append', help='a wheel or a folder with ctm_checkers (adapter wheel; repeatable: '
+                       'ctm-checkers\' wheel, then the STACK engine\'s; default: those in _extensions/ctm-checkers/)')
     check.add_argument('--variants', help="math-exercise checkout whose variants.py runs the rounding rows of variants.py")
     check.add_argument('--umbrella', help='ctm-assessment checkout at the commit in tools/pins.json (default: _ci/ctm-assessment)')
     check.add_argument('--suite', action='append', default=[], help='regular expression on the table path (repeatable)')
     check.add_argument('--max-diffs', type=int, default=20)
+    check.add_argument('--fail-fast', action='store_true', help='stop at the first row that is not reproduced')
+    check.add_argument('--stack-legacy', help='stack-sympy checkout (legacy adapter of the STACK tables)')
     rec = commands.add_parser('record', help="add this Python's results (legacy adapter)")
-    rec.add_argument('--legacy', required=True)
+    rec.add_argument('--legacy', help='math-exercise checkout (the commit in tools/pins.json)')
+    rec.add_argument('--stack-legacy', help='stack-sympy checkout (the commit in tools/pins.json)')
+    rec.add_argument('--stack-probes', help="the stack-sympy audit's probes (ctm-assessment docs/consolidation/stack-sympy-audit-2026-10/probes)")
     rec.add_argument('--umbrella', help='ctm-assessment checkout at the commit in tools/pins.json (default: _ci/ctm-assessment)')
     imp = commands.add_parser('import-capture', help='replace the captured suites with a new capture')
     imp.add_argument('capture', help='folder written by run.cjs --capture, or the goldens-export artifact (zip)')
@@ -1065,9 +1319,10 @@ def main(argv=None):
     options = parser.parse_args(argv)
     use_umbrella(getattr(options, 'umbrella', None))
     if options.command == 'verify':
-        return 1 if verify(make_adapter(options), options.suite, options.max_diffs) else 0
+        return 1 if verify(make_adapter(options), options.suite, options.max_diffs, fail_fast=options.fail_fast) else 0
     if options.command == 'record':
-        return 1 if record(Legacy(options.legacy)) else 0
+        options.adapter = 'legacy'
+        return 1 if record(make_adapter(options), probes=options.stack_probes) else 0
     return 1 if import_capture(options) else 0
 
 

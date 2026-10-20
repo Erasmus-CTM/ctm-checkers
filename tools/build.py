@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds the wheel of ctm-checkers and its extension folder (docs/api.md).
+"""Builds the wheels of ctm-checkers and its extension folder (docs/api.md).
 
     python tools/build.py             # writes _extensions/ctm-checkers/ from src/
     python tools/build.py --check     # the committed folder agrees with src/ (CI)
@@ -8,23 +8,33 @@
                                       # and the releases recorded at the Git commit REF (the base
                                       # branch) are still recorded here, unchanged (CI)
 
+Two wheels, one page script each, so that a page with math-exercise never
+carries the STACK engine (design §13 item 5):
+
+  ctm_checkers-<version>-py3-none-any.whl          everything but ctm_checkers/stack/:
+  ctm-checkers.js                                  the shared modules and math-exercise's checks
+  ctm_checkers_stack-<version>-py3-none-any.whl    ctm_checkers/stack/, the STACK engine
+  ctm-checkers-stack.js                            (needs the first; pip: ctm-checkers-stack)
+
 _extensions/ctm-checkers/ is generated and committed; do not edit it:
   _extension.yml           a Quarto extension that only contributes metadata
                            (Quarto refuses one that contributes nothing);
                            authors never list it
   checkers.json            name, version, api, dependency, wheel, sha256, script
-  ctm_checkers-<version>-py3-none-any.whl
-  ctm-checkers.js          the wheel for the page (base64) with its own install
-                           code: globalThis.CTMCheckers.install(py)
+                           (the first wheel), parts.stack (the same for the second)
+  the two wheels
+  ctm-checkers.js          each wheel for the page (base64) with its own install
+  ctm-checkers-stack.js    code: globalThis.CTMCheckers.install(py),
+                           globalThis.CTMCheckersStack.install(py) (both wheels)
 
-The wheel is pure Python: entries sorted, dist-info last, timestamps
+A wheel is pure Python: entries sorted, dist-info last, timestamps
 1980-01-01, fixed modes, DEFLATE. Compressed bytes differ between zlib
 builds, so --check compares contents (names, bytes, metadata) and requires the
-other files to be exactly what the committed wheel gives; a rebuild keeps the
-committed wheel while its contents are current. The sha256 of the committed
+other files to be exactly what the committed wheels give; a rebuild keeps a
+committed wheel while its contents are current. The sha256 of a committed
 wheel identifies what runs in the browser and at build time. A released
 version never changes (tools/released.json holds its contents, wheel and
-script hashes; --check compares them), so its HTML dependency path is for one
+script hashes; --check compares them), so its HTML dependency paths are for one
 content only; a development version (X.Y.Z.devN, above every release) gets the
 HTML dependency version X.Y.Z.devN+<sha8 of the wheel>, so browsers fetch a
 changed wheel although the version stayed.
@@ -48,6 +58,12 @@ OUT = ROOT / '_extensions' / 'ctm-checkers'
 SCRIPT = 'ctm-checkers.js'
 
 SUMMARY = 'The Python checker library of CTM Assessment (grading in the browser and at build time).'
+# The two wheels: part name -> (distribution, import-name prefix of the wheel file, page script, page global, summary).
+PARTS = {
+    'base': ('ctm-checkers', 'ctm_checkers', SCRIPT, 'CTMCheckers', SUMMARY),
+    'stack': ('ctm-checkers-stack', 'ctm_checkers_stack', 'ctm-checkers-stack.js', 'CTMCheckersStack',
+              'The STACK engine of ctm-checkers (ctm_checkers.stack), the checker library of CTM Assessment.'),
+}
 REQUIRES_PYTHON = '>=3.9'
 DEPENDENCIES = ['sympy>=1.13']
 EXTRAS = {'graph': ['networkx>=3.2']}
@@ -88,6 +104,40 @@ try:
 finally:
     del _ctm_checkers_install, _ctm_checkers_payload'''
 
+# The Python that adds a part's wheel (ctm_checkers.stack) to the ctm_checkers
+# that INSTALL has just installed, with the same rules (a function, _ctm_
+# names deleted, no lookup in the page's namespace). It checks the sha256 and
+# the version, writes the wheel, puts it on sys.path after the first and
+# extends the package's __path__ with its portion, as ctm_checkers/__init__.py
+# does when both wheels are on sys.path at build time.
+INSTALL_PART = '''def _ctm_checkers_install_part(text):
+    import base64, builtins, hashlib, importlib, io, json, os, pkgutil, sys
+    payload = json.loads(text)
+    data = base64.b64decode(payload["data"])
+    if hashlib.sha256(data).hexdigest() != payload["sha256"]:
+        raise builtins.RuntimeError("ctm-checkers: the payload of " + payload["name"] + " is damaged (sha256 mismatch)")
+    package = sys.modules.get("ctm_checkers")
+    if package is None or package.__version__ != payload["version"]:
+        raise builtins.RuntimeError("ctm-checkers: " + payload["name"] + " " + payload["version"] + " needs ctm-checkers "
+                                    + payload["version"] + " installed first")
+    folder = "/tmp/ctm-checkers/" + payload["sha256"][:16]
+    path = folder + "/" + payload["wheel"]
+    os.makedirs(folder, exist_ok=True)
+    with io.open(path, "wb") as file:
+        file.write(data)
+    prefix = "ctm_checkers." + payload["part"]
+    for name in [name for name in builtins.list(sys.modules) if name == prefix or name.startswith(prefix + ".")]:
+        del sys.modules[name]
+    if path not in sys.path:
+        sys.path.append(path)
+    importlib.invalidate_caches()
+    package.__path__ = pkgutil.extend_path(package.__path__, "ctm_checkers")
+    importlib.import_module(prefix)
+try:
+    _ctm_checkers_install_part(_ctm_checkers_part_payload)
+finally:
+    del _ctm_checkers_install_part, _ctm_checkers_part_payload'''
+
 
 def package_info():
     text = (SRC / 'ctm_checkers' / '__init__.py').read_text(encoding='utf-8')
@@ -112,16 +162,20 @@ def semver(version):
     return base
 
 
-def metadata(version):
-    lines = ['Metadata-Version: 2.1', 'Name: ctm-checkers', f'Version: {version}', f'Summary: {SUMMARY}',
+def metadata(version, part='base'):
+    distribution, _, _, _, summary = PARTS[part]
+    lines = ['Metadata-Version: 2.1', f'Name: {distribution}', f'Version: {version}', f'Summary: {summary}',
              'Author: CTM team', 'License: AGPL-3.0-or-later',
              'Project-URL: Source, https://github.com/Erasmus-CTM/ctm-checkers',
              'Classifier: License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)',
              'Classifier: Programming Language :: Python :: 3', f'Requires-Python: {REQUIRES_PYTHON}']
+    if part != 'base':
+        lines.append(f'Requires-Dist: ctm-checkers=={version}')
     lines += [f'Requires-Dist: {d}' for d in DEPENDENCIES]
-    for extra, requirements in EXTRAS.items():
-        lines.append(f'Provides-Extra: {extra}')
-        lines += [f'Requires-Dist: {d}; extra == "{extra}"' for d in requirements]
+    if part == 'base':
+        for extra, requirements in EXTRAS.items():
+            lines.append(f'Provides-Extra: {extra}')
+            lines += [f'Requires-Dist: {d}; extra == "{extra}"' for d in requirements]
     return '\n'.join(lines) + '\n\n' + 'Generated by ctm-checkers tools/build.py from src/.\n'
 
 
@@ -132,21 +186,32 @@ def record_hash(data):
     return 'sha256=' + base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b'=').decode('ascii')
 
 
-def wheel_name(version):
-    return f'ctm_checkers-{version}-py3-none-any.whl'
+def wheel_name(version, part='base'):
+    return f'{PARTS[part][1]}-{version}-py3-none-any.whl'
 
 
-def wheel_contents(version):
-    """{archive name: bytes} in archive order."""
-    files = {}
+def in_part(name, part):
+    """Whether the package file `name` (ctm_checkers/...) belongs to the wheel of `part`."""
+    stack = name.startswith('ctm_checkers/stack/')
+    return stack if part == 'stack' else not stack
+
+
+def wheel_contents(version, part='base'):
+    """{archive name: bytes} in archive order. The STACK wheel starts with the
+    directory entry ctm_checkers/: zipimport sees a package's portion in a
+    wheel only through it (pkgutil.extend_path in ctm_checkers/__init__.py);
+    RECORD lists files only."""
+    files = {} if part == 'base' else {'ctm_checkers/': b''}
     for path in sorted((SRC / 'ctm_checkers').rglob('*.py')):
-        if '__pycache__' not in path.parts:
-            files[path.relative_to(SRC).as_posix()] = path.read_bytes()
-    dist = f'ctm_checkers-{version}.dist-info'
+        name = path.relative_to(SRC).as_posix()
+        if '__pycache__' not in path.parts and in_part(name, part):
+            files[name] = path.read_bytes()
+    dist = f'{PARTS[part][1]}-{version}.dist-info'
     files[f'{dist}/LICENSE'] = (ROOT / 'LICENSE').read_bytes()
-    files[f'{dist}/METADATA'] = metadata(version).encode('utf-8')
+    files[f'{dist}/METADATA'] = metadata(version, part).encode('utf-8')
     files[f'{dist}/WHEEL'] = WHEEL.encode('utf-8')
-    record = ''.join(f'{name},{record_hash(data)},{len(data)}\n' for name, data in files.items()) + f'{dist}/RECORD,,\n'
+    record = ''.join(f'{name},{record_hash(data)},{len(data)}\n' for name, data in files.items()
+                     if not name.endswith('/')) + f'{dist}/RECORD,,\n'
     files[f'{dist}/RECORD'] = record.encode('utf-8')
     return files
 
@@ -158,7 +223,7 @@ def wheel_bytes(files):
             info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
             info.compress_type = zipfile.ZIP_DEFLATED
             info.create_system = 3
-            info.external_attr = 0o644 << 16
+            info.external_attr = (0o40755 << 16) | 0x10 if name.endswith('/') else 0o644 << 16
             archive.writestr(info, data, compresslevel=9)
     return buffer.getvalue()
 
@@ -172,28 +237,16 @@ def dependency_version(version, data):
     return f'{version}+{hashlib.sha256(data).hexdigest()[:8]}' if '.dev' in version else version
 
 
-def generated(version, api, data):
-    """The extension folder's files for the wheel `data`: {name: bytes}."""
+def _script_url():
+    # The script's own URL (for a worker that loads it with importScripts); null where it has none.
+    return "(typeof document !== 'undefined' && document.currentScript && document.currentScript.src) || null"
+
+
+def base_script(version, api, data):
     sha = hashlib.sha256(data).hexdigest()
     dependency = dependency_version(version, data)
-    name = wheel_name(version)
-    manifest = {'name': 'ctm-checkers', 'version': version, 'api': api, 'dependency': dependency, 'wheel': name,
-                'sha256': sha, 'script': SCRIPT, 'generated': 'by tools/build.py from src/; do not edit'}
-    extension = '\n'.join([
-        '# Generated by ctm-checkers tools/build.py from src/; do not edit.',
-        '# The wheel and the page script of ctm-checkers (checkers.json); authors',
-        '# never list this extension: CTM Assessment installs it, ctm-libs loads it.',
-        'title: CTM checkers',
-        'author: CTM team',
-        f'version: {semver(version)}',
-        f'quarto-required: "{QUARTO_REQUIRED}"',
-        'contributes:',
-        '  metadata:',
-        '    ctm-checkers:',
-        f'      api: {api}',
-    ]) + '\n'
     install = ',\n'.join('    ' + json.dumps(line) for line in INSTALL.split('\n'))
-    script = f'''/* ctm-checkers {version}: the Python checker library of CTM Assessment for the
+    return f'''/* ctm-checkers {version}: the Python checker library of CTM Assessment for the
    page (HTML dependency "ctm-checkers", version {dependency}; ctm-libs installs
    it into the page's Pyodide). Generated by ctm-checkers tools/build.py from
    src/; do not edit. AGPL-3.0-or-later; source: https://github.com/Erasmus-CTM/ctm-checkers */
@@ -212,9 +265,10 @@ def generated(version, api, data):
     version: {json.dumps(version)},
     api: {api},
     dependency: {json.dumps(dependency)},
-    wheel: {json.dumps(name)},
+    wheel: {json.dumps(wheel_name(version))},
     sha256: {json.dumps(sha)},
     data: '{base64.b64encode(data).decode('ascii')}',
+    scriptURL: {_script_url()},
     // Installs the wheel into the Pyodide runtime `py` with py.globals.set and
     // py.runPythonAsync only (all that pyodide-interaktiv's worker proxy
     // offers); resolves when `import ctm_checkers` works. Each call installs
@@ -231,10 +285,98 @@ def generated(version, api, data):
   if (!root.CTMCheckers) root.CTMCheckers = checkers;
 }})(typeof globalThis !== 'undefined' ? globalThis : this);
 '''
-    return {'_extension.yml': extension.encode('utf-8'),
-            'checkers.json': (json.dumps(manifest, indent=1) + '\n').encode('utf-8'),
-            name: data,
-            SCRIPT: script.encode('utf-8')}
+
+
+def part_script(version, api, data, part):
+    distribution, _, _, name, _ = PARTS[part]
+    sha = hashlib.sha256(data).hexdigest()
+    dependency = dependency_version(version, data)
+    install = ',\n'.join('    ' + json.dumps(line) for line in INSTALL_PART.split('\n'))
+    return f'''/* {distribution} {version}: the STACK engine of ctm-checkers (ctm_checkers.{part}) for
+   the page (HTML dependency "{distribution}", version {dependency}), after
+   ctm-checkers.js of the same version. Generated by ctm-checkers tools/build.py
+   from src/; do not edit. AGPL-3.0-or-later; source: https://github.com/Erasmus-CTM/ctm-checkers */
+(function (root) {{
+  'use strict';
+  // The wheel's install code (Python): checks the sha256 and the version of
+  // the ctm_checkers installed before, writes the wheel and adds
+  // ctm_checkers.{part} from it (zipimport). It runs inside a function whose
+  // two globals (_ctm_ names) are deleted, so it leaves no name in the page's
+  // namespace (docs/api.md).
+  var INSTALL = [
+{install}
+  ].join('\\n');
+  var installs = 0;
+  var checkers = {{
+    name: {json.dumps(distribution)},
+    part: {json.dumps(part)},
+    version: {json.dumps(version)},
+    api: {api},
+    dependency: {json.dumps(dependency)},
+    wheel: {json.dumps(wheel_name(version, part))},
+    sha256: {json.dumps(sha)},
+    data: '{base64.b64encode(data).decode('ascii')}',
+    scriptURL: {_script_url()},
+    // Installs ctm-checkers (ctm-checkers.js, which must be on the page, at
+    // this version) and then this wheel into the Pyodide runtime `py`, with
+    // py.globals.set and py.runPythonAsync only; resolves when
+    // `import ctm_checkers.{part}` works. Each call installs both again.
+    install: function (py) {{
+      var base = root.CTMCheckers;
+      if (!base || typeof base.install !== 'function') {{
+        return Promise.reject(new Error({json.dumps(distribution)} + ' needs ctm-checkers.js on the page, loaded before it'));
+      }}
+      if (base.version !== checkers.version) {{
+        return Promise.reject(new Error({json.dumps(distribution)} + ' ' + checkers.version + ' needs ctm-checkers ' + checkers.version
+          + '; the page has ' + base.version));
+      }}
+      var name = '_ctm_checkers_{part}_payload_' + (++installs);
+      var payload = JSON.stringify({{name: checkers.name, part: checkers.part, version: checkers.version, wheel: checkers.wheel,
+        sha256: checkers.sha256, data: checkers.data}});
+      return Promise.resolve(base.install(py)).then(function () {{
+        return py.globals.set(name, payload);
+      }}).then(function () {{
+        return py.runPythonAsync(INSTALL.split('_ctm_checkers_part_payload').join(name));
+      }});
+    }}
+  }};
+  if (!root.{name}) root.{name} = checkers;
+}})(typeof globalThis !== 'undefined' ? globalThis : this);
+'''
+
+
+def generated(version, api, datas):
+    """The extension folder's files for the wheels `datas` ({part: bytes}): {name: bytes}."""
+    data = datas['base']
+    parts = {}
+    for part in PARTS:
+        if part != 'base':
+            distribution, _, script, _, _ = PARTS[part]
+            parts[part] = {'name': distribution, 'dependency': dependency_version(version, datas[part]),
+                           'wheel': wheel_name(version, part), 'sha256': hashlib.sha256(datas[part]).hexdigest(), 'script': script}
+    manifest = {'name': 'ctm-checkers', 'version': version, 'api': api, 'dependency': dependency_version(version, data),
+                'wheel': wheel_name(version), 'sha256': hashlib.sha256(data).hexdigest(), 'script': SCRIPT, 'parts': parts,
+                'generated': 'by tools/build.py from src/; do not edit'}
+    extension = '\n'.join([
+        '# Generated by ctm-checkers tools/build.py from src/; do not edit.',
+        '# The wheels and the page scripts of ctm-checkers (checkers.json); authors',
+        '# never list this extension: CTM Assessment installs it, ctm-libs loads it.',
+        'title: CTM checkers',
+        'author: CTM team',
+        f'version: {semver(version)}',
+        f'quarto-required: "{QUARTO_REQUIRED}"',
+        'contributes:',
+        '  metadata:',
+        '    ctm-checkers:',
+        f'      api: {api}',
+    ]) + '\n'
+    files = {'_extension.yml': extension.encode('utf-8'),
+             'checkers.json': (json.dumps(manifest, indent=1) + '\n').encode('utf-8')}
+    for part in PARTS:
+        files[wheel_name(version, part)] = datas[part]
+        files[PARTS[part][2]] = (base_script(version, api, data) if part == 'base'
+                                 else part_script(version, api, datas[part], part)).encode('utf-8')
+    return files
 
 
 def check_pyproject():
@@ -270,23 +412,32 @@ def released_versions():
     return json.loads(RELEASED.read_text(encoding='utf-8'))['versions'] if RELEASED.exists() else {}
 
 
-def release_entry(contents, data, script):
-    """What a release is: the digest of its contents (the wheel's RECORD lists
-    every file with its sha256), the wheel file and the page script."""
-    record = next(text for name, text in contents.items() if name.endswith('.dist-info/RECORD'))
-    return {'contents': hashlib.sha256(record).hexdigest(), 'wheel': hashlib.sha256(data).hexdigest(),
-            'script': hashlib.sha256(script).hexdigest()}
+def release_entry(contents, datas, scripts):
+    """What a release is: for each wheel the digest of its contents (its RECORD
+    lists every file with its sha256), the wheel file and its page script."""
+    def entry(part):
+        record = next(text for name, text in contents[part].items() if name.endswith('.dist-info/RECORD'))
+        return {'contents': hashlib.sha256(record).hexdigest(), 'wheel': hashlib.sha256(datas[part]).hexdigest(),
+                'script': hashlib.sha256(scripts[part]).hexdigest()}
+    out = entry('base')
+    for part in PARTS:
+        if part != 'base':
+            out[part] = entry(part)
+    return out
 
 
-def release_problems(version, contents, data, script):
+def release_problems(version, contents, datas, scripts):
     """A released version never changes; a development version is above every release."""
     versions = released_versions()
-    entry = release_entry(contents, data, script)
     if is_release(version):
         if version not in versions:
             return [f'{version} is a release version without an entry in tools/released.json: the release PR adds it with '
                     f'python tools/build.py --release; otherwise set a development version ({version}.dev0 or later)']
-        changed = [key for key in ('contents', 'wheel', 'script') if versions[version].get(key) != entry[key]]
+        entry = release_entry(contents, datas, scripts)
+        recorded = versions[version]
+        changed = [key for key in ('contents', 'wheel', 'script') if recorded.get(key) != entry[key]]
+        changed += [f'{part} {key}' for part in PARTS if part != 'base'
+                    for key in ('contents', 'wheel', 'script') if recorded.get(part, {}).get(key) != entry[part][key]]
         if changed:
             return [f'{version} is released (tools/released.json) and its {", ".join(changed)} changed: released code never changes; '
                     f'set the next development version (for example {next_dev(version)}) in src/ctm_checkers/__init__.py']
@@ -328,7 +479,7 @@ def zip_problems(name, data):
     with zipfile.ZipFile(io.BytesIO(data)) as archive:
         bad = [info.filename for info in archive.infolist()
                if info.compress_type != zipfile.ZIP_DEFLATED or info.date_time != (1980, 1, 1, 0, 0, 0)
-               or info.external_attr >> 16 != 0o644]
+               or info.external_attr >> 16 != (0o40755 if info.filename.endswith('/') else 0o644)]
     return [f'{name}: entries not written as tools/build.py writes them (DEFLATE, 1980-01-01, 0644): {", ".join(bad[:5])}'] if bad else []
 
 
@@ -342,61 +493,68 @@ def main(argv=None):
     if options.released_base and not options.check:
         parser.error('--released-base needs --check')
     version, api = package_info()
-    contents = wheel_contents(version)
-    committed = OUT / wheel_name(version)
+    contents = {part: wheel_contents(version, part) for part in PARTS}
+    committed = {part: OUT / wheel_name(version, part) for part in PARTS}
     problems = check_pyproject()
     if options.check:
-        if not committed.is_file():
-            problems.append(f'{committed.relative_to(ROOT)} is missing: run python tools/build.py')
-        else:
-            data = committed.read_bytes()
-            found = read_wheel(data)
-            if list(found) != list(contents):
-                problems.append(f'{committed.name}: its files are not those of src/ (run python tools/build.py)')
-            for name in contents:
-                if name in found and found[name] != contents[name]:
-                    problems.append(f'{committed.name}: {name} differs from src/ (run python tools/build.py)')
-            problems += zip_problems(committed.name, data)
-            expected = generated(version, api, data)
+        missing = [path for path in committed.values() if not path.is_file()]
+        for path in missing:
+            problems.append(f'{path.relative_to(ROOT)} is missing: run python tools/build.py')
+        if not missing:
+            datas = {part: path.read_bytes() for part, path in committed.items()}
+            for part, path in committed.items():
+                found = read_wheel(datas[part])
+                if list(found) != list(contents[part]):
+                    problems.append(f'{path.name}: its files are not those of src/ (run python tools/build.py)')
+                for name in contents[part]:
+                    if name in found and found[name] != contents[part][name]:
+                        problems.append(f'{path.name}: {name} differs from src/ (run python tools/build.py)')
+                problems += zip_problems(path.name, datas[part])
+            expected = generated(version, api, datas)
             present = sorted(p.name for p in OUT.iterdir()) if OUT.is_dir() else []
             if present != sorted(expected):
                 problems.append(f'_extensions/ctm-checkers/ must hold exactly {", ".join(sorted(expected))}; it holds {", ".join(present)}')
+            wheels = {path.name for path in committed.values()}
             for name, text in expected.items():
                 path = OUT / name
-                if name != committed.name and (not path.is_file() or path.read_bytes() != text):
-                    problems.append(f'_extensions/ctm-checkers/{name} is not what the committed wheel gives (run python tools/build.py)')
-            problems += release_problems(version, contents, data, (OUT / SCRIPT).read_bytes() if (OUT / SCRIPT).is_file() else b'')
-        if not committed.is_file() and not is_release(version):
-            problems += release_problems(version, contents, b'', b'')   # the order of versions needs no wheel
+                if name not in wheels and (not path.is_file() or path.read_bytes() != text):
+                    problems.append(f'_extensions/ctm-checkers/{name} is not what the committed wheels give (run python tools/build.py)')
+            scripts = {part: (OUT / PARTS[part][2]).read_bytes() if (OUT / PARTS[part][2]).is_file() else b'' for part in PARTS}
+            problems += release_problems(version, contents, datas, scripts)
+        elif not is_release(version):
+            problems += release_problems(version, contents, {}, {})   # the order of versions needs no wheel
         if options.released_base:
             problems += base_release_problems(released_at(options.released_base), released_versions())
         for problem in problems:
             print('build --check:', problem, file=sys.stderr)
         if not problems:
             print(f'_extensions/ctm-checkers/ is current: ctm-checkers {version} (API {api}{", released" if is_release(version) else ""}), '
-                  f'{committed.name} sha256 {hashlib.sha256(committed.read_bytes()).hexdigest()}'
+                  + ', '.join(f'{path.name} sha256 {hashlib.sha256(path.read_bytes()).hexdigest()}' for path in committed.values())
                   + (f'; the releases of {options.released_base} are unchanged' if options.released_base else ''))
         return 1 if problems else 0
-    # Keep the committed wheel while its contents are current.
-    if committed.is_file() and list(read_wheel(committed.read_bytes()).items()) == list(contents.items()):
-        data = committed.read_bytes()
-    else:
-        data = wheel_bytes(contents)
-    expected = generated(version, api, data)
+    # Keep a committed wheel while its contents are current.
+    datas = {}
+    for part, path in committed.items():
+        if path.is_file() and list(read_wheel(path.read_bytes()).items()) == list(contents[part].items()):
+            datas[part] = path.read_bytes()
+        else:
+            datas[part] = wheel_bytes(contents[part])
+    expected = generated(version, api, datas)
+    scripts = {part: expected[PARTS[part][2]] for part in PARTS}
     versions = released_versions()
     if options.release:
         if not is_release(version):
             problems.append(f'--release: {version} is a development version')
         elif version not in versions:
-            versions[version] = release_entry(contents, data, expected[SCRIPT])
+            versions[version] = release_entry(contents, datas, scripts)
             document = json.loads(RELEASED.read_text(encoding='utf-8')) if RELEASED.exists() else {'versions': {}}
             document['versions'] = dict(sorted(versions.items(), key=lambda item: version_key(item[0])))
             RELEASED.write_text(json.dumps(document, indent=1) + '\n', encoding='utf-8')
             print(f'Recorded the release {version} in tools/released.json')
     if is_release(version) and version in versions:
-        problems += release_problems(version, contents, data, expected[SCRIPT])
+        problems += release_problems(version, contents, datas, scripts)
     elif not is_release(version):
-        problems += release_problems(version, contents, data, expected[SCRIPT])
+        problems += release_problems(version, contents, datas, scripts)
     for problem in problems:
         print('build:', problem, file=sys.stderr)
     if problems:
@@ -407,8 +565,9 @@ def main(argv=None):
             path.unlink()
     for name, text in expected.items():
         (OUT / name).write_bytes(text)
-    print(f'Wrote _extensions/ctm-checkers/ for ctm-checkers {version} (API {api}): {wheel_name(version)}, '
-          f'{len(data)} bytes, sha256 {hashlib.sha256(data).hexdigest()}')
+    print(f'Wrote _extensions/ctm-checkers/ for ctm-checkers {version} (API {api}): '
+          + ', '.join(f'{wheel_name(version, part)}, {len(datas[part])} bytes, sha256 {hashlib.sha256(datas[part]).hexdigest()}'
+                      for part in PARTS))
     if is_release(version) and version not in versions:
         print(f'{version} is a release version: record it with python tools/build.py --release', file=sys.stderr)
     return 0

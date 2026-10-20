@@ -4,11 +4,11 @@ name: Tests
 # are those of Pyodide 0.27.2 and 0.28.3): the committed extension folder
 # matches src/ and no released version changed (neither its code nor, against
 # the base commit, its entry in tools/released.json); the golden tables are
-# reproduced by math-exercise 0.10.0's own code (legacy adapter,
-# tools/pins.json) and by the built wheel, imported from the zip as builds
-# import it (authored rows recorded with the umbrella's recorder at the pin);
+# reproduced by math-exercise 0.10.0's and stack-sympy f450bcd's own code
+# (legacy adapter, tools/pins.json) and by the built wheels, imported from the zips as builds
+# import them (authored rows recorded with the umbrella's recorder at the pin);
 # mutations of the checks make them fail; the tests run on src/ and on the
-# wheel; the wheel installs with pip.
+# wheels; the wheels install with pip.
 on:
   push:
     branches: [main]
@@ -33,6 +33,7 @@ jobs:
         python: ['3.9', '3.10', '3.11', '3.12', '3.13']
     env:
       CTM_LEGACY_MATH_EXERCISE: _ci/math-exercise
+      CTM_LEGACY_STACK_SYMPY: _ci/stack-sympy
     steps:
       - uses: actions/checkout@v7
       - name: Pinned commits
@@ -44,6 +45,13 @@ jobs:
           repository: Erasmus-CTM/math-exercise
           ref: ${{ steps.pins.outputs['math-exercise'] }}
           path: _ci/math-exercise
+          persist-credentials: false
+      - name: stack-sympy at f450bcd (the legacy sources of the STACK goldens)
+        uses: actions/checkout@v7
+        with:
+          repository: Erasmus-CTM/stack-sympy
+          ref: ${{ steps.pins.outputs['stack-sympy'] }}
+          path: _ci/stack-sympy
           persist-credentials: false
       - name: The umbrella's parity harness (its authored-question recorder)
         uses: actions/checkout@v7
@@ -71,16 +79,19 @@ jobs:
           fi
       - name: Tests (src/)
         run: pytest -q tests
-      - name: Tests (the built wheel)
-        run: CTM_CHECKERS_WHEEL="$PWD/_extensions/ctm-checkers/$(jq -r .wheel _extensions/ctm-checkers/checkers.json)" pytest -q tests
+      - name: Tests (the built wheels)
+        run: |
+          folder="$PWD/_extensions/ctm-checkers"
+          CTM_CHECKERS_WHEEL="$folder/$(jq -r .wheel "$folder/checkers.json"):$folder/$(jq -r .parts.stack.wheel "$folder/checkers.json")" pytest -q tests
       - name: The legacy code reproduces the golden tables
-        run: python tools/golden.py verify --adapter legacy --legacy _ci/math-exercise
-      - name: The built wheel reproduces the golden tables
+        run: python tools/golden.py verify --adapter legacy --legacy _ci/math-exercise --stack-legacy _ci/stack-sympy
+      - name: The built wheels reproduce the golden tables
         run: python tools/golden.py verify --adapter wheel --variants _ci/math-exercise
       - name: The golden tables fail on mutations of the checks
         run: CTM_MUTATION_TESTS=1 pytest -q -rA tests/test_mutations.py
-      - name: The wheel installs with pip
+      - name: The wheels install with pip
         run: |
           python -m venv "$RUNNER_TEMP/venv"
-          "$RUNNER_TEMP/venv/bin/python" -m pip install -q "_extensions/ctm-checkers/$(jq -r .wheel _extensions/ctm-checkers/checkers.json)"
-          cd "$RUNNER_TEMP" && "$RUNNER_TEMP/venv/bin/python" -c "import ctm_checkers, ctm_checkers.math_exercise.checks as c; print(ctm_checkers.__version__, c.__file__)"
+          folder="_extensions/ctm-checkers"
+          "$RUNNER_TEMP/venv/bin/python" -m pip install -q "$folder/$(jq -r .wheel $folder/checkers.json)" "$folder/$(jq -r .parts.stack.wheel $folder/checkers.json)"
+          cd "$RUNNER_TEMP" && "$RUNNER_TEMP/venv/bin/python" -c "import ctm_checkers, ctm_checkers.math_exercise.checks as c, ctm_checkers.stack.engine as s; print(ctm_checkers.__version__, c.__file__, s.__file__)"

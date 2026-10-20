@@ -8,12 +8,15 @@
 // `tools/golden.py verify` inside, with the same adapters as natively.
 //
 //   node tools/pyodide/verify.cjs --umbrella DIR --version 0.28.3 -- verify --adapter legacy --legacy DIR
-//   node tools/pyodide/verify.cjs --umbrella DIR --version 0.28.3 --payload _extensions/ctm-checkers/ctm-checkers.js \
+//   node tools/pyodide/verify.cjs --umbrella DIR --version 0.28.3 \
+//     --payload _extensions/ctm-checkers/ctm-checkers.js,_extensions/ctm-checkers/ctm-checkers-stack.js \
 //     -- verify --adapter installed --variants DIR
 //
-// With --payload, the page script's own install code (CTMCheckers.install)
-// installs the wheel first, through an object that offers only
-// globals.set and runPythonAsync, as pyodide-interaktiv's worker proxy does.
+// With --payload (page scripts, comma-separated, in page order), the last
+// script's own install code (CTMCheckers.install; CTMCheckersStack.install,
+// which installs ctm-checkers first) installs the wheels, through an object
+// that offers only globals.set and runPythonAsync, as pyodide-interaktiv's
+// worker proxy does. A math page carries ctm-checkers.js alone.
 //
 // Paths after `--` are host paths; they are mounted into Pyodide's file
 // system. The umbrella checkout needs `npm ci` in integration/pyodide-parity.
@@ -58,11 +61,12 @@ function parse(argv) {
   if (options.payload) {
     const sandbox = {};
     vm.createContext(sandbox);
-    vm.runInContext(fs.readFileSync(options.payload, 'utf8'), sandbox, {filename: options.payload});
-    const checkers = sandbox.CTMCheckers;
+    for (const script of options.payload.split(',')) vm.runInContext(fs.readFileSync(script, 'utf8'), sandbox, {filename: script});
+    const checkers = sandbox.CTMCheckersStack || sandbox.CTMCheckers;
     const proxy = {globals: {set: (name, value) => py.globals.set(name, value)}, runPythonAsync: code => py.runPythonAsync(code)};
     await checkers.install(proxy);
-    console.log(`Installed ${checkers.wheel} (sha256 ${checkers.sha256}) with the payload's install code`);
+    const installed = sandbox.CTMCheckersStack ? [sandbox.CTMCheckers, sandbox.CTMCheckersStack] : [checkers];
+    console.log(`Installed ${installed.map(item => `${item.wheel} (sha256 ${item.sha256})`).join(' and ')} with the page scripts' install code`);
   }
 
   // This repository, the umbrella checkout (golden.py records authored rows
