@@ -6,7 +6,7 @@ release. Every grading change is listed under "Grading changes" with the
 finding or decision it implements, its test and the summary of its golden
 diff (docs/goldens.md).
 
-## Unreleased (0.2.0.dev0)
+## 0.2.0 (20 October 2026)
 
 stack-sympy's STACK engine moves here (consolidation step 2, C3): its Python
 code as it was at stack-sympy `f450bcd`, relicensed AGPL-3.0-or-later by the

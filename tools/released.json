@@ -1,10 +1,20 @@
 {
- "comment": "Released versions of ctm-checkers and what each is: the sha256 of its contents (the wheel's RECORD, which lists every file with its hash), of the wheel file and of the page script ctm-checkers.js. A release never changes: tools/build.py --check fails when the code, the wheel or the script of a released version differ from its entry, and a development version must be above every release. Without tags (step-2 design \u00a713), this keeps a version and its HTML dependency path (site_libs/quarto-contrib/ctm-checkers-<version>/) for one content only, so browsers cannot keep a stale copy. The release PR adds its entry with `python tools/build.py --release`; the first change after it sets the next development version (X.Y.Z.devN, dependency version X.Y.Z.devN+<sha8 of the wheel>).",
+ "comment": "Released versions of ctm-checkers and what each is: the sha256 of its contents (the wheel's RECORD, which lists every file with its hash), of the wheel file and of the page script ctm-checkers.js; from 0.2.0 the same for the STACK engine's wheel and ctm-checkers-stack.js (`stack`). A release never changes: tools/build.py --check fails when the code, the wheel or the script of a released version differ from its entry, and a development version must be above every release. Without tags (step-2 design \u00a713), this keeps a version and its HTML dependency path (site_libs/quarto-contrib/ctm-checkers-<version>/) for one content only, so browsers cannot keep a stale copy. The release PR adds its entry with `python tools/build.py --release`; the first change after it sets the next development version (X.Y.Z.devN, dependency version X.Y.Z.devN+<sha8 of the wheel>).",
  "versions": {
   "0.1.0": {
    "contents": "3baa8317d369ebbd3dbb8625105b5698e69704e7dbd3b6e08096427e050ea37f",
    "wheel": "6ac0f6898fe34565e7e3b1da68794ece57cf895992657f95e85219298e5847db",
    "script": "176faf901dd8d950b40f0df4a27f16b9438ed7af1a77d33c57d273905c9afda9"
+  },
+  "0.2.0": {
+   "contents": "243f481914bf83ca759f1296ce98136ad360d8c6a72bb0e1226554cb06ba7731",
+   "wheel": "b1d4f5dd454706f1cbd8d553393c0e5228a4a7fefc51af4142449af25f7aa33c",
+   "script": "b15e709c1207e6ec41f9528d6a1cfcecc6bbac7a9654230acaef267416542db5",
+   "stack": {
+    "contents": "db9195a84a8c1101e2833500544efd482a6427de78be806899cacab43cc958cb",
+    "wheel": "a4d6b15cba477ac377c8448b8c401cd83ebb6b0bbd8f9cf7367f1d9997e0f5db",
+    "script": "e80f23ae98e17cac2afc04b7cfdbc2655509729ba14b0d62c9917bef27f27090"
+   }
   }
  }
 }
