@@ -7,7 +7,8 @@ stack-sympy's `questions/` folder at
 example checker file `matrix-checkers.py` imports `assess_basis` from
 `ctm_checkers.matrix`, its one home in ctm-checkers (stack-sympy had the same
 function as `stack_sympy.basis_helper`). stack-sympy's site copies this folder
-from the ctm-checkers commit it pins.
+from the ctm-checkers commit it pins, without `probes/` and `supplement/`
+(inputs of the golden tables only).
 
 The golden tables (`tests/golden/stack/`, [docs/goldens.md](../../docs/goldens.md))
 grade these questions; each folder keeps its own licence:
@@ -22,3 +23,4 @@ grade these questions; each folder keeps its own licence:
 | `upstream/algmap-6-1.xml` | a STACK sample question (`sources.json`) | CC-BY-SA-4.0, [COPYING.txt](upstream/COPYING.txt) |
 | `upstream/bodmas.xml`, `upstream/rounding-three-dp.xml` | HELM questions from STACK's library (`sources.json`) | CC-BY-NC-4.0, [HELM-COPYING.txt](upstream/HELM-COPYING.txt) |
 | `probes/` | question probes of the stack-sympy audit ([README](probes/README.md)) | AGPL-3.0-or-later |
+| `supplement/` | questions written for the golden tables, for rules no example reaches ([README](supplement/README.md)) | AGPL-3.0-or-later |

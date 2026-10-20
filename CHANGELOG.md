@@ -33,7 +33,9 @@ as before, the STACK tables recorded from stack-sympy's own code included.
   `questions/`, which its site now copies from here), with each folder's
   licence; `matrix-checkers.py` imports `ctm_checkers.matrix`.
 - `tests/stack/`: 24 of stack-sympy's 26 test modules (not its render test,
-  nor the corpus-page test, which stay with its site) and its fixtures;
+  nor the corpus-page test, which stay with its site), its fixtures, and its
+  browser tests of the report's pages (`test_report_ui.py`, run by
+  `native-stack.yml` after the report);
   `tools/stack_native/`: its native STACK comparison, compliance report,
   corpus replay and fixture import, and the stack-sympy audit's `dual.py`;
   `reports/stack-compliance/`: the report's Quarto project;
