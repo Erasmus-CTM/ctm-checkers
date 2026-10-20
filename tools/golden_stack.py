@@ -265,7 +265,8 @@ def site_blocks(folder):
     blocks = []
     for page in sorted(list(folder.glob('*.qmd')) + list((folder / 'docs').glob('*.qmd'))):
         text = page.read_text(encoding='utf-8')
-        for match in re.finditer(r'^```\{\.stack-question([^}]*)\}\n(.*?)^```', text, re.M | re.S):
+        # The block's attributes in any order: {.stack-question #id} or {#id .stack-question}.
+        for match in re.finditer(r'^```\{([^}\n]*?(?<![\w-])\.stack-question(?![\w-])[^}\n]*)\}\n(.*?)^```', text, re.M | re.S):
             options = dict(re.findall(r'^#\|\s*([\w-]+):\s*(.*?)\s*$', match[2], re.M))
             if 'file' not in options:
                 continue
@@ -401,7 +402,8 @@ PROBE_ANSWERS = {
 def question_inputs(engine, folder, out=print):
     """The question rows' inputs, by table: every XML file of examples/stack
     (but the course-derived ones) with the seeds stack-sympy's site and the
-    corpus replay use, and the audit's question probes."""
+    corpus replay use (CTM's own questions also 1 to 3), the cards of
+    stack-sympy's site, and the audit's question probes."""
     blocks = site_blocks(folder)
     corpus = corpus_seeds(folder)
     files = sorted(p.relative_to(ROOT).as_posix() for p in (ROOT / 'examples' / 'stack').rglob('*.xml'))
@@ -434,8 +436,12 @@ def question_inputs(engine, folder, out=print):
                 if block['question'] == question['name']:
                     seeds += range(block['seed'], block['seed'] + block['variants'])
             seeds += corpus.get(path, [])
-            if not seeds:
-                seeds = [1, 2, 3]   # cli.py's default card: three variants from seed 1
+            # cli.py's default card: three variants from seed 1. CTM's own
+            # questions have them too, with every answer set at seed 1 as at
+            # the site's first seed.
+            own = question_table(path) == 'stack/questions-project'
+            if own or not seeds:
+                seeds += [1, 2, 3]
             seeds = sorted(set(seeds), key=seeds.index)
             for number, seed in enumerate(seeds):
                 value = dict(base, question=question['name'], seed=seed)
@@ -446,7 +452,7 @@ def question_inputs(engine, folder, out=print):
                     out(f'  {path} seed {seed}: instantiate raises {type(error).__name__}: {str(error)[:120]}')
                     continue
                 add('stack.tests', value, ['qtests'])
-                sets = _answer_sets(engine, question, variant, full=number == 0)
+                sets = _answer_sets(engine, question, variant, full=number == 0 or own and seed == 1)
                 if number == 0:
                     sets += [answers for answers in PROBE_ANSWERS.get(path, []) if answers not in sets]
                 for answers in sets:
