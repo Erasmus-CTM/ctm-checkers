@@ -14,7 +14,7 @@ The negative-real fifth-root case separately
 records Maxima's real-root convention versus SymPy's principal-complex power
 convention; it is not labeled a native mathematical failure.
 
-Run `python scripts/run_port_regressions.py --stack-source /pinned/STACK` after
+Run `python tools/stack_native/run_port_regressions.py --stack-source /pinned/STACK` after
 installing the project development requirements, Maxima, and Playwright
 Chromium. This runs isolated CPython cases, official native STACK calls for
 eligible cases, and the same portable evaluator in a browser Pyodide worker.
@@ -51,7 +51,7 @@ Documented native semantics cases cover held reciprocal structure, sign context
 in `LowestTerms`, bounded literal binary64 arithmetic, the symbolic reciprocal
 square-root convention, and a principal logarithmic-power proof. These include
 nearby rejection controls and do not change the upstream fixture. See
-`compliance-report/semantics.qmd` for the exact scope, upstream motivations, and
+`reports/stack-compliance/semantics.qmd` for the exact scope, upstream motivations, and
 the remaining questions for the STACK author.
 
 Finite collection controls cover ordered list positions and length, per-element

@@ -6,9 +6,50 @@ release. Every grading change is listed under "Grading changes" with the
 finding or decision it implements, its test and the summary of its golden
 diff (docs/goldens.md).
 
-## Unreleased (0.1.1.dev0)
+## Unreleased (0.2.0.dev0)
 
-No grading changes: every golden row is reproduced as before.
+stack-sympy's STACK engine moves here (consolidation step 2, C3): its Python
+code as it was at stack-sympy `f450bcd`, relicensed AGPL-3.0-or-later by the
+CTM team, its authors. No grading changes: every golden row is reproduced
+as before, the STACK tables recorded from stack-sympy's own code included.
+
+- `ctm_checkers.stack`: stack-sympy's `stack_sympy` package (its 14 modules
+  but `basis_helper.py`, whose `assess_basis` is `ctm_checkers.matrix`'s,
+  the same function), with its build-time command line
+  (`python -m ctm_checkers.stack.cli render|test`, the card's HTML as
+  before) and the page's calls `stack.validate`, `stack.grade` and
+  `stack.tests` of `browser.call` (stack-sympy's worker requests, with their
+  envelope; `ctm_checkers.stack.page`).
+- A wheel and a page script of its own for the STACK engine
+  (`ctm_checkers_stack-<version>-py3-none-any.whl`, `ctm-checkers-stack.js`
+  with `CTMCheckersStack.install(py)`, `checkers.json` `parts.stack`), so
+  that pages with math-exercise never carry it (design §13 item 5);
+  ctm-libs' load of the installed package (`pkgutil.walk_packages`) sees no
+  STACK module there. `ctm_checkers/__init__.py` joins the two wheels on
+  `sys.path` (`pkgutil.extend_path`); pip installs them as `ctm-checkers` and
+  `ctm-checkers-stack`. The page scripts give their URL (`scriptURL`) for
+  workers that load them.
+- `examples/stack/`: the STACK question XML, its one home (stack-sympy's
+  `questions/`, which its site now copies from here), with each folder's
+  licence; `matrix-checkers.py` imports `ctm_checkers.matrix`.
+- `tests/stack/`: 24 of stack-sympy's 26 test modules (not its render test,
+  nor the corpus-page test, which stay with its site) and its fixtures;
+  `tools/stack_native/`: its native STACK comparison, compliance report,
+  corpus replay and fixture import, and the stack-sympy audit's `dual.py`;
+  `reports/stack-compliance/`: the report's Quarto project;
+  `.github/workflows/native-stack.yml`: its CI (reusable: stack-sympy's site
+  calls it at its pin and publishes the report). The report's browser parity
+  runs in Pyodide 0.28.3 (ctm-libs' page runtime, which stack-sympy's worker
+  now uses; before: 0.27.2) and installs the engine with the page scripts.
+- Golden tables: the STACK tables are verified with ctm_checkers.stack too
+  (from `src/`, the wheels, and the page scripts in Pyodide); 14 mutations
+  of the STACK engine must fail them (`tests/test_mutations.py`), and
+  `stack/supplement` (47 rows, recorded with stack-sympy's code) reaches the
+  rules that only mutations reached: NumAbsolute's and NumRelative's bounds,
+  AlgEquiv's numeric rejection screen, response-tree scores outside [0, 1].
+- The corpus baseline (`examples/stack/corpus/baseline.json`) names the
+  engine it was recorded with: only its `engine_revision`,
+  `adapter_source_sha256` and `python_version` changed.
 
 - The page's call text is ctm-libs' (`MathExerciseRuntime.callCheckers`),
   documented exactly in docs/api.md:

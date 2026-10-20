@@ -29,8 +29,8 @@ An unsupported PHP expression fails the import; no PHP is executed.
 To regenerate from a **local checkout at the pinned revision**:
 
 ```sh
-python scripts/import_stack_fixtures.py --upstream ../stack-upstream
-python scripts/import_stack_fixtures.py --upstream ../stack-upstream --check
+python tools/stack_native/import_stack_fixtures.py --upstream ../stack-upstream
+python tools/stack_native/import_stack_fixtures.py --upstream ../stack-upstream --check
 python -m unittest tests/test_fixture_import.py
 ```
 

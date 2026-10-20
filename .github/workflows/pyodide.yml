@@ -75,9 +75,14 @@ jobs:
           key: pyodide-wheels-${{ matrix.pyodide }}-${{ steps.pins.outputs['ctm-assessment'] }}
       - name: The page script's install code
         run: node tests/pyodide/payload.cjs --umbrella _ci/ctm-assessment --version ${{ matrix.pyodide }}
-      - name: The installed wheel reproduces the golden tables
+      - name: The installed wheels reproduce the golden tables (stack-sympy's worker loads both page scripts)
         run: >-
           node tools/pyodide/verify.cjs --umbrella _ci/ctm-assessment --version ${{ matrix.pyodide }}
-          --payload _extensions/ctm-checkers/ctm-checkers.js -- verify --adapter installed --variants _ci/math-exercise
+          --payload _extensions/ctm-checkers/ctm-checkers.js,_extensions/ctm-checkers/ctm-checkers-stack.js
+          -- verify --adapter installed --variants _ci/math-exercise
+      - name: A math page's script alone reproduces math-exercise's tables
+        run: >-
+          node tools/pyodide/verify.cjs --umbrella _ci/ctm-assessment --version ${{ matrix.pyodide }}
+          --payload _extensions/ctm-checkers/ctm-checkers.js -- verify --adapter installed --variants _ci/math-exercise --suite '^math_exercise/'
       - name: The legacy code reproduces the golden tables
         run: node tools/pyodide/verify.cjs --umbrella _ci/ctm-assessment --version ${{ matrix.pyodide }} -- verify --adapter legacy --legacy _ci/math-exercise --stack-legacy _ci/stack-sympy

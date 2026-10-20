@@ -8,3 +8,10 @@ node_modules/
 .pytest_cache/
 # Checkouts that CI and tools/golden.py use (legacy sources, the umbrella's harness)
 /_ci/
+# Outputs of the STACK tools (tools/stack_native) and the compliance report
+/test-results/
+/.native-stack-image/
+/.stack-upstream-reference/
+/reports/stack-compliance/_site/
+/reports/stack-compliance/report.json
+/reports/stack-compliance/port-regressions.json

@@ -1,0 +1,384 @@
+name: Native STACK
+
+# STACK's engine (ctm_checkers.stack) against native STACK 10d3233 in Maxima
+# 5.46 and in the browser's Pyodide: the compliance report (moved from
+# stack-sympy: its native-compliance.yml, the maxima-reference job of its
+# site.yml and native-image-validation.yml). Runs on pull requests that touch
+# the engine or its tools, weekly and on demand, and when stack-sympy's site
+# calls it with the ctm-checkers commit it pins (`ctm-checkers-ref`); the
+# rendered report is the artifact native-compliance-html, which stack-sympy
+# publishes under /compliance. The native image is validated in full (paired
+# build, every runnable row) weekly, on demand, and on pull requests that
+# change its builder.
+on:
+  workflow_call:
+    inputs:
+      ctm-checkers-ref:
+        description: The ctm-checkers commit to check (the caller's pin)
+        required: true
+        type: string
+  pull_request:
+    paths:
+      - 'src/ctm_checkers/stack/**'
+      - 'examples/stack/**'
+      - 'tests/stack/**'
+      - 'tools/stack_native/**'
+      - 'reports/stack-compliance/**'
+      - 'ci/requirements.txt'
+      - '.github/workflows/native-stack.yml'
+  schedule:
+    - cron: '23 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  STACK_REPOSITORY: maths/moodle-qtype_stack
+  STACK_COMMIT: 10d323311b7f39fb7b092dd10ce75f7d8632f525
+
+jobs:
+  desired:
+    name: Python vs authored desired outcomes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.ctm-checkers-ref && 'Erasmus-CTM/ctm-checkers' || github.repository }}
+          ref: ${{ inputs.ctm-checkers-ref }}
+          persist-credentials: false
+      - run: echo "CTM_CHECKERS_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: ci/requirements.txt
+      - run: python -m pip install -r ci/requirements.txt
+      - run: python tools/stack_native/run_compliance_python.py --jobs 4
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: compliance-python
+          path: test-results/compliance/python.json
+          if-no-files-found: warn
+
+  native:
+    name: Observe official STACK/Maxima
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.ctm-checkers-ref && 'Erasmus-CTM/ctm-checkers' || github.repository }}
+          ref: ${{ inputs.ctm-checkers-ref }}
+          persist-credentials: false
+      - run: echo "CTM_CHECKERS_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ env.STACK_REPOSITORY }}
+          ref: ${{ env.STACK_COMMIT }}
+          path: .stack-upstream-reference
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: ci/requirements.txt
+      - name: Install pinned SymPy and native Maxima
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y maxima maxima-share
+          python -m pip install -r ci/requirements.txt
+      - name: Fingerprint native image runtime
+        id: native-image
+        run: echo "key=$(python tools/stack_native/prepare_native_image.py --stack-source .stack-upstream-reference --key-only)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        with:
+          path: .native-stack-image
+          key: native-stack-gcl-${{ steps.native-image.outputs.key }}
+      - name: Build or validate pristine STACK image
+        run: python tools/stack_native/prepare_native_image.py --stack-source .stack-upstream-reference
+      - name: Verify imported rows against exact upstream bytes
+        run: python tools/stack_native/import_stack_fixtures.py --upstream .stack-upstream-reference --check
+      - name: Probe standalone official Maxima loader
+        run: python tools/stack_native/run_compliance_maxima.py --stack-source .stack-upstream-reference --image .native-stack-image --probe-only
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: maxima-loader-probe
+          path: test-results/compliance/maxima-loader-probe.json
+          if-no-files-found: warn
+      - name: Check cold/image sentinel observations and timing
+        run: python tools/stack_native/benchmark_native_image.py --stack-source .stack-upstream-reference --image .native-stack-image
+      - run: python tools/stack_native/run_compliance_maxima.py --stack-source .stack-upstream-reference --image .native-stack-image
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: compliance-maxima
+          path: test-results/compliance/maxima.json
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-image-diagnostics
+          include-hidden-files: true
+          path: |
+            test-results/compliance/native-image-benchmark.json
+            .native-stack-image/manifest.json
+            .native-stack-image/build.log
+          if-no-files-found: warn
+
+  reference:
+    name: Compare Python with native STACK
+    needs: [desired, native]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.ctm-checkers-ref && 'Erasmus-CTM/ctm-checkers' || github.repository }}
+          ref: ${{ inputs.ctm-checkers-ref }}
+          persist-credentials: false
+      - name: Download this run's Python observations
+        uses: actions/download-artifact@v4
+        with:
+          name: compliance-python
+          path: test-results/compliance
+      - name: Download this run's Maxima observations
+        uses: actions/download-artifact@v4
+        with:
+          name: compliance-maxima
+          path: test-results/compliance
+      - run: python tools/stack_native/native_compliance/compatibility.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: compliance-reference
+          path: test-results/compliance/reference.json
+          if-no-files-found: warn
+
+  parity:
+    name: Pyodide vs CPython
+    needs: desired
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.ctm-checkers-ref && 'Erasmus-CTM/ctm-checkers' || github.repository }}
+          ref: ${{ inputs.ctm-checkers-ref }}
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: ci/requirements.txt
+      - run: python -m pip install -r ci/requirements.txt "playwright>=1.55,<2"
+      - name: Download this run's Python observations
+        uses: actions/download-artifact@v4
+        with:
+          name: compliance-python
+          path: test-results/compliance
+      - run: python -m playwright install --with-deps chromium
+      - run: python tools/stack_native/run_compliance_pyodide.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: compliance-pyodide
+          path: test-results/compliance/pyodide.json
+          if-no-files-found: warn
+
+  port-regressions:
+    name: Project regressions (Python, Maxima, Pyodide)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.ctm-checkers-ref && 'Erasmus-CTM/ctm-checkers' || github.repository }}
+          ref: ${{ inputs.ctm-checkers-ref }}
+          persist-credentials: false
+      - run: echo "CTM_CHECKERS_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ env.STACK_REPOSITORY }}
+          ref: ${{ env.STACK_COMMIT }}
+          path: .stack-upstream-reference
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: ci/requirements.txt
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y maxima maxima-share
+          python -m pip install -r ci/requirements.txt "playwright>=1.55,<2"
+          python -m playwright install --with-deps chromium
+      - name: Fingerprint native image runtime
+        id: native-image
+        run: echo "key=$(python tools/stack_native/prepare_native_image.py --stack-source .stack-upstream-reference --key-only)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        with:
+          path: .native-stack-image
+          key: native-stack-gcl-${{ steps.native-image.outputs.key }}
+      - name: Build or validate pristine STACK image
+        run: python tools/stack_native/prepare_native_image.py --stack-source .stack-upstream-reference
+      - run: python tools/stack_native/run_port_regressions.py --stack-source .stack-upstream-reference --image .native-stack-image
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: compliance-port-regressions
+          path: test-results/compliance/port-regressions.json
+          if-no-files-found: warn
+
+  report:
+    name: Assemble and render inspectable report
+    needs: [desired, native, reference, parity, port-regressions]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.ctm-checkers-ref && 'Erasmus-CTM/ctm-checkers' || github.repository }}
+          ref: ${{ inputs.ctm-checkers-ref }}
+          persist-credentials: false
+      - run: echo "CTM_CHECKERS_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          version: 1.8.27
+      - name: Download only this workflow run's checker outputs
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: compliance-*
+          merge-multiple: true
+          path: test-results/compliance
+      - name: Assemble report (missing or mismatched checks remain unavailable)
+        run: python tools/stack_native/native_compliance/report.py
+      - name: Render independent Quarto project
+        run: quarto render reports/stack-compliance
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-compliance-json
+          path: |
+            reports/stack-compliance/report.json
+            reports/stack-compliance/port-regressions.json
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-compliance-html
+          path: reports/stack-compliance/_site/
+          if-no-files-found: warn
+
+  maxima-reference:
+    name: Reference cases against native STACK answer tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.ctm-checkers-ref && 'Erasmus-CTM/ctm-checkers' || github.repository }}
+          ref: ${{ inputs.ctm-checkers-ref }}
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ env.STACK_REPOSITORY }}
+          ref: ${{ env.STACK_COMMIT }}
+          path: .stack-upstream-reference
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: ci/requirements.txt
+      - name: Install Ubuntu Maxima and pinned SymPy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y maxima maxima-share
+          python -m pip install -r ci/requirements.txt
+      - name: Compare against native STACK answer tests
+        run: python tools/stack_native/compare_stack_maxima.py --stack-source .stack-upstream-reference
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: maxima-reference-results
+          path: test-results/maxima-reference.json
+          if-no-files-found: error
+
+  native-image:
+    name: Native image full equivalence and performance
+    # Not when a caller runs this workflow (its event is the caller's).
+    if: ${{ !inputs.ctm-checkers-ref }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Only when its builder changed (pull requests)
+        id: changed
+        run: |
+          if [ "${{ github.event_name }}" != pull_request ]; then echo "run=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          files=$(git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD)
+          if echo "$files" | grep -qE '^tools/stack_native/(native_compliance/(native_image|maxima_runner)\.py|prepare_native_image\.py|benchmark_native_image\.py)$|^\.github/workflows/native-stack\.yml$'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v7
+        if: steps.changed.outputs.run == 'true'
+        with:
+          repository: ${{ env.STACK_REPOSITORY }}
+          ref: ${{ env.STACK_COMMIT }}
+          path: .stack-upstream-reference
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        if: steps.changed.outputs.run == 'true'
+        with:
+          python-version: '3.12'
+      - if: steps.changed.outputs.run == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y maxima maxima-share
+      - name: Build pristine image (deliberately uncached verification)
+        if: steps.changed.outputs.run == 'true'
+        run: |
+          python tools/stack_native/prepare_native_image.py --stack-source .stack-upstream-reference
+          mkdir -p test-results/compliance
+          cp .native-stack-image/cache-status.json test-results/compliance/native-image-cache-miss.json
+      - name: Validate local manifest reuse after building the image
+        if: steps.changed.outputs.run == 'true'
+        run: |
+          python tools/stack_native/prepare_native_image.py --stack-source .stack-upstream-reference
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          first = json.loads(Path('test-results/compliance/native-image-cache-miss.json').read_text())
+          second = json.loads(Path('.native-stack-image/cache-status.json').read_text())
+          result = {'kind': 'local_image_manifest_reuse', 'built': first, 'reused': second,
+                    'passed': first['status'] == 'built' and second['status'] == 'hit'}
+          Path('test-results/compliance/native-image-cache-validation.json').write_text(json.dumps(result, indent=2)+'\n')
+          assert result['passed'], result
+          PY
+      - name: Compare all runnable fixture observations, notes and probes
+        if: steps.changed.outputs.run == 'true'
+        run: python tools/stack_native/benchmark_native_image.py --stack-source .stack-upstream-reference --image .native-stack-image --full
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.changed.outputs.run == 'true'
+        with:
+          name: native-image-full-validation
+          include-hidden-files: true
+          path: |
+            test-results/compliance/native-image-benchmark.json
+            test-results/compliance/native-image-cache-validation.json
+            .native-stack-image/manifest.json
+            .native-stack-image/build.log

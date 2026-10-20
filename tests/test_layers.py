@@ -5,7 +5,7 @@ import os
 import subprocess
 import sys
 
-from conftest import PACKAGE, ROOT
+from conftest import PACKAGE, PACKAGES, ROOT
 
 SRC = ROOT / 'src' / 'ctm_checkers'
 
@@ -52,7 +52,7 @@ def test_shared_modules_do_not_import_engines():
 
 
 def run(code):
-    env = dict(os.environ, PYTHONPATH=PACKAGE)
+    env = dict(os.environ, PYTHONPATH=os.pathsep.join(PACKAGES))
     return subprocess.run([sys.executable, '-c', code], capture_output=True, text=True, env=env, check=True).stdout.strip()
 
 
@@ -72,3 +72,10 @@ def test_package_version():
     import ctm_checkers
     assert isinstance(ctm_checkers.API, int)
     assert ctm_checkers.__file__.startswith(PACKAGE)
+
+
+def test_the_stack_engine_comes_from_the_package_under_test():
+    # With the wheels: ctm_checkers.stack from the STACK engine's wheel (pkgutil.extend_path in ctm_checkers/__init__.py).
+    found = run('import ctm_checkers, ctm_checkers.stack.engine as e; print(e.__file__)')
+    assert any(found.startswith(path + os.sep) for path in PACKAGES), found
+    assert found.startswith(PACKAGES[-1] + os.sep), found

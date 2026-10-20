@@ -1,8 +1,9 @@
 # Notes for the next pull requests of consolidation step 2
 
-What the pull requests after ctm-checkers 0.1.0 need to know (ctm-libs LIB,
-math-exercise M1, the umbrella U2, and the first grading-change PR). The
-design is ctm-assessment `docs/consolidation/2026-10-step2.md`.
+What the pull requests after ctm-checkers 0.1.0 and 0.2.0 need to know
+(ctm-libs, math-exercise M1, the umbrella U2, stack-sympy S1, and the first
+grading-change PR). The design is ctm-assessment
+`docs/consolidation/2026-10-step2.md`.
 
 ## ctm-libs (LIB)
 
@@ -61,6 +62,41 @@ design is ctm-assessment `docs/consolidation/2026-10-step2.md`.
   A change of the recorder is a change of the authored rows: ctm-checkers
   moves its pin with the next capture it imports. The pin is ctm-assessment's
   merge of PR #14 (`9ed46a4`).
+
+## ctm-libs and the STACK engine (0.2.0)
+
+- The STACK engine has its own wheel and page script (docs/api.md):
+  `checkers.json` `parts.stack` names them. Pages with math-exercise load
+  `ctm-checkers.js` only, so `ensureCheckers`' walk of the installed package
+  (`pkgutil.walk_packages`) finds no STACK module there and nothing in
+  ctm-libs needs limiting.
+- A component that grades STACK questions needs (a small ctm-libs change):
+  `ctm.checkers.use("stack")` (the HTML dependency `ctm-checkers-stack`,
+  version `parts.stack.dependency`, after `ctm-checkers`) and
+  `ctm.checkers.environment(env, "stack")` (both wheels on `PYTHONPATH`).
+  `CTMCheckersStack.install(py)` installs both wheels, so
+  `ensureCheckers(py, CTMCheckersStack)` and
+  `callCheckers(py, "stack.grade", request, CTMCheckersStack)` serve it; where
+  one runtime gets both payloads, the once-per-runtime bookkeeping is per
+  payload (`checkers.name`), else the second payload is never installed.
+
+## stack-sympy (S1)
+
+- Build: `ctm.checkers.require("stack-sympy", 1)`, then
+  `python -m ctm_checkers.stack.cli render …` (the arguments of
+  `stack_sympy.cli render`, the same card HTML) in
+  `ctm.checkers.environment(nil, "stack")`.
+- Worker: `importScripts` of ctm-libs' runtime (`MathExerciseRuntime.scriptURL`)
+  and of both page scripts (`CTMCheckers.scriptURL`,
+  `CTMCheckersStack.scriptURL`); `ensurePyodide()`, `loadPackage('sympy')`,
+  then `callCheckers(py, 'stack.<validate|grade|tests>', {question, variant,
+  answers}, CTMCheckersStack)`: the same envelope as before.
+- Examples: `examples/stack/` of the pinned ctm-checkers is copied to
+  `questions/` before rendering (it is the same files; `matrix-checkers.py`
+  imports `ctm_checkers.matrix`, so cards that embed it differ in that line).
+- The compliance report: `uses: Erasmus-CTM/ctm-checkers/.github/workflows/native-stack.yml@<pin>`
+  with `ctm-checkers-ref: <pin>`; its artifact `native-compliance-html` is the
+  report to publish under `/compliance`.
 
 ## Before the first grading-change pull request (fixes, B rows)
 

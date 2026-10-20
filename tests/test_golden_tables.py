@@ -192,8 +192,10 @@ LEGACY_STACK = os.environ.get('CTM_LEGACY_STACK_SYMPY')
 @pytest.mark.skipif(not LEGACY_STACK, reason='needs CTM_LEGACY_STACK_SYMPY (stack-sympy at the commit in tools/pins.json)')
 def test_stack_inputs_are_stack_sympys():
     # examples/stack/ is stack-sympy's questions/ (the STACK question XML has one home here now) and
-    # tests/stack/ holds its fixtures, byte for byte; the one change: the example checker file
-    # imports assess_basis from ctm_checkers.matrix, its one home (stack-sympy: stack_sympy.basis_helper).
+    # tests/stack/ holds its fixtures, byte for byte; the changes: the example checker file
+    # imports assess_basis from ctm_checkers.matrix, its one home (stack-sympy: stack_sympy.basis_helper),
+    # the corpus baseline names the engine it was recorded with (its results are the same), and
+    # the READMEs name the paths here.
     legacy = Path(LEGACY_STACK).resolve()
     pairs = [(legacy / 'questions', golden.ROOT / 'examples' / 'stack'),
              (legacy / 'tests' / 'native_compliance', golden.ROOT / 'tests' / 'stack' / 'native_compliance'),
@@ -201,8 +203,15 @@ def test_stack_inputs_are_stack_sympys():
     for old, new in pairs:
         for path in sorted(p for p in old.rglob('*') if p.is_file()):
             relative = path.relative_to(old)
+            if relative.name == 'README.md':
+                continue
             here = (new / relative).read_bytes()
             if relative.as_posix() == 'matrix-checkers.py':
                 here = here.replace(b'from ctm_checkers.matrix import assess_basis', b'from stack_sympy.basis_helper import assess_basis')
+            if relative.as_posix() == 'corpus/baseline.json':
+                engine = ('engine_revision', 'adapter_source_sha256', 'python_version')
+                here, there = (json.loads(data) for data in (here, path.read_bytes()))
+                assert {k: v for k, v in here.items() if k not in engine} == {k: v for k, v in there.items() if k not in engine}
+                continue
             assert here == path.read_bytes(), relative
     assert (golden.ROOT / 'tests' / 'stack' / 'reference_cases.json').read_bytes() == (legacy / 'tests' / 'reference_cases.json').read_bytes()

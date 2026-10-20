@@ -2,7 +2,7 @@
 """Golden verdict tables of ctm-checkers: verify, record, import (docs/goldens.md).
 
     python tools/golden.py verify --adapter legacy [--legacy DIR] [--stack-legacy DIR] [--suite NAME ...] [--max-diffs N] [--fail-fast]
-    python tools/golden.py verify --adapter wheel|src|installed [--wheel FILE] [--variants DIR]
+    python tools/golden.py verify --adapter wheel|src|installed [--wheel FILE ...] [--variants DIR]
     python tools/golden.py record [--legacy DIR] [--stack-legacy DIR [--stack-probes DIR]]
     python tools/golden.py import-capture CAPTURE --math-exercise CHECKOUT [--record-with PYTHON ...]
 
@@ -31,8 +31,9 @@ Adapters (what runs the rows):
              _math_run with the request values as the page's globals, as
              math-exercise.js calls it; question-tests.py for the authored
              tests; variants.py for its rounding helpers.
-  wheel      ctm-checkers from a wheel by zipimport, as builds use it
-             (--wheel FILE; default: the one in _extensions/ctm-checkers/).
+  wheel      ctm-checkers from its wheels by zipimport, as builds use them
+             (--wheel FILE, repeatable: ctm-checkers' wheel and the STACK
+             engine's; default: those in _extensions/ctm-checkers/).
   src        ctm-checkers from src/.
   installed  the ctm_checkers that is importable (in Pyodide: installed by
              the payload's own install code, tools/pyodide/verify.cjs).
@@ -376,31 +377,36 @@ REQUEST_FIELDS = {'_math_student': 'student', '_math_correct': 'correct', '_math
                   '_math_form_credit': 'form_credit', '_math_response_json': 'response', '_math_checker': 'checker'}
 
 
-def default_wheel():
+def default_wheels():
+    """The committed wheels: ctm-checkers' and the STACK engine's (checkers.json parts)."""
     folder = ROOT / '_extensions' / 'ctm-checkers'
     manifest = json.loads((folder / 'checkers.json').read_text(encoding='utf-8'))
-    return folder / manifest['wheel']
+    return [folder / manifest['wheel']] + [folder / part['wheel'] for part in manifest.get('parts', {}).values()]
 
 
 class CtmCheckers:
     """ctm-checkers (see the module docstring)."""
 
-    def __init__(self, mode, wheel=None, variants=None):
+    def __init__(self, mode, wheels=None, variants=None):
         import importlib
         self.name = mode
-        location = None
+        locations = []
         if mode == 'src':
-            location = ROOT / 'src'
+            locations = [ROOT / 'src']
         elif mode == 'wheel':
-            location = Path(wheel).resolve() if wheel else default_wheel()
+            # --wheel: a wheel (repeatable: ctm-checkers' first, then the STACK engine's) or a folder holding ctm_checkers.
+            locations = [Path(wheel).resolve() for wheel in wheels] if wheels else default_wheels()
         elif mode != 'installed':
             raise SystemExit('Unknown adapter: ' + mode)
-        if location is not None:
-            if not location.exists():
-                raise SystemExit(f'{location}: not found')
+        if locations:
+            for location in locations:
+                if not location.exists():
+                    raise SystemExit(f'{location}: not found')
             for name in [n for n in sys.modules if n == 'ctm_checkers' or n.startswith('ctm_checkers.')]:
                 del sys.modules[name]
-            sys.path.insert(0, str(location))
+            for location in reversed(locations):
+                sys.path.insert(0, str(location))
+        location = locations[0] if locations else None
         package = importlib.import_module('ctm_checkers')
         if location is not None and not os.path.abspath(package.__file__).startswith(os.path.abspath(str(location)) + os.sep):
             raise SystemExit(f'ctm_checkers was imported from {package.__file__}, not from {location}')
@@ -1250,7 +1256,8 @@ def main(argv=None):
     check = commands.add_parser('verify', help='run every row and compare')
     check.add_argument('--adapter', default='legacy', choices=('legacy', 'wheel', 'src', 'installed'))
     check.add_argument('--legacy', help='math-exercise checkout (legacy adapter)')
-    check.add_argument('--wheel', help='the wheel (adapter wheel; default: the one in _extensions/ctm-checkers/)')
+    check.add_argument('--wheel', action='append', help='a wheel or a folder with ctm_checkers (adapter wheel; repeatable: '
+                       'ctm-checkers\' wheel, then the STACK engine\'s; default: those in _extensions/ctm-checkers/)')
     check.add_argument('--variants', help="math-exercise checkout whose variants.py runs the rounding rows of variants.py")
     check.add_argument('--umbrella', help='ctm-assessment checkout at the commit in tools/pins.json (default: _ci/ctm-assessment)')
     check.add_argument('--suite', action='append', default=[], help='regular expression on the table path (repeatable)')

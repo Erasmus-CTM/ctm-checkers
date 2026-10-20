@@ -57,7 +57,7 @@ run them (`stack.import`, `stack.instantiate`, `stack.card`, `stack.tests`,
 | `questions-helm.jsonl` | 179 | The same for the two HELM questions (`examples/stack/upstream`). |
 | `probes.jsonl` | 207 | The stack-sympy audit's answer-test probes with STACK's and Maxima's native verdicts (`native`), and its performance probes. |
 | `probe-questions.jsonl` | 285 | The audit's question probes (`examples/stack/probes/`) with its answers. |
-| `supplement.jsonl` | 47 | Rules that no other row reached: NumAbsolute's strict bound with STACK's 1e-9 guard and NumRelative's inclusive one, for exact and irrational numbers; AlgEquiv's numeric rejection screen (1e-4 margin); response-tree scores beyond [0, 1] (`examples/stack/supplement/score-modes.xml`). |
+| `supplement.jsonl` | 47 | Rules that only the mutation tests reached (below): NumAbsolute's strict bound with STACK's 1e-9 guard and NumRelative's inclusive one, for exact and irrational numbers; AlgEquiv's numeric rejection screen (1e-4 margin); response-tree scores beyond [0, 1] (`examples/stack/supplement/score-modes.xml`). |
 
 `excluded.json` lists the inputs that run longer than 20 s (S-12:
 `sin(exp(exp(exp(5))))`, `sin(x)^99*cos(x)^99` against `(sin(2*x)/2)^99`):
@@ -128,10 +128,11 @@ checkout at the commit in `tools/pins.json` (which also pins its SHA-256), as
 `wheels.cjs`. `--umbrella DIR` or `CTM_UMBRELLA` name another checkout of
 that commit; by default it is `_ci/ctm-assessment`.
 
-Adapters: `legacy` (below); `wheel` (the built wheel, imported from the zip
-as builds import it; `--wheel` also takes a folder that contains
-`ctm_checkers`), `src`, and `installed` (in Pyodide, the copy that the page
-script's install code installed). With ctm-checkers a request goes through
+Adapters: `legacy` (below); `wheel` (the built wheels, imported from the
+zips as builds import them; `--wheel`, repeatable, also takes a folder that
+contains `ctm_checkers`), `src`, and `installed` (in Pyodide, the copy that
+the page scripts' install code installed: both for every table,
+`ctm-checkers.js` alone for math-exercise's, as on a math page). With ctm-checkers a request goes through
 `browser.call` as the page will send it (docs/api.md). `rounding-variants`
 runs math-exercise's `variants.py` (`--variants DIR`, a math-exercise
 checkout; math-exercise passes its own when it rounds with ctm-checkers);
@@ -202,6 +203,30 @@ C1 found the last nine with no row at all (six in its first round, three in
 its second) and rows were added for them. One more mutation of its first
 round, the reject rule comparing expressions instead of their text, changes
 no verdict SymPy can produce here and is not listed.
+
+Mutations of the STACK engine must fail the STACK tables (the test stops at
+the first row that differs). Rows that differ in all (of 4,920), by table:
+
+| Mutation | Rows | Tables |
+|---|---|---|
+| NumAbsolute: `<=` instead of `<` at its bound (exact numbers) | 1 | supplement |
+| NumAbsolute without STACK's 1e-9 guard (exact numbers) | 6 | compliance 1, probes 2, supplement 3 |
+| NumRelative: `<` without its 1e-9 factor (exact numbers) | 16 | compliance 6, probes 3, questions-helm 3, supplement 4 |
+| NumAbsolute without the guard (irrational numbers) | 1 | supplement |
+| NumRelative: `<` without the factor (irrational numbers) | 1 | supplement |
+| NumDecPlaces rounds the teacher's value half up instead of half to even | 10 | probes |
+| AlgEquiv's numeric screen with a 1e-2 margin instead of 1e-4 | 2 | supplement |
+| Sets: no `ATSets_duplicates` note | 7 | compliance 3, probes 1, regressions 3 |
+| response trees: `+` sets the branch score instead of adding it | 48 | probe-questions 36, questions-library 4, supplement 8 |
+| response trees: scores not clamped to [0, 1] | 17 | supplement |
+| question tests: no penalty for a wrong first attempt | 96 | questions-project 30, questions-library 59, questions-helm 1, probe-questions 3, supplement 3 |
+| `forbidfloat` ignored | 9 | questions-library 8, questions-helm 1 |
+| the 1,200-character input limit raised to 1,400 | 72 | questions-project 22, questions-library 31, questions-helm 7, probe-questions 11, supplement 1 |
+| the card's JSON without `<` escaped | 39 | questions-project 12, questions-library 25, questions-helm 2 |
+
+The rows of `supplement` were added for the first seven: the tables recorded
+first reached no row of those rules (NumAbsolute's guard and NumRelative's
+bound only for exact numbers, as the compliance runner's fixtures do).
 
 ## Refreshing the capture
 
