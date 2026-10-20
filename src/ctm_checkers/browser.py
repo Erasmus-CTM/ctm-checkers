@@ -1,11 +1,13 @@
 """The single entry from the page (Pyodide): `call(name, caller)`.
 
 The page puts one request into the interpreter's namespace as `_ctm_request`
-(JSON text) and runs
+(JSON text) and runs, in that namespace (ctm-libs' call text, docs/api.md),
 
-    __import__("ctm_checkers.browser", fromlist=["call"]).call("math_exercise.check", globals())
+    import builtins as _ctm_builtins
+    _ctm_builtins.__import__("ctm_checkers.browser", fromlist=["call"]).call("math_exercise.check", _ctm_builtins.globals())
 
-`call` takes the request out of that namespace, so learner code sharing it
+`call` takes the request out of that namespace (a call without one is an
+error), so learner code sharing it
 sees nothing left behind; applies the call's admission rule; runs the
 handler, restoring the interpreter state that ctm-libs' guard (`_ctm_guard`)
 protects for the other components on the page; and returns the result as
@@ -49,7 +51,10 @@ def call(name, caller):
     # Move this request out of the shared namespace.
     text = caller.pop("_ctm_request", None)
     handler, admission = (_function(path) for path in CALLS[name])
-    request = json.loads(text) if text is not None else {}
+    if text is None:
+        raise RuntimeError("ctm_checkers.browser.call(" + repr(name) + "): no request: the caller sets _ctm_request "
+                           "(JSON text) in the namespace it passes, before each call (docs/api.md)")
+    request = json.loads(text)
     admission(request)
     # Whatever the parsed answer or checker does, other components on the
     # page keep their interpreter state.

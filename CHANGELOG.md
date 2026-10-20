@@ -10,14 +10,16 @@ diff (docs/goldens.md).
 
 No grading changes: every golden row is reproduced as before.
 
-- The page's call text no longer looks up `__import__` and `globals` in the
-  page's namespace, which learner code shares: the install code also sets
-  `_ctm_import` and `_ctm_globals` (the builtins themselves), and the call
-  text is
-  `_ctm_import("ctm_checkers.browser", fromlist=["call"]).call(name, _ctm_globals())`
-  (docs/api.md). A learner's `__import__ = None` stopped every check before
-  (math-exercise 0.10.0's call had the same weakness); the call text of
-  0.1.0 still works where nothing rebound them.
+- The page's call text is ctm-libs' (`MathExerciseRuntime.callCheckers`),
+  documented exactly in docs/api.md:
+  `import builtins as _ctm_builtins` and then
+  `_ctm_builtins.__import__("ctm_checkers.browser", fromlist=["call"]).call(name, _ctm_builtins.globals())`.
+  It looks up no name in the page's namespace, which learner code shares (a
+  learner's `__import__ = None` stopped every check of math-exercise 0.10.0).
+  The install code leaves no name in the namespace (the `_ctm_import` and
+  `_ctm_globals` of the first 0.1.1.dev0 builds are gone; no released
+  version had them), and `browser.call` without `_ctm_request` raises a
+  `RuntimeError` naming the call instead of running an empty request.
 - Golden tables: three supplementary requests (88 in all) for rules that
   only mutations reached in the second round of the review: an imaginary part
   between 1e-9 and 1e-3, boolean graph node identifiers, and how

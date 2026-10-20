@@ -53,6 +53,13 @@ def test_unknown_calls_raise():
         browser.call('math_exercise.nothing', {'_ctm_request': '{}'})
 
 
+def test_a_call_without_a_request_raises():
+    caller = {'learner': 1}
+    with pytest.raises(RuntimeError, match=r"browser\.call\('math_exercise\.check'\): no request: the caller sets _ctm_request"):
+        browser.call('math_exercise.check', caller)
+    assert caller == {'learner': 1}
+
+
 def test_the_guard_restores_after_every_call(monkeypatch):
     events = []
     guard = types.ModuleType('_ctm_guard')

@@ -65,8 +65,9 @@ def test_the_page_script_carries_the_committed_wheel():
 # Names learner code may have rebound in the page's namespace.
 LEARNER = ('open', 'RuntimeError', 'list', 'len', 'isinstance', 'str', 'Exception', 'io', 'os', 'json', 'base64', 'hashlib',
            'importlib', 'builtins', '__import__', 'globals')
-# The page's call text (docs/api.md), with the names the install code leaves.
-CALL = '_ctm_import("ctm_checkers.browser", fromlist=["call"]).call("math_exercise.check", _ctm_globals())'
+# The page's call text: ctm-libs' (MathExerciseRuntime.callCheckers), as docs/api.md writes it.
+CALL = ('import builtins as _ctm_builtins\n'
+        'result = _ctm_builtins.__import__("ctm_checkers.browser", fromlist=["call"]).call("math_exercise.check", _ctm_builtins.globals())')
 REQUEST = {'student': '2*x', 'correct': 'x+x', 'vars': 'x', 'mode': 'equivalent', 'reject': '', 'tolerance': '', 'decplaces': '',
            'sigfigs': '', 'form': '', 'partial_credit': False, 'form_credit': 0.5}
 
@@ -81,7 +82,7 @@ def install(payload, tmp_path, extra=''):
             + 'import ctm_checkers\n'
             + 'after = set(_tb.globals()) - before - {"before", "ctm_checkers"}\n'
             + '_ctm_request = ' + repr(json.dumps(REQUEST)) + '\n'
-            + 'result = ' + CALL + '\n'
+            + CALL + '\n'
             + 'print(_tj.dumps({"file": ctm_checkers.__file__, "left": sorted(after), "gone": sorted(before - set(_tb.globals())), '
               '"learner": [learner] + [_tb.globals()[name] for name in ' + repr(LEARNER) + '], "result": _tj.loads(result), '
               '"request": "_ctm_request" in _tb.globals()}))\n' + extra)
@@ -113,10 +114,10 @@ def test_the_install_code(tmp_path, install_folder):
     assert result.returncode == 0, result.stderr
     report = json.loads(result.stdout)
     assert report['file'].startswith(str(install_folder / manifest['wheel']) + '/')
-    # Only the two names of the call text are left; learner variables keep their values.
-    assert report['left'] == ['_ctm_globals', '_ctm_import'] and report['gone'] == ['_ctm_checkers_payload']
+    # The install code leaves no name in the namespace; learner variables keep their values.
+    assert report['left'] == [] and report['gone'] == ['_ctm_checkers_payload']
     assert report['learner'] == [1] + [None] * len(LEARNER)
-    # The call text works although learner code rebound __import__ and globals, and takes the request out.
+    # The call text works although learner code rebound __import__, globals and builtins, and takes the request out.
     assert report['result'] == {'status': 'correct', 'score': 1.0} and report['request'] is False
     # Learner code removed it: installing again works.
     again = install(payload, tmp_path, extra=(
