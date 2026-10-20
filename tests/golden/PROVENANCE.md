@@ -32,6 +32,7 @@ math-exercise's own code at `905d06fc89d173af224c6460139a32b12033867b` (`tools/g
 | `stack/questions-project.jsonl` | 615 | recorded with math-exercise `905d06fc89d1` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | AGPL-3.0-or-later |
 | `stack/reference.jsonl` | 65 | recorded with math-exercise `905d06fc89d1` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | AGPL-3.0-or-later |
 | `stack/regressions.jsonl` | 170 | recorded with math-exercise `905d06fc89d1` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | AGPL-3.0-or-later |
+| `stack/supplement.jsonl` | 47 | recorded with math-exercise `905d06fc89d1` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | AGPL-3.0-or-later |
 | `math_exercise/files/_includes/tests/dynamic-column-space-basis.py` | — | math-exercise `8ab1b253d8d4`, named by an authored test | AGPL-3.0-or-later |
 | `math_exercise/files/_includes/tests/dynamic-eigenspace-basis.py` | — | math-exercise `8ab1b253d8d4`, named by an authored test | AGPL-3.0-or-later |
 | `math_exercise/files/_includes/tests/dynamic-hessian.py` | — | math-exercise `8ab1b253d8d4`, named by an authored test | AGPL-3.0-or-later |
@@ -65,3 +66,4 @@ Rows that ran longer than 20 s are listed in `stack/excluded.json`, not recorded
 | `stack/questions-helm.jsonl` | 179 | HELM sample questions from STACK (examples/stack/upstream/bodmas.xml, rounding-three-dp.xml); recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | CC-BY-NC-4.0; examples/stack/upstream/HELM-COPYING.txt |
 | `stack/probes.jsonl` | 207 | answer-test probes of the stack-sympy audit (ctm-assessment docs/consolidation/stack-sympy-audit-2026-10/probes: cases1-4.json, perf*.py) with the native verdicts of STACK 10d3233 and Maxima 5.46 (out1-4.json); recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | AGPL-3.0-or-later; the "native" values are output of STACK (GPL-3.0-or-later) and Maxima |
 | `stack/probe-questions.jsonl` | 285 | question probes of the stack-sympy audit (examples/stack/probes/*.xml with the answers of its qprobe.py, crash.py and overflow.cjs); recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | AGPL-3.0-or-later |
+| `stack/supplement.jsonl` | 47 | inputs written for these tables (tools/golden_stack.py SUPPLEMENT, examples/stack/supplement/): rules that no other row reached (the review of C3); recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | AGPL-3.0-or-later |

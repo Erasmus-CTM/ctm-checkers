@@ -964,15 +964,17 @@ def record_stack(adapter, sources, probes, out=print):
         cases = json.loads((ROOT / 'tests' / 'stack' / 'reference_cases.json').read_text(encoding='utf-8'))
         inputs['stack/reference'] = [('stack.answer_test', {key: case[key] for key in ('test', 'student', 'teacher', 'options')},
                                       [case['test']], {}) for case in cases]
+    if missing('stack/supplement'):
+        inputs['stack/supplement'] = golden_stack.supplement_inputs()
     if missing('stack/probes'):
         if not probes:
             raise SystemExit('Recording stack/probes needs --stack-probes DIR (ctm-assessment docs/consolidation/stack-sympy-audit-2026-10/probes)')
         inputs['stack/probes'] = golden_stack.probe_inputs(Path(probes))
-    question_tables = [suite for suite in golden_stack.TABLES if suite.startswith(('stack/questions-', 'stack/probe-questions'))]
+    question_tables = [suite for suite in golden_stack.TABLES if suite.startswith(('stack/questions-', 'stack/probe-questions', 'stack/supplement'))]
     if any(missing(suite) for suite in question_tables):
         for suite, items in golden_stack.question_inputs(engine, folder, out).items():
             if missing(suite):
-                inputs[suite] = [(call, value, tags, {}) for call, value, tags in items]
+                inputs.setdefault(suite, []).extend((call, value, tags, {}) for call, value, tags in items)
     excluded = json.loads(EXCLUDED.read_text(encoding='utf-8')) if EXCLUDED.exists() else []
     known = {(entry['suite'], entry['id']) for entry in excluded}
     counts = {}

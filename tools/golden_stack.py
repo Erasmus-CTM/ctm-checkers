@@ -230,6 +230,8 @@ TABLES = {
                      'AGPL-3.0-or-later; the "native" values are output of STACK (GPL-3.0-or-later) and Maxima'),
     'stack/probe-questions': ('question probes of the stack-sympy audit (examples/stack/probes/*.xml with the answers of its '
                               'qprobe.py, crash.py and overflow.cjs)', 'AGPL-3.0-or-later'),
+    'stack/supplement': ('inputs written for these tables (tools/golden_stack.py SUPPLEMENT, examples/stack/supplement/): '
+                         'rules that no other row reached (the review of C3)', 'AGPL-3.0-or-later'),
 }
 
 # Questions derived from course material: not in the tables (design §13
@@ -244,6 +246,8 @@ INVALID = ['', 'x+', 'sin(', '2 x', 'x²', 'π', '3,5', "__import__('os')", 'x+'
 
 
 def question_table(path):
+    if path.startswith('examples/stack/supplement/'):
+        return 'stack/supplement'
     if path in HELM:
         return 'stack/questions-helm'
     if path.startswith(('examples/stack/corpus/', 'examples/stack/corrected/', 'examples/stack/upstream/')):
@@ -432,6 +436,30 @@ def question_inputs(engine, folder, out=print):
                 for answers in sets:
                     add('stack.answer', dict(value, answers=answers), ['answer'])
     return rows
+
+
+# Answer tests at the rules that no other row reached (the mutation tests of
+# C3 found them): NumAbsolute's bound (strict, with STACK's 1e-9 guard),
+# NumRelative's (inclusive, also at zero tolerance), each for exact numbers
+# and, within 1e-9 of the bound, for irrational ones; AlgEquiv's numeric
+# rejection screen (STACK's 1e-4 margin), which rejects before a proof that
+# would exceed its expansion bound. examples/stack/supplement/score-modes.xml adds
+# response-tree scores outside [0, 1] (clamped).
+SUPPLEMENT = [
+    ('NumAbsolute', '1.1', '1', '0.1'), ('NumAbsolute', '0.9', '1', '0.1'), ('NumAbsolute', '1.100000001', '1', '0.1'),
+    ('NumAbsolute', '1.1000000011', '1', '0.1'), ('NumAbsolute', '1.1000000009', '1', '0.1'),
+    ('NumRelative', '1.01', '1', '0.01'), ('NumRelative', '0.99', '1', '0.01'), ('NumRelative', '0', '0', '0'),
+    ('NumRelative', '1.0100000001', '1', '0.01'), ('NumRelative', '1.01000000000999', '1', '0.01'),
+    ('NumAbsolute', 'pi', '3.14159', '0.0000026535'), ('NumAbsolute', 'pi', '3.14159', '0.000002652'),
+    ('NumRelative', 'pi', '3.14159', '0.00000084466457852'), ('NumRelative', 'pi', '3.14159', '0.000000844'),
+    ('AlgEquiv', 'sin(x)^20', '((1-cos(2*x))/2)^10*1001/1000', ''), ('AlgEquiv', 'cosh(x)^20', '((exp(x)+exp(-x))/2)^20*1001/1000', ''),
+    ('AlgEquiv', 'sin(x)^20', '((1-cos(2*x))/2)^10*(1+1/100000)', ''),
+]
+
+
+def supplement_inputs():
+    return [('stack.answer_test', {'test': test, 'student': student, 'teacher': teacher, 'options': options, 'raw': student},
+             ['supplement', test], {}) for test, student, teacher, options in SUPPLEMENT]
 
 
 def case_inputs(fixture):
