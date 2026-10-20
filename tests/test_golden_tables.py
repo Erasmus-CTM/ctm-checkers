@@ -2,10 +2,12 @@
 import hashlib
 import json
 import os
+from pathlib import Path
 
 import pytest
 
 import golden
+import golden_stack
 
 PYTHONS_TESTED = ['3.9', '3.10', '3.11', '3.12', '3.13']   # every Python from the floor; Pyodide 0.27.2 is 3.12, 0.28.3 3.13
 
@@ -19,7 +21,8 @@ def test_rows_are_canonical_sorted_and_complete():
     for name, rows in tables().items():
         assert rows, name
         for row in rows:
-            assert set(row) in ({'suite', 'id', 'call', 'input', 'output', 'tags'}, {'suite', 'id', 'call', 'input', 'by_python', 'tags'}), (name, row['id'])
+            keys = set(row) - {'native'} if name.startswith('stack/') else set(row)
+            assert keys in ({'suite', 'id', 'call', 'input', 'output', 'tags'}, {'suite', 'id', 'call', 'input', 'by_python', 'tags'}), (name, row['id'])
             assert name == row['suite'] + '.jsonl', (name, row['id'])
             if 'by_python' in row:
                 # Every Python version CI runs has its result.
@@ -30,7 +33,8 @@ def test_rows_are_canonical_sorted_and_complete():
 
 def test_recorded_rows_have_their_ids():
     for name, rows in tables().items():
-        if name.startswith('math_exercise/') and name.split('/')[1].rsplit('.', 1)[0] in ('namespace', 'rounding', 'rounding-variants', 'requests-supplement'):
+        if (name.startswith('stack/') or name.startswith('math_exercise/')
+                and name.split('/')[1].rsplit('.', 1)[0] in ('namespace', 'rounding', 'rounding-variants', 'requests-supplement')):
             for row in rows:
                 assert row['id'] == golden.row_id(row['call'], row['input'])
 
@@ -43,6 +47,9 @@ def test_only_math_exercise_examples_are_committed():
     assert manifest['capture']['corpus']['export'] is True
     for path in golden.GOLDEN.rglob('*.jsonl'):
         name = path.name
+        if path.parent.name == 'stack':
+            assert 'stack/' + path.stem in golden_stack.TABLES, name
+            continue
         if name.endswith('-math-exercise.jsonl'):
             continue
         assert name in ('namespace.jsonl', 'rounding.jsonl', 'rounding-variants.jsonl', 'requests-supplement.jsonl'), name
@@ -155,3 +162,47 @@ def test_a_relative_umbrella_folder_is_relative_to_where_golden_py_runs(tmp_path
     assert os.environ['CTM_UMBRELLA'] == str((tmp_path / 'umbrella-checkout').resolve())
     golden.use_umbrella('other')   # --umbrella wins
     assert os.environ['CTM_UMBRELLA'] == str((tmp_path / 'other').resolve())
+
+
+def stack_files(value):
+    return [value[key] for key in ('file', 'python_checkers') if key in value]
+
+
+def test_stack_rows_name_files_here_and_no_course_material():
+    # Step-2 design §13 item 7: questions derived from course material stay out of the tables.
+    excluded = json.loads((golden.GOLDEN / 'stack' / 'excluded.json').read_text(encoding='utf-8'))
+    listed = {(entry['suite'], entry['id']) for entry in excluded}
+    for name, rows in tables().items():
+        if not name.startswith('stack/'):
+            continue
+        for row in rows:
+            assert row['call'] in golden_stack.CALLS, (name, row['id'])
+            assert (row['suite'], row['id']) not in listed, (name, row['id'])
+            for path in stack_files(row['input']):
+                assert (golden.ROOT / path).is_file() and path.startswith('examples/stack/'), (name, row['id'], path)
+                assert path not in golden_stack.COURSE_DERIVED, (name, row['id'], path)
+                assert golden_stack.question_table(row['input']['file']) == row['suite'], (name, row['id'])
+    for entry in excluded:
+        assert entry['id'] == golden.row_id(entry['call'], golden.loads(json.dumps(entry['input']))) and entry['reason']
+
+
+LEGACY_STACK = os.environ.get('CTM_LEGACY_STACK_SYMPY')
+
+
+@pytest.mark.skipif(not LEGACY_STACK, reason='needs CTM_LEGACY_STACK_SYMPY (stack-sympy at the commit in tools/pins.json)')
+def test_stack_inputs_are_stack_sympys():
+    # examples/stack/ is stack-sympy's questions/ (the STACK question XML has one home here now) and
+    # tests/stack/ holds its fixtures, byte for byte; the one change: the example checker file
+    # imports assess_basis from ctm_checkers.matrix, its one home (stack-sympy: stack_sympy.basis_helper).
+    legacy = Path(LEGACY_STACK).resolve()
+    pairs = [(legacy / 'questions', golden.ROOT / 'examples' / 'stack'),
+             (legacy / 'tests' / 'native_compliance', golden.ROOT / 'tests' / 'stack' / 'native_compliance'),
+             (legacy / 'tests' / 'port_regressions', golden.ROOT / 'tests' / 'stack' / 'port_regressions')]
+    for old, new in pairs:
+        for path in sorted(p for p in old.rglob('*') if p.is_file()):
+            relative = path.relative_to(old)
+            here = (new / relative).read_bytes()
+            if relative.as_posix() == 'matrix-checkers.py':
+                here = here.replace(b'from ctm_checkers.matrix import assess_basis', b'from stack_sympy.basis_helper import assess_basis')
+            assert here == path.read_bytes(), relative
+    assert (golden.ROOT / 'tests' / 'stack' / 'reference_cases.json').read_bytes() == (legacy / 'tests' / 'reference_cases.json').read_bytes()

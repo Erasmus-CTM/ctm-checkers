@@ -1,0 +1,41 @@
+[
+ {
+  "call": "stack.answer_test",
+  "id": "430eb56be8c9b57f",
+  "input": {
+   "options": "",
+   "raw": "sin(x)^99*cos(x)^99",
+   "student": "sin(x)^99*cos(x)^99",
+   "teacher": "(sin(2*x)/2)^99",
+   "test": "AlgEquiv"
+  },
+  "reason": "runs longer than 20 s on Python 3.12 (S-12)",
+  "suite": "stack/probes"
+ },
+ {
+  "call": "stack.answer_test",
+  "id": "54b27c684a1fc63d",
+  "input": {
+   "options": "",
+   "raw": "sin(exp(exp(exp(5))))",
+   "student": "sin(exp(exp(exp(5))))",
+   "teacher": "sin(exp(exp(exp(5))))+1",
+   "test": "AlgEquiv"
+  },
+  "reason": "runs longer than 20 s on Python 3.12 (S-12)",
+  "suite": "stack/probes"
+ },
+ {
+  "call": "stack.answer_test",
+  "id": "c8cd22798d1b50df",
+  "input": {
+   "options": "2",
+   "raw": "sin(exp(exp(exp(5))))",
+   "student": "sin(exp(exp(exp(5))))",
+   "teacher": "0",
+   "test": "NumAbsolute"
+  },
+  "reason": "runs longer than 20 s on Python 3.12 (S-12)",
+  "suite": "stack/probes"
+ }
+]

@@ -33,6 +33,47 @@ stay in the umbrella (design §13 item 7). The last three are recorded here
 with the same legacy code (`tools/golden.py record`). `PROVENANCE.md` and
 `manifest.json` name the commits, runtimes and licences.
 
+### STACK
+
+`tests/golden/stack/`, recorded from stack-sympy's engine at `f450bcd` before
+it moved into `ctm_checkers.stack` (design §6.2 and §6.3), with stack-sympy's
+own code (`tools/golden.py record --stack-legacy`) on Python 3.9 to 3.13, and
+verified with the same code in Pyodide 0.27.2 and 0.28.3. Each row runs one of
+the calls of `tools/golden_stack.py`, which also writes the inputs: the
+compliance runner on a fixture case (`stack.case`), an answer test
+(`stack.answer_test`), and for a question file the import, a frozen variant,
+the card the build writes (its SHA-256 and length), the question tests and
+one answer set validated and graded, as stack-sympy's build and page worker
+run them (`stack.import`, `stack.instantiate`, `stack.card`, `stack.tests`,
+`stack.answer`).
+
+| Table | Rows | What |
+|---|---|---|
+| `compliance.jsonl` | 2303 | Every answer-test row of STACK's own fixtures (`tests/stack/native_compliance/fixtures.json`, STACK `10d3233`) through the compliance report's Python runner; `native` holds STACK's expected score and answer note. |
+| `regressions.jsonl` | 170 | stack-sympy's port regression cases (`tests/stack/port_regressions/fixtures.json`). |
+| `reference.jsonl` | 65 | The cases stack-sympy compares with native STACK in Maxima (`tests/stack/reference_cases.json`). |
+| `questions-project.jsonl` | 615 | stack-sympy's own example questions (`examples/stack/*.xml`): each file's import; the cards of stack-sympy's site; for every seed the site uses (else 1 to 3) the variant and the question tests; and answer sets: the teacher's answers, the question tests' inputs and, for the first seed, for each input its sign, offsets, double, factored, expanded and decimal forms, every question variable's name (S-01) and strings the input rules must handle (empty, `x+`, `sin(`, `2 x`, `x²`, `π`, `3,5`, `__import__('os')`, 1300 characters); also the answers of the audit's leak.py. |
+| `questions-library.jsonl` | 1049 | The same for the STACK sample questions (`examples/stack/corpus`, `corrected`, `upstream/algmap-6-1.xml`), with the seeds of the corpus replay (the first three deployed seeds, else 17, 29, 47). |
+| `questions-helm.jsonl` | 179 | The same for the two HELM questions (`examples/stack/upstream`). |
+| `probes.jsonl` | 207 | The stack-sympy audit's answer-test probes with STACK's and Maxima's native verdicts (`native`), and its performance probes. |
+| `probe-questions.jsonl` | 285 | The audit's question probes (`examples/stack/probes/`) with its answers. |
+
+`excluded.json` lists the inputs that run longer than 20 s (S-12:
+`sin(exp(exp(exp(5))))`, `sin(x)^99*cos(x)^99` against `(sin(2*x)/2)^99`):
+they are not rows until S-12 bounds them. The three questions derived from
+course material (`examples/stack/course-*.xml`) have no rows (design §13
+item 7); the moved tests cover them. A table holds rows of one kind of
+source, under that source's licence (`PROVENANCE.md`).
+
+A STACK row stores the result as stack-sympy's worker returns it
+(`json.dumps(result, default=str)`); an exception is `{"raised": "<class
+name>: <message>"}`, without the module (the move renames
+`stack_sympy.importer` to `ctm_checkers.stack.importer`). The inputs name files
+of this repository; the legacy adapter runs them with stack-sympy's code,
+which finds `ctm_checkers.matrix` (imported by `examples/stack/matrix-checkers.py`)
+as its own `stack_sympy.basis_helper` (design §6.3: import shims). No row
+differs between Python versions or between native Python and Pyodide.
+
 ## Rows
 
 One row per line, in canonical JSON (sorted keys, compact separators,
@@ -69,6 +110,10 @@ git -C _ci/math-exercise checkout <math-exercise commit in tools/pins.json>
 git clone https://github.com/Erasmus-CTM/ctm-assessment _ci/ctm-assessment
 git -C _ci/ctm-assessment checkout <ctm-assessment commit in tools/pins.json>
 python tools/golden.py verify --adapter legacy --legacy _ci/math-exercise
+# the STACK tables with stack-sympy's code:
+git clone https://github.com/Erasmus-CTM/stack-sympy _ci/stack-sympy
+git -C _ci/stack-sympy checkout <stack-sympy commit in tools/pins.json>
+python tools/golden.py verify --adapter legacy --stack-legacy _ci/stack-sympy
 ```
 
 Any Python from 3.9 to 3.13 verifies every row; another version has no
@@ -106,7 +151,7 @@ Inside Pyodide (Node 22; the umbrella's harness modules at the commit in
 `verify.cjs` mounts that checkout for `golden.py`):
 
 ```sh
-node tools/pyodide/verify.cjs --umbrella _ci/ctm-assessment --version 0.28.3 -- verify --adapter legacy --legacy _ci/math-exercise
+node tools/pyodide/verify.cjs --umbrella _ci/ctm-assessment --version 0.28.3 -- verify --adapter legacy --legacy _ci/math-exercise --stack-legacy _ci/stack-sympy
 ```
 
 CI runs both: `Tests` on Python 3.9, 3.10, 3.11, 3.12 and 3.13 (legacy and

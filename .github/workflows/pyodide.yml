@@ -46,6 +46,13 @@ jobs:
           ref: ${{ steps.pins.outputs['math-exercise'] }}
           path: _ci/math-exercise
           persist-credentials: false
+      - name: stack-sympy at f450bcd (the legacy sources of the STACK goldens)
+        uses: actions/checkout@v7
+        with:
+          repository: Erasmus-CTM/stack-sympy
+          ref: ${{ steps.pins.outputs['stack-sympy'] }}
+          path: _ci/stack-sympy
+          persist-credentials: false
       - name: The umbrella's Pyodide harness modules and authored-question recorder
         uses: actions/checkout@v7
         with:
@@ -73,4 +80,4 @@ jobs:
           node tools/pyodide/verify.cjs --umbrella _ci/ctm-assessment --version ${{ matrix.pyodide }}
           --payload _extensions/ctm-checkers/ctm-checkers.js -- verify --adapter installed --variants _ci/math-exercise
       - name: The legacy code reproduces the golden tables
-        run: node tools/pyodide/verify.cjs --umbrella _ci/ctm-assessment --version ${{ matrix.pyodide }} -- verify --adapter legacy --legacy _ci/math-exercise
+        run: node tools/pyodide/verify.cjs --umbrella _ci/ctm-assessment --version ${{ matrix.pyodide }} -- verify --adapter legacy --legacy _ci/math-exercise --stack-legacy _ci/stack-sympy

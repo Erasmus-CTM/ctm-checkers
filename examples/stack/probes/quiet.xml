@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<quiz><question type="stack">
+<name><text>quiet-facform</text></name>
+<questionvariables><text>ta:(x-1)*(x+2);</text></questionvariables>
+<questiontext format="html"><text><![CDATA[<p>Factor {@expand(ta)@}.</p><p>[[input:ans1]] [[validation:ans1]] [[feedback:prt1]]</p>]]></text></questiontext>
+<defaultgrade>1</defaultgrade><penalty>0.1</penalty><questionsimplify>1</questionsimplify>
+<input><name>ans1</name><type>algebraic</type><tans>ta</tans><strictsyntax>1</strictsyntax><insertstars>0</insertstars><mustverify>1</mustverify><showvalidation>1</showvalidation></input>
+<prt><name>prt1</name><value>1</value><autosimplify>1</autosimplify>
+<node><name>0</name><answertest>AlgEquiv</answertest><sans>ans1</sans><tans>ta</tans><quiet>0</quiet>
+<truescoremode>=</truescoremode><truescore>1</truescore><truenextnode>1</truenextnode><trueanswernote>prt1-1-T</trueanswernote>
+<falsescoremode>=</falsescoremode><falsescore>0</falsescore><falsenextnode>-1</falsenextnode><falseanswernote>prt1-1-F</falseanswernote>
+<falsefeedback format="html"><text><![CDATA[<p>Not equivalent.</p>]]></text></falsefeedback></node>
+<node><name>1</name><answertest>FacForm</answertest><sans>ans1</sans><tans>ta</tans><testoptions>x</testoptions><quiet>1</quiet>
+<truescoremode>=</truescoremode><truescore>1</truescore><truenextnode>-1</truenextnode><trueanswernote>prt1-2-T</trueanswernote>
+<truefeedback format="html"><text><![CDATA[<p>AUTHOR-TRUE: well factored.</p>]]></text></truefeedback>
+<falsescoremode>=</falsescoremode><falsescore>0.5</falsescore><falsenextnode>-1</falsenextnode><falseanswernote>prt1-2-F</falseanswernote>
+<falsefeedback format="html"><text><![CDATA[<p>AUTHOR-FALSE: Your answer is not factored.</p>]]></text></falsefeedback></node>
+</prt>
+</question></quiz>

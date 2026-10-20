@@ -20,6 +20,16 @@ No grading changes: every golden row is reproduced as before.
   `_ctm_globals` of the first 0.1.1.dev0 builds are gone; no released
   version had them), and `browser.call` without `_ctm_request` raises a
   `RuntimeError` naming the call instead of running an empty request.
+- STACK golden tables (`tests/golden/stack/`, 4,873 rows; docs/goldens.md),
+  recorded from stack-sympy `f450bcd` with its own code before its engine
+  moves here: STACK's answer-test fixtures through the compliance runner,
+  stack-sympy's port regressions and reference cases, every example question
+  (import, cards, variants, question tests and generated answers), and the
+  probes of the stack-sympy audit with their native verdicts. The legacy
+  adapter (`golden.py verify --stack-legacy`, CI on Python 3.9 to 3.13 and in
+  Pyodide 0.27.2 and 0.28.3) reproduces every row. The inputs: STACK's
+  example questions in `examples/stack/` (their one home from now on,
+  stack-sympy's `questions/`) and its fixtures in `tests/stack/`.
 - Golden tables: three supplementary requests (88 in all) for rules that
   only mutations reached in the second round of the review: an imaginary part
   between 1e-9 and 1e-3, boolean graph node identifiers, and how

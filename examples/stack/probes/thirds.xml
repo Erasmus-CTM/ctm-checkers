@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<quiz><question type="stack">
+<name><text>thirds</text></name>
+<questionvariables><text>ta:[1,2,3];</text></questionvariables>
+<questiontext format="html"><text><![CDATA[<p>[[input:a]] [[input:b]] [[input:c]] [[validation:a]] [[validation:b]] [[validation:c]] [[feedback:prt1]]</p>]]></text></questiontext>
+<defaultgrade>1</defaultgrade><penalty>0.1</penalty><questionsimplify>1</questionsimplify>
+<input><name>a</name><type>algebraic</type><tans>1</tans></input>
+<input><name>b</name><type>algebraic</type><tans>2</tans></input>
+<input><name>c</name><type>algebraic</type><tans>3</tans></input>
+<prt><name>prt1</name><value>1</value><autosimplify>1</autosimplify>
+<node><name>0</name><answertest>AlgEquiv</answertest><sans>a</sans><tans>1</tans>
+<truescoremode>+</truescoremode><truescore>0.3333333</truescore><truenextnode>1</truenextnode><trueanswernote>prt1-1-T</trueanswernote>
+<falsescoremode>+</falsescoremode><falsescore>0</falsescore><falsenextnode>1</falsenextnode><falseanswernote>prt1-1-F</falseanswernote></node>
+<node><name>1</name><answertest>AlgEquiv</answertest><sans>b</sans><tans>2</tans>
+<truescoremode>+</truescoremode><truescore>0.3333333</truescore><truenextnode>2</truenextnode><trueanswernote>prt1-2-T</trueanswernote>
+<falsescoremode>+</falsescoremode><falsescore>0</falsescore><falsenextnode>2</falsenextnode><falseanswernote>prt1-2-F</falseanswernote></node>
+<node><name>2</name><answertest>AlgEquiv</answertest><sans>c</sans><tans>3</tans>
+<truescoremode>+</truescoremode><truescore>0.3333333</truescore><truenextnode>-1</truenextnode><trueanswernote>prt1-3-T</trueanswernote>
+<falsescoremode>+</falsescoremode><falsescore>0</falsescore><falsenextnode>-1</falsenextnode><falseanswernote>prt1-3-F</falseanswernote></node>
+</prt>
+<qtest><testcase>1</testcase><testinput><name>a</name><value>1</value></testinput><testinput><name>b</name><value>2</value></testinput><testinput><name>c</name><value>3</value></testinput>
+<expected><name>prt1</name><expectedscore>1.0000000</expectedscore><expectedpenalty>0.0000000</expectedpenalty><expectedanswernote>prt1-3-T</expectedanswernote></expected></qtest>
+<qtest><testcase>2</testcase><testinput><name>a</name><value>1</value></testinput><testinput><name>b</name><value>0</value></testinput><testinput><name>c</name><value>0</value></testinput>
+<expected><name>prt1</name><expectedscore>0.3333333</expectedscore><expectedpenalty>0.1000000</expectedpenalty><expectedanswernote>prt1-3-F</expectedanswernote></expected></qtest>
+<qtest><testcase>3</testcase><testinput><name>a</name><value>1</value></testinput><testinput><name>b</name><value>2</value></testinput><testinput><name>c</name><value>0</value></testinput>
+<expected><name>prt1</name><expectedscore>0.6666666</expectedscore><expectedpenalty>0.1000000</expectedpenalty><expectedanswernote>prt1-3-F</expectedanswernote></expected></qtest>
+</question></quiz>
