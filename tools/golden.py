@@ -1268,6 +1268,8 @@ def write_provenance():
         course = manifest.get('recorded', {}).get('stack/questions-course')
         if course:
             record = json.loads((ROOT / 'examples' / 'stack' / 'course-examples-provenance.json').read_text(encoding='utf-8'))
+            rows = [json.loads(line) for line in (GOLDEN / 'stack' / 'questions-course.jsonl').read_text(encoding='utf-8').splitlines() if line]
+            checkers = sorted({row['input']['python_checkers'] for row in rows if 'python_checkers' in row['input']})
             lines += ['', '### Course material: `stack/questions-course.jsonl`', '',
                       f'**This table is course material.** Its {course["rows"]} rows are derived from three STACK questions that CTM',
                       f'wrote from the course `{record["repository"]}` by {record["author"]} ({record["source"]};',
@@ -1275,8 +1277,11 @@ def write_provenance():
                       ', '.join(f'`{path}`' for path in golden_stack.COURSE_DERIVED) + '.',
                       '`examples/stack/course-examples-provenance.json` records the source, its SHA-256 and every change.',
                       f'**Licence: {record["license"]}** (Creative Commons Attribution-ShareAlike 4.0), for the questions and for',
-                      f'the rows derived from them; credit {record["author"]} and the course when you reuse them. It is not the',
-                      'licence of ctm-checkers\' code (AGPL-3.0-or-later). AC decided on 20 October 2026 that these committed',
+                      f'what the rows derive from them; credit {record["author"]} and the course when you reuse them. As in the',
+                      'project table, the checker files (' + ', '.join(f'`{path}`' for path in checkers) + '), which rows name and whose',
+                      'source the imports of the questions that use them hold, and the generated answers (`tools/golden_stack.py`) are',
+                      'AGPL-3.0-or-later. CC BY-SA 4.0 is not the licence of ctm-checkers\' code (AGPL-3.0-or-later).',
+                      'AC decided on 20 October 2026 that these committed',
                       'files have a table of their own (`course-b-rank-pivots.xml` is S-01\'s test case). No other table holds rows',
                       'of course material, and rows generated from the course repositories themselves (ctm-demo, ingmat3a) stay',
                       'in the umbrella\'s parity harness (step-2 design §13 item 7).']

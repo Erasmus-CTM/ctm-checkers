@@ -173,7 +173,11 @@ def test_stack_rows_name_files_here_and_course_material_only_in_its_table():
     # labelled as course material under CC BY-SA 4.0; no other table holds a row of them (and
     # no math_exercise table holds course rows at all: design §13 item 7, test above).
     source, licence = golden_stack.TABLES['stack/questions-course']
-    assert source.startswith('course material') and licence.startswith('CC-BY-SA-4.0 (course material')
+    assert source.startswith('course material') and licence.startswith('the questions CC-BY-SA-4.0 (course material')
+    # Its rows also name, and two of them hold the source of, AGPL checker files; the generated answers are AGPL too.
+    assert licence.endswith(' and the answers AGPL-3.0-or-later')
+    checkers = {row['input']['python_checkers'] for row in tables()['stack/questions-course.jsonl'] if 'python_checkers' in row['input']}
+    assert checkers and all(path in licence for path in checkers), checkers
     assert sorted(golden_stack.COURSE_DERIVED) == sorted(
         'examples/stack/' + q['file'] for q in json.loads((golden.ROOT / 'examples/stack/course-examples-provenance.json').read_text())['questions'])
     # AC (20 Oct 2026): the HELM samples stay, labelled as CC BY-NC 4.0 test data (the code is AGPL).

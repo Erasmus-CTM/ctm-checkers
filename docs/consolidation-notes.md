@@ -106,7 +106,9 @@ After the independent review of C3 (ctm-checkers #4), AC decided:
   test case), `course-b-nullspace.xml` and `course-c-nullspace.xml` have
   their own golden table, `stack/questions-course`, labelled as course
   material under CC BY-SA 4.0 with a provenance and licence notice
-  (`tests/golden/PROVENANCE.md`). No other table holds course rows, and
+  (`tests/golden/PROVENANCE.md`); the checker file the questions use
+  (`examples/stack/matrix-checkers.py`) and the generated answers stay
+  AGPL-3.0-or-later, as in the project table. No other table holds course rows, and
   rows generated from the course repositories (ctm-demo, ingmat3a) stay in
   the umbrella (design §13 item 7). The H2 rule (below) is unchanged.
 - **B. HELM samples.** The two HELM questions and their 179 rows

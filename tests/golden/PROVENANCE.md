@@ -57,7 +57,7 @@ Rows that ran longer than 20 s are listed in `stack/excluded.json`, not recorded
 | `stack/questions-project.jsonl` | 1178 | stack-sympy's own example questions (examples/stack/*.xml) with their checker files, and the answers of the stack-sympy audit's leak.py (S-01); recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | the questions CC-BY-SA-4.0 as each file states (determinant-one.xml AGPL-3.0-or-later); the checker files and the answers AGPL-3.0-or-later |
 | `stack/questions-library.jsonl` | 1049 | STACK sample questions: the corpus (examples/stack/corpus), the corrected teaching copies (examples/stack/corrected) and AlgMap-6.1 (examples/stack/upstream); recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | CC-BY-SA-4.0; examples/stack/corpus/COPYING.txt, examples/stack/upstream/COPYING.txt |
 | `stack/questions-helm.jsonl` | 179 | HELM sample questions from STACK (examples/stack/upstream/bodmas.xml, rounding-three-dp.xml); test data only, see below; recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | CC-BY-NC-4.0 (NonCommercial; test data only, not the AGPL-3.0-or-later of the code); examples/stack/upstream/HELM-COPYING.txt |
-| `stack/questions-course.jsonl` | 232 | course material: the STACK questions derived from the course ingmat3a_ntnu (examples/stack/course-b-rank-pivots.xml, course-b-nullspace.xml, course-c-nullspace.xml); see below; recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | CC-BY-SA-4.0 (course material, Andrey Chesnokov); examples/stack/course-examples-provenance.json |
+| `stack/questions-course.jsonl` | 232 | course material: the STACK questions derived from the course ingmat3a_ntnu (examples/stack/course-b-rank-pivots.xml, course-b-nullspace.xml, course-c-nullspace.xml); see below; recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | the questions CC-BY-SA-4.0 (course material, Andrey Chesnokov; examples/stack/course-examples-provenance.json); the checker file examples/stack/matrix-checkers.py and the answers AGPL-3.0-or-later |
 | `stack/probes.jsonl` | 207 | answer-test probes of the stack-sympy audit (ctm-assessment docs/consolidation/stack-sympy-audit-2026-10/probes: cases1-4.json, perf*.py) with the native verdicts of STACK 10d3233 and Maxima 5.46 (out1-4.json); recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | AGPL-3.0-or-later; the "native" values are output of STACK (GPL-3.0-or-later) and Maxima |
 | `stack/probe-questions.jsonl` | 285 | question probes of the stack-sympy audit (examples/stack/probes/*.xml with the answers of its qprobe.py, crash.py and overflow.cjs); recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | AGPL-3.0-or-later |
 | `stack/supplement.jsonl` | 153 | inputs written for these tables (tools/golden_stack.py SUPPLEMENT, examples/stack/supplement/): rules that no other row reached (the review of C3); recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | AGPL-3.0-or-later |
@@ -82,8 +82,11 @@ wrote from the course `aacchhee/ingmat3a_ntnu` by Andrey Chesnokov (https://gith
 `examples/stack/course-b-rank-pivots.xml`, `examples/stack/course-b-nullspace.xml`, `examples/stack/course-c-nullspace.xml`.
 `examples/stack/course-examples-provenance.json` records the source, its SHA-256 and every change.
 **Licence: CC-BY-SA-4.0** (Creative Commons Attribution-ShareAlike 4.0), for the questions and for
-the rows derived from them; credit Andrey Chesnokov and the course when you reuse them. It is not the
-licence of ctm-checkers' code (AGPL-3.0-or-later). AC decided on 20 October 2026 that these committed
+what the rows derive from them; credit Andrey Chesnokov and the course when you reuse them. As in the
+project table, the checker files (`examples/stack/matrix-checkers.py`), which rows name and whose
+source the imports of the questions that use them hold, and the generated answers (`tools/golden_stack.py`) are
+AGPL-3.0-or-later. CC BY-SA 4.0 is not the licence of ctm-checkers' code (AGPL-3.0-or-later).
+AC decided on 20 October 2026 that these committed
 files have a table of their own (`course-b-rank-pivots.xml` is S-01's test case). No other table holds rows
 of course material, and rows generated from the course repositories themselves (ctm-demo, ingmat3a) stay
 in the umbrella's parity harness (step-2 design §13 item 7).

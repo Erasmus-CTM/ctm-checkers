@@ -89,7 +89,10 @@ as before, the STACK tables recorded from stack-sympy's own code included.
   - `stack/questions-course` (232 rows) is course material, labelled as
     such: the three questions derived from the course ingmat3a_ntnu
     (Andrey Chesnokov), among them S-01's test case
-    `course-b-rank-pivots.xml`, under CC BY-SA 4.0 with their source record.
+    `course-b-rank-pivots.xml`, under CC BY-SA 4.0 with their source record;
+    as in `stack/questions-project`, the checker file they use
+    (`examples/stack/matrix-checkers.py`) and the generated answers are
+    AGPL-3.0-or-later.
     No other table holds course rows (design §13 item 7 still holds for
     the math tables and for rows generated from course repositories).
   - `stack/questions-helm` (179 rows) and the two HELM questions are

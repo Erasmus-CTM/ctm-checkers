@@ -232,7 +232,9 @@ TABLES = {
     'stack/questions-course': ('course material: the STACK questions derived from the course ingmat3a_ntnu '
                                '(examples/stack/course-b-rank-pivots.xml, course-b-nullspace.xml, course-c-nullspace.xml); '
                                'see below',
-                               'CC-BY-SA-4.0 (course material, Andrey Chesnokov); examples/stack/course-examples-provenance.json'),
+                               'the questions CC-BY-SA-4.0 (course material, Andrey Chesnokov; '
+                               'examples/stack/course-examples-provenance.json); the checker file '
+                               'examples/stack/matrix-checkers.py and the answers AGPL-3.0-or-later'),
     'stack/probes': ('answer-test probes of the stack-sympy audit (ctm-assessment docs/consolidation/stack-sympy-audit-2026-10/'
                      'probes: cases1-4.json, perf*.py) with the native verdicts of STACK 10d3233 and Maxima 5.46 (out1-4.json)',
                      'AGPL-3.0-or-later; the "native" values are output of STACK (GPL-3.0-or-later) and Maxima'),

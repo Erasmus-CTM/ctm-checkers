@@ -68,7 +68,9 @@ GPL-3.0-or-later) and those in `examples/stack/`
 source and licence of each golden table. One STACK table is course material:
 `tests/golden/stack/questions-course.jsonl`, derived from the course
 ingmat3a_ntnu (Andrey Chesnokov), CC BY-SA 4.0 like the three questions in
-`examples/stack/` it comes from.
+`examples/stack/` it comes from; as in the project table, the checker file it
+uses (`examples/stack/matrix-checkers.py`) and the generated answers are
+AGPL-3.0-or-later.
 
 **HELM samples, CC BY-NC 4.0 (NonCommercial).** Two HELM questions of
 STACK's sample library (`examples/stack/upstream/bodmas.xml`,

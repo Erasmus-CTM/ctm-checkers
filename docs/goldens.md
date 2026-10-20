@@ -55,7 +55,7 @@ run them (`stack.import`, `stack.instantiate`, `stack.card`, `stack.tests`,
 | `questions-project.jsonl` | 1178 | stack-sympy's own example questions (`examples/stack/*.xml`): each file's import; the cards of stack-sympy's site; for every seed the site uses and seeds 1 to 3 (stack-sympy's default card) the variant and the question tests; and answer sets: the teacher's answers, the question tests' inputs and, for the site's first seed and seed 1, for each input its sign, offsets, double, factored, expanded and decimal forms, every question variable's name (S-01) and strings the input rules must handle (empty, `x+`, `sin(`, `2 x`, `x²`, `π`, `3,5`, `__import__('os')`, 1300 characters); also the answers of the audit's leak.py. |
 | `questions-library.jsonl` | 1049 | The same for the STACK sample questions (`examples/stack/corpus`, `corrected`, `upstream/algmap-6-1.xml`), with the seeds of the corpus replay (the first three deployed seeds, else 17, 29, 47). |
 | `questions-helm.jsonl` | 179 | **NonCommercial test data** (CC BY-NC 4.0, below): the same for the two HELM questions (`examples/stack/upstream`). |
-| `questions-course.jsonl` | 232 | **Course material** (CC BY-SA 4.0, below): the same as `questions-project` for the three questions derived from the course ingmat3a_ntnu (`examples/stack/course-*.xml`), among them S-01's test case `course-b-rank-pivots.xml` (`r` and `P` accepted as answers). |
+| `questions-course.jsonl` | 232 | **Course material** (CC BY-SA 4.0; the checker file and the answers AGPL-3.0-or-later, below): the same as `questions-project` for the three questions derived from the course ingmat3a_ntnu (`examples/stack/course-*.xml`), among them S-01's test case `course-b-rank-pivots.xml` (`r` and `P` accepted as answers). |
 | `probes.jsonl` | 207 | The stack-sympy audit's answer-test probes with STACK's and Maxima's native verdicts (`native`), and its performance probes. |
 | `probe-questions.jsonl` | 285 | The audit's question probes (`examples/stack/probes/`) with its answers. |
 | `supplement.jsonl` | 153 | Rules that only the mutation tests reached (below): NumAbsolute's strict bound with STACK's 1e-9 guard and NumRelative's inclusive one, for exact and irrational numbers; AlgEquiv's numeric rejection screen (1e-4 margin); response-tree scores beyond [0, 1] (`examples/stack/supplement/score-modes.xml`); the input rules of `examples/stack/supplement/input-rules.xml` (forbidden words in any case, the numerical input's type, lowest terms with two negative numbers, and/or precedence in the validation's LaTeX, the 64-entry matrix limit), with the answer sets of the example questions and the answers in `golden_stack.PROBE_ANSWERS`. |
@@ -78,7 +78,9 @@ clearly labelled.
 from the three STACK questions that CTM wrote from Andrey Chesnokov's course
 ingmat3a_ntnu (`examples/stack/course-*.xml`, with the excerpts and the
 source record `course-examples-provenance.json`) and are licensed CC BY-SA
-4.0, like those questions. AC decided on 20 October 2026 that these
+4.0, like those questions; as in `questions-project`, the checker file they
+use (`examples/stack/matrix-checkers.py`, whose source the imports of the two
+null-space questions hold) and the generated answers are AGPL-3.0-or-later. AC decided on 20 October 2026 that these
 committed files have their own table. No other table holds a row of them
 (`tests/test_golden_tables.py`), and rows generated from the course
 repositories (ctm-demo, ingmat3a) stay in the umbrella (design §13 item 7).
