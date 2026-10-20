@@ -110,7 +110,10 @@ The `stack.*` calls are stack-sympy's worker requests (its `worker.js` at
 `{"question", "variant", "answers"}` as the card's data holds them, the result
 what `json.dumps(…, default=str)` wrote, and any other exception reaches the
 page as before. They have no admission rule: STACK's grammar never evaluates
-learner text as Python.
+learner text as Python. Since 0.3.0 (S-01) an answer that names a question
+variable or a PRT's feedback variable is invalid, with STACK's message for
+each name ("Forbidden variable or constant: ta.") and no preview; question
+tests still resolve those names.
 
 Statuses: `correct`, `partial`, `wrong`, `not_exact`, `not_form`, `rejected`,
 `error` (`core.result.STATUSES`).

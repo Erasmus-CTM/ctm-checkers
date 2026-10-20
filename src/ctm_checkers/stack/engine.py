@@ -341,12 +341,47 @@ def instantiate(question: dict, seed: int = 1) -> dict:
         raise UnsupportedQuestion(name, "instantiation", str(exc)) from exc
 
 
+# STACK's message for a name a student may not use (lang/en/qtype_stack.php,
+# stackCas_forbiddenVariable: "Forbidden variable or constant: {$a->forbid}.").
+FORBIDDEN_VARIABLE = "Forbidden variable or constant: {name}."
+
+
+def _author_names(question, env):
+    """The names of the question variables and of the PRTs' feedback
+    variables: a student may not use them (S-01). STACK forbids the names the
+    question variables write: "If the teacher defines 'ta' to be the answer,
+    the student could type in 'ta'! We forbid this." (question.php:430-441,
+    cassecurity.class.php:373-376). Feedback variables are forbidden too: the
+    answer tests evaluate the student's expression where they are defined."""
+    names = set(env)
+    if question is not None:
+        for prt in question.get("prts", []):
+            for statement in re.split(r"[;\n]+", prt.get("feedbackvariables", "")):
+                match = re.match(r"\s*([A-Za-z_][A-Za-z_0-9]*)\s*:", statement)
+                if match:
+                    names.add(match.group(1))
+    return names
+
+
+def _forbid_author_names(tree, names):
+    """An answer that uses a question or feedback variable is invalid, with
+    STACK's message for each such name and no preview: student input never
+    reads the author's values (S-01)."""
+    found = []
+    for node in _walk(tree):
+        if node.kind == "name" and node.value in names and node.value not in found:
+            found.append(node.value)
+    if found:
+        raise InvalidAnswer(" ".join(FORBIDDEN_VARIABLE.format(name=name) for name in found))
+
+
 def _input_validation(inp, raw, env, assumptions, question=None):
     raw = str(raw or "").strip()
     if not raw:
         return {"valid": False, "latex": "", "feedback": "Enter an answer"}, None, None
     try:
         tree = parse(raw, insertstars=inp.get("insertstars", 0))
+        _forbid_author_names(tree, _author_names(question, env))
         if any(n.value.lower() in {w.lower() for w in inp["forbidwords"]} for n in _walk(tree) if n.kind in {"name", "call"}):
             raise InvalidAnswer("Contains a forbidden word")
         if inp["forbidfloat"] and any(n.kind == "number" and ("." in n.value or "e" in n.value.lower()) for n in _walk(tree)):

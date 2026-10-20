@@ -102,6 +102,17 @@ MUTATIONS = {
     'stack-basis-coverage': ('matrix.py', 'coverage = min(rank, target_dimension) / target_dimension', 'coverage = 1.0', 1, (STACK,)),
     'stack-basis-model-space': ('stack/matrix_models.py', 'vectors = matrix.nullspace()', 'vectors = matrix.columnspace()', 1, (STACK,)),
     'stack-checker-assessment': ('stack/checkers.py', 'result["assessment"] = {axis: list(statuses)}', 'pass', 1, (STACK,)),
+    # S-01 (0.3.0): the names of question and feedback variables in student answers
+    # (the feedback variables, names inside expressions and two names in one answer:
+    # only stack/supplement's forbidden-variables.xml reaches them).
+    'stack-s01-question-variables': ('stack/engine.py', '    names = set(env)\n', '    names = set()\n', 1, (STACK,)),
+    'stack-s01-feedback-variables': ('stack/engine.py', 'names.add(match.group(1))', 'pass', 1, (STACK,)),
+    'stack-s01-whole-answer-only': ('stack/engine.py', '    for node in _walk(tree):\n        if node.kind == "name" and node.value in names',
+                                    '    for node in [tree]:\n        if node.kind == "name" and node.value in names', 1, (STACK,)),
+    'stack-s01-first-name-only': ('stack/engine.py', '" ".join(FORBIDDEN_VARIABLE.format(name=name) for name in found)',
+                                  'FORBIDDEN_VARIABLE.format(name=found[0])', 1, (STACK,)),
+    'stack-s01-message': ('stack/engine.py', 'FORBIDDEN_VARIABLE = "Forbidden variable or constant: {name}."',
+                          'FORBIDDEN_VARIABLE = "Forbidden variable: {name}."', 1, (STACK,)),
 }
 
 # A few minutes: CI runs them in a step of their own (CTM_MUTATION_TESTS=1).

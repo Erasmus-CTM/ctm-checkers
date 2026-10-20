@@ -52,8 +52,10 @@ that mutations of the checks fail them, on Python 3.9 to 3.13 and in Pyodide
 0.27.2 and 0.28.3. A local `verify` works on any of those Python versions.
 A pull request that changes golden rows must name its grading change and
 list it in the CHANGELOG (`golden.py check-changelog`).
-`Native STACK` compares the STACK engine with native STACK in Maxima and
-renders the compliance report (stack-sympy's site calls it at its pin).
+`Native STACK` compares the STACK engine with native STACK in Maxima (and,
+for answers that name question variables, with STACK's own input
+validation in PHP) and renders the compliance report (stack-sympy's site
+calls it at its pin).
 
 - [docs/consolidation-notes.md](docs/consolidation-notes.md): notes for the
   next pull requests of the consolidation (ctm-libs, math-exercise, the

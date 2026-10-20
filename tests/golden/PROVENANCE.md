@@ -60,7 +60,7 @@ Rows that ran longer than 20 s are listed in `stack/excluded.json`, not recorded
 | `stack/questions-course.jsonl` | 232 | course material: the STACK questions derived from the course ingmat3a_ntnu (examples/stack/course-b-rank-pivots.xml, course-b-nullspace.xml, course-c-nullspace.xml); see below; recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | the questions CC-BY-SA-4.0 (course material, Andrey Chesnokov; examples/stack/course-examples-provenance.json); the checker file examples/stack/matrix-checkers.py and the answers AGPL-3.0-or-later |
 | `stack/probes.jsonl` | 207 | answer-test probes of the stack-sympy audit (ctm-assessment docs/consolidation/stack-sympy-audit-2026-10/probes: cases1-4.json, perf*.py) with the native verdicts of STACK 10d3233 and Maxima 5.46 (out1-4.json); recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | AGPL-3.0-or-later; the "native" values are output of STACK (GPL-3.0-or-later) and Maxima |
 | `stack/probe-questions.jsonl` | 285 | question probes of the stack-sympy audit (examples/stack/probes/*.xml with the answers of its qprobe.py, crash.py and overflow.cjs); recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | AGPL-3.0-or-later |
-| `stack/supplement.jsonl` | 153 | inputs written for these tables (tools/golden_stack.py SUPPLEMENT, examples/stack/supplement/): rules that no other row reached (the review of C3); recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | AGPL-3.0-or-later |
+| `stack/supplement.jsonl` | 159 | inputs written for these tables (tools/golden_stack.py SUPPLEMENT, examples/stack/supplement/): rules that no other row reached (the review of C3); recorded with stack-sympy `f450bcd6adbd` (Python 3.9, 3.10, 3.11, 3.12, 3.13) | AGPL-3.0-or-later |
 
 ### HELM samples, CC BY-NC 4.0: `stack/questions-helm.jsonl`
 
@@ -90,3 +90,12 @@ AC decided on 20 October 2026 that these committed
 files have a table of their own (`course-b-rank-pivots.xml` is S-01's test case). No other table holds rows
 of course material, and rows generated from the course repositories themselves (ctm-demo, ingmat3a) stay
 in the umbrella's parity harness (step-2 design §13 item 7).
+
+## Grading changes
+
+A grading change after the recording (CHANGELOG, "Grading changes") wrote the rows it changed with
+ctm-checkers' own code (`tools/golden.py update`), and the rows it added; a row whose result is not the
+legacy code's keeps that result as `legacy` and names the change in `changes`. Inputs and licences are
+those of the table.
+
+- S-01: ctm-checkers 0.3.0 (Python 3.12); rows naming it: `stack/probe-questions.jsonl` 13, `stack/questions-course.jsonl` 16, `stack/questions-helm.jsonl` 64, `stack/questions-library.jsonl` 140, `stack/questions-project.jsonl` 127, `stack/supplement.jsonl` 12.

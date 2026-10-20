@@ -327,9 +327,9 @@ def _answer_sets(engine, question, variant, full):
     """Answer sets for one variant: the teacher's answers, the question tests'
     inputs, and for each input in turn (the others keep the teacher's answer):
     sign, offsets and a multiple of the teacher's answer, its factored,
-    expanded and decimal forms, every question variable's name (S-01) and
-    strings the input rules must handle. `full`: all of them; else the
-    teacher's answers, the tests' inputs and the sign."""
+    expanded and decimal forms, every question and feedback variable's name
+    (S-01) and strings the input rules must handle. `full`: all of them; else
+    the teacher's answers, the tests' inputs and the sign."""
     sp = importlib.import_module('sympy')
     eng = engine.engine
     env = eng._environment(question, variant)
@@ -367,7 +367,10 @@ def _answer_sets(engine, question, variant, full):
                         candidates.append(str(sp.N(value, 8)))
                     except Exception:
                         pass
-            candidates += sorted(variant['env'])
+            # The names a student may not use (ctm-checkers 0.3.0 adds the feedback
+            # variables'; stack-sympy's engine has no _author_names).
+            names = eng._author_names(question, variant['env']) if hasattr(eng, '_author_names') else variant['env']
+            candidates += sorted(names)
             candidates += INVALID
         for candidate in candidates:
             sets.append(dict(teacher, **{name: candidate}))
@@ -400,6 +403,11 @@ PROBE_ANSWERS = {
     'examples/stack/numerical-measurement.xml': [{'perimeter': 'ta_perimeter', 'area': 'ta_area', 'area2': 'ta_area'}],
     'examples/stack/python-checker.xml': [{'ans': 'd'}],
     'examples/stack/zero-product.xml': [{'ans': 'ta'}],
+    # S-01: question variables (k, f, ta) and feedback variables (d, sa) in
+    # an answer, alone, inside an expression, with implied multiplication,
+    # twice, and both kinds at once (ANSWERS_ONLY).
+    'examples/stack/supplement/forbidden-variables.xml': [
+        {'ans1': 'ta'}, {'ans1': 'd'}, {'ans1': 'sa'}, {'ans1': '2ta-ta'}, {'ans1': 'k*2*x+1'}, {'ans1': 'd+0*f'}],
     # The input rules no other row reached (the review of C3): forbidden
     # words in any case, the numerical input's type, lowest terms with two
     # negative numbers, and/or precedence in the validation's LaTeX, the
@@ -412,6 +420,12 @@ PROBE_ANSWERS = {
             {'ans5': 'matrix(' + ','.join('[' + ','.join(['1'] * 13) + ']' for _ in range(5)) + ')'},
             {'ans5': 'matrix(' + ','.join('[' + ','.join(['1'] * 8) + ']' for _ in range(8)) + ')'})],
 }
+
+
+# Questions whose rows are only the answers in PROBE_ANSWERS at seed 1, each of
+# which uses a question or feedback variable's name: S-01's question, so that
+# the golden diff of S-01 (ctm-checkers 0.3.0) touches only such rows.
+ANSWERS_ONLY = ('examples/stack/supplement/forbidden-variables.xml',)
 
 
 def question_inputs(engine, folder, out=print):
@@ -431,6 +445,11 @@ def question_inputs(engine, folder, out=print):
     for path in files:
         checkers = checkers_of(path, blocks)
         base = {'file': path, **({'python_checkers': checkers} if checkers else {})}
+        if path in ANSWERS_ONLY:
+            for question in engine.questions(base):
+                for answers in PROBE_ANSWERS[path]:
+                    add('stack.answer', dict(base, question=question['name'], seed=1, answers=answers), ['answer'])
+            continue
         add('stack.import', base, ['import'])
         try:
             questions = engine.questions(base)

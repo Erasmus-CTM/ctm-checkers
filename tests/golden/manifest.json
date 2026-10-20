@@ -62,6 +62,12 @@
   ],
   "umbrella": "10f8c9d01d519e81e61ec99fdf2cc78333824d24"
  },
+ "changes": {
+  "S-01": {
+   "python": "3.12",
+   "version": "0.3.0"
+  }
+ },
  "files": [
   "_includes/tests/dynamic-column-space-basis.py",
   "_includes/tests/dynamic-eigenspace-basis.py",
@@ -268,7 +274,7 @@
     "3.12",
     "3.13"
    ],
-   "rows": 153
+   "rows": 159
   }
  }
 }

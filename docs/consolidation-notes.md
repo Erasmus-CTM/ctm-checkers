@@ -126,14 +126,26 @@ After the independent review of C3 (ctm-checkers #4), AC decided:
     in ctm-checkers;
   - the CTM-authored example XML in `examples/stack/` keeps CC BY-SA 4.0.
 
-## Before the first grading-change pull request (fixes, B rows)
+## Grading changes (fixes, B rows), from 0.3.0
 
-- `tools/golden.py diff --base origin/main` (the summary of a golden diff:
-  rows per table, status transitions) and `check-changelog` (a pull request
-  that changes rows needs a "Grading changes" entry), design §6.4 and §7,
-  are not implemented: 0.1.0 has no grading changes. They must exist before
-  the first fix or B-row pull request relies on golden diffs as evidence.
-- The H2 golden rule (design §6.6) as a CI rule: a pull request that
-  changes STACK rows (`tests/golden/stack/`) must not change math-exercise
-  rows (`tests/golden/math_exercise/`), and vice versa. Today the review
-  checks it by hand (C3 changes no `math_exercise/*` row).
+- 0.3.0 (S-01, design §9 order 1) is the first grading change. Its pull
+  request brought the tools the next ones use (docs/goldens.md, "Grading
+  changes"): `tools/golden.py update --change NAME` writes the changed rows
+  (the legacy code's result kept as `legacy`, the change named in
+  `changes`), `diff --base REF [--rows]` the summary for the pull request and
+  the CHANGELOG, and `check-changelog --base REF`, which CI runs on every
+  pull request: STACK's and math-exercise's rows never change together
+  (H2), each changed result names its change, the version is a new MINOR one
+  (0.x) and the CHANGELOG names the change under "Grading changes".
+- STACK fixes about input validation can be checked against native STACK's
+  own PHP validation: `tools/stack_native/check_validation.py` (STACK's API
+  emulation of Moodle, PHP 8, no Maxima; the `native` job of
+  `native-stack.yml`). It takes the golden rows whose answers name a question
+  variable; S-13 (STACK's input rules) can extend it to its own rows. Of its
+  15 "other message" answers today, 14 are S-13's (STACK checks a name with
+  `_` part by part and forbids unknown names of three letters or more:
+  `ta_perimeter` gives "perimeter"); the 15th, `d+0*f`, also names a feedback
+  variable, which STACK does not forbid.
+- The next fixes, one pull request each in §9's order: S-02 (`I`, `E`),
+  S-13, S-07, S-05, S-10, S-11, S-12, S-04, S-08, S-09, then S-06 (a plain
+  fix, AC 19 Oct); S-03 stays as it is until the STACK author answers.

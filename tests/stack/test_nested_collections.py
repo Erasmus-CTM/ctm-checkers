@@ -232,9 +232,12 @@ def test_transformed_decimal_lists_fail_closed(source):
 def test_learner_decimal_qvar_aliases_fail_validation_and_exact_teachers_keep_float_path():
     q=base_question();q['variables']='a:6; ordered:[102/5]; unordered:{1,2}; d:100.4-80.0; alias:d;'
     v=instantiate(q,17)
-    for source in ('[d]','[[alias]]','{d}'):
+    # S-01 (0.3.0): a learner may not name a question variable at all, so
+    # these answers stop at STACK's "forbidden variable" before the rule on
+    # decimal author aliases ("... use exact fractions") is reached.
+    for source, name in (('[d]', 'd'), ('[[alias]]', 'alias'), ('{d}', 'd')):
         result=validate(q,{'sequence':source,'members':'{1,2}','explained':'{1,2}'},variant=v)
         assert not result['inputs']['sequence']['valid']
-        assert 'exact fractions' in result['inputs']['sequence']['feedback']
+        assert result['inputs']['sequence']['feedback'] == f'Forbidden variable or constant: {name}.'
     assert not answer_test('AlgEquiv','[100.4-80.0]','ordered',env={'ordered':[sp.Rational(102,5)]})['correct']
     assert not answer_test('AlgEquiv','[[100.4-80.0]]','ordered',env={'ordered':[[sp.Rational(102,5)]]})['correct']
