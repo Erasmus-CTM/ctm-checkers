@@ -219,7 +219,9 @@ TABLES = {
     'stack/reference': ("stack-sympy's reference cases for the native comparison (tests/stack/reference_cases.json)",
                         'AGPL-3.0-or-later'),
     'stack/questions-project': ("stack-sympy's own example questions (examples/stack/*.xml) with their checker files, "
-                                "and the answers of the stack-sympy audit's leak.py (S-01)", 'AGPL-3.0-or-later'),
+                                "and the answers of the stack-sympy audit's leak.py (S-01)",
+                                'the questions CC-BY-SA-4.0 as each file states (determinant-one.xml AGPL-3.0-or-later); '
+                                'the checker files and the answers AGPL-3.0-or-later'),
     'stack/questions-library': ('STACK sample questions: the corpus (examples/stack/corpus), the corrected teaching '
                                 'copies (examples/stack/corrected) and AlgMap-6.1 (examples/stack/upstream)',
                                 'CC-BY-SA-4.0; examples/stack/corpus/COPYING.txt, examples/stack/upstream/COPYING.txt'),

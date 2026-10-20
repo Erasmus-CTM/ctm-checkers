@@ -1227,6 +1227,8 @@ def write_provenance():
     for name, info in sorted(capture['files'].items()):
         lines.append(f'| `{name}` | {info.get("rows")} | captured from math-exercise `{corpus.get("commit", "")[:12]}` | {info.get("licence")} |')
     for suite, info in sorted(manifest.get('recorded', {}).items()):
+        if suite in golden_stack.TABLES:
+            continue  # the STACK section below
         lines.append(f'| `{suite}.jsonl` | {info["rows"]} | recorded with math-exercise `{manifest["legacy"]["math-exercise"][:12]}` (Python {", ".join(info["python"])}) | AGPL-3.0-or-later |')
     for name in manifest.get('files', []):
         lines.append(f'| `math_exercise/files/{name}` | — | math-exercise `{corpus.get("commit", "")[:12]}`, named by an authored test | {corpus.get("licence")} |')
