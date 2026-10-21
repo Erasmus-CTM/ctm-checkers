@@ -43,7 +43,7 @@ jobs:
       - name: Same authored tests from the actual built wheel
         run: |
           folder="$PWD/_extensions/ctm-checkers"
-          CTM_CHECKERS_WHEEL="$folder/$(python -c 'import json; print(json.load(open("_extensions/ctm-checkers/checkers.json"))["wheel"])')" pytest -q tests/test_question_tests.py tests/test_authored.py
+          CTM_CHECKERS_WHEEL="$folder/$(python -c 'import json; print(json.load(open("_extensions/ctm-checkers/checkers.json"))["wheel"])'):$folder/$(python -c 'import json; print(json.load(open("_extensions/ctm-checkers/checkers.json"))["parts"]["stack"]["wheel"])')" pytest -q tests/test_question_tests.py tests/test_authored.py
       - name: Checksummed canonical binary and UTF-8 output
         if: matrix.python == '3.12'
         run: |
