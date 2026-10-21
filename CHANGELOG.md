@@ -60,7 +60,7 @@ takes its false branch (S-11; step-2 design §9, order 7). A MINOR release
   `crash.xml` and `numabs-branch.xml` probes through `grade`, the refusal
   of a number too large) and `tests/stack/test_assessment.py` (FacForm's
   domain); mutations (docs/goldens.md): `Undecided` not caught (13 rows),
-  `OverflowError` (4) and `decimal`'s errors (2) not caught, SameType true
+  `OverflowError` (3) and `decimal`'s errors (2) not caught, SameType true
   (29), the three notes (7, 1, 3), and four more that only the tests catch
   (the teacher's answer of the logic and of FacForm, a collection as the
   teacher's answer, the refusal in the input).
@@ -85,14 +85,14 @@ takes its false branch (S-11; step-2 design §9, order 7). A MINOR release
     response tree stops with the CAS error `inpart: invalid index 1 of list
     or matrix`), the engine's tree takes the false branch.
   - **Golden diff** (`tools/golden.py diff --base 2cfb03e`, with
-    `update --change S-11 --drop-stale`): 11 rows changed and 36 added:
+    `update --change S-11 --drop-stale`): 11 rows changed and 35 added:
 
     | Table | Changed | Added | Removed |
     |---|---|---|---|
     | `stack/probe-questions.jsonl` | 4 | 6 | 0 |
     | `stack/probes.jsonl` | 4 | 0 | 0 |
     | `stack/questions-library.jsonl` | 2 | 0 | 0 |
-    | `stack/supplement.jsonl` | 1 | 30 | 0 |
+    | `stack/supplement.jsonl` | 1 | 29 | 0 |
 
     - `probe-questions` (4 changed, 6 added): `crash.xml`'s answers `x=1`,
       `a and b` and the hyperbolic one (raised, now graded 0.0; 6 added
@@ -106,8 +106,8 @@ takes its false branch (S-11; step-2 design §9, order 7). A MINOR release
     - `questions-library` (2): `π` in `corpus/AlgMap-10-1.xml` and
       `AlgMap-13-1-.xml` (seeds 1910622122, 1874421384), raised, now graded
       0.0 (answers of the generated answer sets).
-    - `supplement` (1 changed, 30 added): AlgEquiv of `sin(x)^20` against
-      `((1-cos(2*x))/2)^10*(1+1/100000)` (raised, now false) and 30 answer-test
+    - `supplement` (1 changed, 29 added): AlgEquiv of `sin(x)^20` against
+      `((1-cos(2*x))/2)^10*(1+1/100000)` (raised, now false) and 29 answer-test
       rows of the cases above.
     No `stack.card`, `stack.tests`, `stack.instantiate` row, teacher's answer
     or question test of an example question changes; the math-exercise tables

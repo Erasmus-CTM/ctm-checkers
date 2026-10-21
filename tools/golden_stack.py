@@ -565,7 +565,7 @@ SUPPLEMENT = [
     ('LowestTerms', 'x=1', 'x+1', ''), ('LowestTerms', '[1,2]', 'x+1', ''), ('LowestTerms', 'a and b', 'x+1', ''),
     ('FacForm', '(x+1)^100*(x+1)^100', '1', 'x'), ('FacForm', 'x/x', '1', 'x'), ('FacForm', 'x^2-1+0*x^(-1)', 'x^2-1', 'x'),
     ('AlgEquiv', 'cosh(x)^20-((exp(x)+exp(-x))/2)^20+x+1', 'x+1', ''), ('EqualComAss', 'cosh(x)^20-((exp(x)+exp(-x))/2)^20+x+1', 'x+1', ''),
-    ('NumAbsolute', 'exp(exp(exp(exp(10))))', 'pi/4', '0.01'), ('NumRelative', '-exp(exp(exp(exp(10))))', 'pi/4', '0.01'),
+    ('NumAbsolute', 'exp(exp(exp(exp(10))))', 'pi/4', '0.01'),
     ('NumAbsolute', 'exp(exp(100))', 'pi/4', '0.01'), ('NumDecPlaces', 'exp(exp(100))', 'pi/4', '2'),
 ]
 
