@@ -143,8 +143,8 @@ After the independent review of C3 (ctm-checkers #4), AC decided:
   `native-stack.yml`). It takes the golden rows whose answers name a question
   variable; since 0.6.0 (S-13) it also compares every golden answer with
   STACK's verdict and, for the rules S-13 follows, its message. Its one
-  "other message" of S-01 is `d+0*f`, which also names a feedback variable,
-  which STACK does not forbid.
+  "other message" of S-01 is `d+0*f`, which also names a feedback variable
+  (S-01).
 - 0.4.0 (the review of S-01), 0.5.0 (S-02, `I` and `E`) and 0.6.0 (S-13,
   input rules) followed as one set. The next fixes, one pull request each in
   §9's order: S-07, S-05, S-10, S-11, S-12, S-04, S-08, S-09, then S-06 (a

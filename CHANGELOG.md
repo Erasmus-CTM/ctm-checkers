@@ -42,9 +42,9 @@ script `ctm-checkers-stack.js` from 91 to 128 kB; math pages do not load it.
     (`ta_perimeter`: perimeter, as STACK; before: ta_perimeter). Case:
     `Sin(x)`, `SQRT(x)`, `Diff(x)` ("Input is case sensitive: Sin is an
     unknown function. Did you mean sin?"), `PI`, `XI`, `ALPHA` (… unknown
-    variable …), `In(x)` (STACK's "Lima November" message). The question
-    variables stay forbidden as a whole (S-01), also where STACK lets
-    `a_b` or `alpha` through, and so do the feedback variables.
+    variable …), `In(x)` (STACK's "Lima November" message). The names of
+    question and feedback variables stay forbidden as a whole (S-01),
+    whatever these rules say of their parts.
   - `0^0` (also `(x-x)^0`, `0.0^0`): Maxima's error "expt: undefined: 0^0",
     STACK's validation error (SymPy's 0**0 is 1).
   - The inverse trigonometric functions (`asin`, `acos`, `atan`, `asec`,
@@ -63,7 +63,8 @@ script `ctm-checkers-stack.js` from 91 to 128 kB; math pages do not load it.
   current. Tests: `tests/stack/test_input_text.py` (54 answers with native
   STACK's verdict and message, `0^0`, the inverse functions, the question
   tests); question `examples/stack/supplement/input-text.xml`; twelve
-  mutations (docs/goldens.md).
+  mutations (docs/goldens.md, which counts every STACK mutation's rows
+  anew); S-01's mutations follow the names' new home in `student_input`.
   - **Native STACK** (`tools/stack_native/check_validation.py`, now on every
     golden answer: STACK `10d3233`'s PHP input validation; the S-13 rows
     are those that name S-13): of the 1,003 inputs of the 522 rows that
@@ -76,7 +77,7 @@ script `ctm-checkers-stack.js` from 91 to 128 kB; math pages do not load it.
     answer); 1 adds STACK's error for a forbidden operator (HELM's
     `bodmas.xml` forbids `*`, a rule outside S-13); 0 disagree. Of all
     5,174 golden answers: 4,455 agree, 439 the other rules, 269 after
-    STACK's PHP, 5 S-01 stricter (feedback variables), 2 other message
+    STACK's PHP, 5 S-01 names (listed apart), 2 other message
     (two rules at once), 4 valid here but invalid for STACK by its
     forbidden operators (bodmas.xml, as before), 0 disagree. S-01's
     answers: 376 of 382 agree in verdict and message (in 0.4.0: 356 of

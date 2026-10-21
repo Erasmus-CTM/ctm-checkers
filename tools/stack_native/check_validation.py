@@ -38,9 +38,8 @@ S-13, every input of a `stack.answer` row (not empty):
 - after STACK's PHP: valid for STACK's PHP validation, invalid here by a rule
   of the CAS side (Maxima's 0^0; matrix and collection types, scalar
   arithmetic, numbers, lowest terms), which PHP alone does not decide;
-- S-01 stricter: valid for STACK, invalid here because the answer names a
-  feedback variable or a question variable that STACK lets through (a_b,
-  alpha);
+- S-01 names: invalid here because the answer names a question or feedback
+  variable, which this engine forbids as a whole (S-01); listed apart;
 - other rule, valid here: invalid for STACK by a rule that S-13 does not take
   on (a forbidden word that is an operator: STACK forbids `+` in HELM's
   bodmas.xml), valid here; listed, as before S-13;
@@ -158,7 +157,7 @@ def s13_kind(mine, theirs, feedback_names):
         named = re.findall(r'Forbidden variable or constant: ([^ ]+)\.(?: |$)', mine['feedback'])
         if s13_mine and named and mine['feedback'] == ' '.join(f'Forbidden variable or constant: {n}.' for n in named) \
                 and all(n in feedback_names or '_' in n or n in stack_data.READABLE for n in named):
-            return 'S-01 stricter'
+            return 'S-01 names'
         return 'disagree' if s13_mine else 'after STACK\'s PHP'
     if mine['valid']:
         # STACK's error is a rule S-13 does not take on (forbidden words as

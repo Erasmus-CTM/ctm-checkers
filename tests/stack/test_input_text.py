@@ -127,7 +127,7 @@ def test_the_question_graded_with_unicode_and_arc_names():
 
 
 @pytest.mark.parametrize("answer, message", [
-    ("a_b", "Forbidden variable or constant: a_b."),     # STACK lets a_b through: its parts are allowed
+    ("a_b", "Forbidden variable or constant: a_b."),     # forbidden as a whole, although its parts are allowed
     ("d", "Forbidden variable or constant: d."),         # a feedback variable (S-01)
     ("k_1", ""), ("k1", ""),
 ])

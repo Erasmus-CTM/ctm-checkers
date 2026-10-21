@@ -105,15 +105,17 @@ MUTATIONS = {
     # S-01 (0.3.0): the names of question and feedback variables in student answers
     # (the feedback variables, names inside expressions and two names in one answer:
     # only stack/supplement's forbidden-variables.xml reaches them).
-    'stack-s01-question-variables': ('stack/engine.py', '    names = set(env)\n', '    names = set()\n', 1, (STACK,)),
+    'stack-s01-question-variables': ('stack/student_input.py', '    keys = frozenset(question_variables)\n',
+                                     '    keys = frozenset()\n    author_names = set(author_names) - set(question_variables)\n', 1, (STACK,)),
     'stack-s01-feedback-variables': ('stack/engine.py',
                                      'names.update(name for name, _ in assignment_statements(prt.get("feedbackvariables", "")) if name)',
                                      'pass', 1, (STACK,)),
-    'stack-s01-whole-answer-only': ('stack/engine.py', '    for node in _walk(tree):\n        if node.kind == "name" and node.value in names',
-                                    '    for node in [tree]:\n        if node.kind == "name" and node.value in names', 1, (STACK,)),
-    'stack-s01-first-name-only': ('stack/engine.py', '" ".join(FORBIDDEN_VARIABLE.format(name=name) for name in found)',
-                                  'FORBIDDEN_VARIABLE.format(name=found[0])', 1, (STACK,)),
-    'stack-s01-message': ('stack/engine.py', 'FORBIDDEN_VARIABLE = "Forbidden variable or constant: {name}."',
+    # (Since S-13, 0.6.0, the names of an answer are checked in student_input.identifier_messages.)
+    'stack-s01-whole-answer-only': ('stack/student_input.py', 'for index, (kind, value) in enumerate(tokens):',
+                                    'for index, (kind, value) in enumerate(tokens if len(tokens) == 1 else []):', 1, (STACK,)),
+    'stack-s01-first-name-only': ('stack/engine.py', '        raise InvalidAnswer(" ".join(messages))\n    return tree',
+                                  '        raise InvalidAnswer(messages[0])\n    return tree', 1, (STACK,)),
+    'stack-s01-message': ('stack/student_input.py', 'FORBIDDEN_VARIABLE = "Forbidden variable or constant: {name}."',
                           'FORBIDDEN_VARIABLE = "Forbidden variable: {name}."', 1, (STACK,)),
     # The review of S-01 (0.4.0): every response tree's feedback variables, the
     # assignments' separators (one grammar: expressions.assignment_statements),
