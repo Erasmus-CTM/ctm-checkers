@@ -157,24 +157,29 @@ MUTATIONS = {
 
 # Mutations that no golden row reaches and that tests/ catch: the pytest files of the test column must fail on the
 # mutated copy of src/. S-13: the globally forbidden names (error, lisp), the names that Maxima's syntax reserves
-# (do), the names of question variables that are readable words (alpha) or have underscores (a_b, v_0), and the
-# question tests' inputs validated as the unsimplified value (abc*0+ta).
+# (do), the S-01 name check for further question-variable names (alpha, a_b, v_0, ...), and the question tests'
+# inputs validated as the unsimplified value (abc*0+ta) and written as a student writes them (abs, mod).
 TESTS = {
     'stack-s13-globally-forbidden-names': ('stack/student_input.py', '        if name in stack_data.GLOBALLY_FORBIDDEN:', '        if False:', 1,
                                            ('tests/stack/test_input_text.py',)),
     'stack-s13-reserved-names': ('stack/student_input.py', '    if name in stack_data.UNREADABLE:\n        return False\n', '', 1,
                                  ('tests/stack/test_input_text.py',)),
-    'stack-s01-readable-names-allowed': ('stack/student_input.py', '        if name in author_names and len(messages) == before:',
-                                         '        if name in author_names and not _readable(name, keys) and len(messages) == before:', 1,
-                                         ('tests/stack/test_input_text.py',)),
-    'stack-s01-names-by-parts': ('stack/student_input.py', '        if name in author_names and len(messages) == before:',
-                                 '        if any(part in author_names for part in name.split("_")) and len(messages) == before:', 1,
-                                 ('tests/stack/test_input_text.py',)),
+    'stack-s01-names-a': ('stack/student_input.py', '        if name in author_names and len(messages) == before:',
+                          '        if name in author_names and not _readable(name, keys) and len(messages) == before:', 1,
+                          ('tests/stack/test_input_text.py',)),
+    'stack-s01-names-b': ('stack/student_input.py', '        if name in author_names and len(messages) == before:',
+                          '        if any(part in author_names for part in name.split("_")) and len(messages) == before:', 1,
+                          ('tests/stack/test_input_text.py',)),
     'stack-s13-question-tests-unsimplified': ('stack/engine.py', '        for text in ([displayed[key]] if displayed and key in displayed else []) + [answers.get(key, "")]:',
                                               '        for text in [answers.get(key, "")]:', 1, ('tests/stack/test_question_test_inputs.py',)),
     'stack-s13-question-tests-computed': ('stack/engine.py', '            actual = grade(question, raw, variant=variant, displayed=displayed)',
                                            '            actual = grade(question, {key: "x" for key in raw}, variant=variant, displayed=displayed)', 1,
                                            ('tests/stack/test_question_test_inputs.py',)),
+    'stack-s13-question-tests-abs': ('stack/expressions.py', 'return f"abs({self._print(expr.args[0])})"', 'return f"Abs({self._print(expr.args[0])})"', 1,
+                                     ('tests/stack/test_question_test_inputs.py',)),
+    'stack-s13-question-tests-mod': ('stack/expressions.py', 'return f"mod({self._print(expr.args[0])}, {self._print(expr.args[1])})"',
+                                     'return f"Mod({self._print(expr.args[0])}, {self._print(expr.args[1])})"', 1,
+                                     ('tests/stack/test_question_test_inputs.py',)),
 }
 
 # A few minutes: CI runs them in a step of their own (CTM_MUTATION_TESTS=1).

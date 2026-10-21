@@ -63,7 +63,6 @@ import golden  # noqa: E402
 from ctm_checkers.stack import engine  # noqa: E402
 from ctm_checkers.stack.expressions import parse  # noqa: E402
 from ctm_checkers.stack.importer import import_xml  # noqa: E402
-from ctm_checkers.stack import stack_data  # noqa: E402
 
 FORBIDDEN = 'Forbidden variable or constant: '
 
@@ -142,10 +141,10 @@ def all_cases():
                 item = inputs[name]
                 yield row, name, {'raw': text, 'forbiddenkeys': written, 'insertstars': item.get('insertstars', 0),
                                   'forbidwords': item['forbidwords'], 'forbidfloat': bool(item['forbidfloat']), 'type': item['type']}, \
-                    engine._author_names(question, variants[vkey]['env']) - set(written)
+                    engine._author_names(question, variants[vkey]['env'])
 
 
-def s13_kind(mine, theirs, feedback_names):
+def s13_kind(mine, theirs, author_names):
     stack_text = text_of(theirs['errors'])
     notes = set(theirs['notes'].split(' | ')) if theirs['notes'] else set()
     s13_mine = not mine['valid'] and mine['feedback'].startswith(S13_MESSAGES)
@@ -154,7 +153,7 @@ def s13_kind(mine, theirs, feedback_names):
             return 'agree'
         named = re.findall(r'Forbidden variable or constant: ([^ ]+)\.(?: |$)', mine['feedback'])
         if s13_mine and named and mine['feedback'] == ' '.join(f'Forbidden variable or constant: {n}.' for n in named) \
-                and all(n in feedback_names or '_' in n or n in stack_data.READABLE for n in named):
+                and all(n in author_names for n in named):
             return 'S-01 names'
         return 'disagree' if s13_mine else 'after STACK\'s PHP'
     if mine['valid']:
@@ -227,10 +226,10 @@ def main():
                        'feedback_names': case['feedback_names'], 'ctm_checkers': mine,
                        'stack': {'valid': theirs['valid'], 'errors': stack_text, 'notes': theirs['notes']}})
     s13_counts, s13 = {}, []
-    for row, name, case, feedback_names in everything:
+    for row, name, case, author_names in everything:
         mine = row['output']['validate']['inputs'][name]
         theirs = results[fields_of(case)]
-        kind = s13_kind(mine, theirs, feedback_names)
+        kind = s13_kind(mine, theirs, author_names)
         s13_counts[kind] = s13_counts.get(kind, 0) + 1
         s13.append({'kind': kind, 'suite': row['suite'], 'id': row['id'], 'file': row['input']['file'], 'seed': row['input']['seed'],
                     'input': name, 'answer': case['raw'], 'ctm_checkers': mine,

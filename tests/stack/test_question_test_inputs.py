@@ -25,7 +25,7 @@ HEAD = """<?xml version="1.0" encoding="UTF-8"?>
 <!-- Question tests that compute their inputs from the teacher's answer. AGPL-3.0-or-later. -->
 <quiz><question type="stack">
 <name><text>question-test-inputs</text></name>
-<questionvariables><text>k: 3; ta: k*x^2;</text></questionvariables>
+<questionvariables><text>k: 3; ta: {ta};</text></questionvariables>
 <questiontext format="html"><text><![CDATA[<p>[[input:ans1]] [[validation:ans1]] [[feedback:prt1]]</p>]]></text></questiontext>
 <defaultgrade>1</defaultgrade><penalty>0.1</penalty><questionsimplify>1</questionsimplify>
 <input><name>ans1</name><type>algebraic</type><tans>ta</tans><insertstars>0</insertstars></input>
@@ -46,10 +46,33 @@ CASES = [
 ]
 
 
-def question():
-    xml = HEAD + "".join(TEST.format(n=n, value=value, score=score, penalty=0 if score else 0.1, note="T" if score else "F")
-                         for n, (value, score, _, _) in enumerate(CASES, 1)) + "</question></quiz>"
-    return import_xml(xml)[0]
+# The teacher's answers abs(x-1) and mod(x,3): the computed inputs are written abs(...) and mod(...), the
+# names a student must use (SymPy writes Abs and Mod, which S-13's case rule rejects).
+ABS_CASES = [
+    ("ta", 1, True, ""),
+    ("abs(x-1)", 1, True, ""),
+    ("ans1", 1, True, ""),
+    ("ta+0", 1, True, ""),
+    ("-(-ta)", 1, True, ""),
+    ("(ta)^1", 1, True, ""),
+    ("abs(x-1)+1", 0, True, ""),
+]
+MOD_CASES = [
+    ("ta", 1, True, ""),
+    ("mod(x,3)", 1, True, ""),
+    ("ans1+0", 1, True, ""),
+    ("mod(x,3)+1", 0, True, ""),
+]
+
+
+def question_xml(cases=CASES, ta="k*x^2"):
+    return (HEAD.replace("{ta}", ta)
+            + "".join(TEST.format(n=n, value=value, score=score, penalty=0 if score else 0.1, note="T" if score else "F")
+                      for n, (value, score, _, _) in enumerate(cases, 1)) + "</question></quiz>")
+
+
+def question(cases=CASES, ta="k*x^2"):
+    return import_xml(question_xml(cases, ta))[0]
 
 
 @pytest.mark.parametrize("seed", [1, 2, 17])
@@ -63,6 +86,32 @@ def test_question_tests_compute_their_inputs_as_stack_does(seed):
         assert actual["feedback"] == message, value
         if message:
             assert result["actual"]["status"] == "invalid" and result["actual"]["prts"] == {}, value
+
+
+@pytest.mark.parametrize("ta, cases", [("abs(x-1)", ABS_CASES), ("mod(x,3)", MOD_CASES)])
+@pytest.mark.parametrize("seed", [1, 17])
+def test_abs_and_mod_in_a_computed_input_are_written_as_a_student_writes_them(ta, cases, seed):
+    # Native STACK passes every test below (its question test results for these
+    # questions, STACK 10d3233 with Maxima 5.46): the computed value is
+    # abs(x-1) or mod(x,3), valid input. SymPy writes Abs(...) and Mod(...), which S-13's
+    # case rule rejects: "Input is case sensitive: Abs is an unknown function".
+    results = run_question_tests(question(cases, ta), seeds=[seed])["results"]
+    assert len(results) == len(cases)
+    for result, (value, _, passes, _) in zip(results, cases):
+        shown = result["actual"]["inputs"]["ans1"]
+        assert shown["valid"] and shown["feedback"] == "", (value, shown)
+        assert result["passed"] is passes, value
+        assert "Abs" not in result["inputs"]["ans1"] and "Mod" not in result["inputs"]["ans1"], value
+
+
+def test_abs_and_mod_are_written_in_the_syntax_of_the_answer():
+    from ctm_checkers.stack.expressions import evaluate, source_text
+    for text, written in (("abs(x-1)", "abs(x - 1)"), ("mod(x,3)", "mod(x, 3)"), ("[abs(x),mod(x,2)]", None),
+                          ("x/abs(x)", "x/abs(x)"), ("cos(abs(x))", "cos(abs(x))")):
+        value = evaluate(text)
+        if written:
+            assert source_text(value) == written
+        assert source_text(evaluate(source_text(value))) == source_text(value), text
 
 
 def test_an_input_name_is_its_teachers_answer():

@@ -48,12 +48,21 @@ _NAMES = {"pi": sp.pi, "%pi": sp.pi, "Pi": sp.pi, "PI": sp.pi,
 
 class _SourcePrinter(StrPrinter):
     """SymPy's text with Maxima's %e and %i for Euler's number and the
-    imaginary unit, which SymPy writes E and I, names of variables here (S-02)."""
+    imaginary unit, which SymPy writes E and I, names of variables here (S-02),
+    and abs and mod for the functions SymPy writes Abs and Mod: a student's
+    answer is case sensitive (S-13), and a question test's input is computed
+    and then validated as one."""
     def _print_Exp1(self, expr):
         return "%e"
 
     def _print_ImaginaryUnit(self, expr):
         return "%i"
+
+    def _print_Abs(self, expr):
+        return f"abs({self._print(expr.args[0])})"
+
+    def _print_Mod(self, expr):
+        return f"mod({self._print(expr.args[0])}, {self._print(expr.args[1])})"
 
 
 def source_text(value) -> str:

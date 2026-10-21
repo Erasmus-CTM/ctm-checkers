@@ -11,7 +11,7 @@
    "name": "ctm-checkers-stack",
    "dependency": "0.6.0",
    "wheel": "ctm_checkers_stack-0.6.0-py3-none-any.whl",
-   "sha256": "af3a81fce278e83c2dcf8da3fb3d2ed62f8ac3eec795b8a030deca0ae81ce602",
+   "sha256": "bf60c8e8daa9d15d793378ed6d6439ebcaa733646e88004f39f37d40a98f11b5",
    "script": "ctm-checkers-stack.js"
   }
  },

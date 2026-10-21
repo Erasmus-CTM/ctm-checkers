@@ -64,7 +64,12 @@ GPL-3.0-or-later`): it grows from 65 to 105 kB, its page script
     with `simp:false`) keeps `abc`; a test that expects a score then fails as
     invalid. Both the unsimplified text and the text that is graded are
     validated; the exemption of the question tests' inputs that this
-    release had before is gone. Corpus `AlgMap-1-6.xml` types `ans+1`, the
+    release had before is gone. The computed value is written as a student
+    writes it: `abs(x-1)` and `mod(x,3)`, not SymPy's `Abs(x - 1)` and
+    `Mod(x, 3)`, which the case rule rejects (native STACK passes a test
+    whose input is `abs(x-1)`, `ta` or `ans1`, with the teacher's answer
+    `abs(x-1)`, or `mod(x,3)` with `mod(x,3)`); this also writes frozen
+    variants and every other value the engine reads back that way. Corpus `AlgMap-1-6.xml` types `ans+1`, the
     input's own name: its inputs are now 9, 9 and 17 (it was `ans + 1`, a
     name a student may not type) and its question tests pass at the three
     deployed seeds; no other question test of `examples/stack/` changes its
@@ -85,9 +90,9 @@ GPL-3.0-or-later`): it grows from 65 to 105 kB, its page script
   `tests/stack/test_input_text.py` (57 answers with native STACK's verdict
   and message, `0^0`, the inverse functions; the globally forbidden names
   `error` and `lisp`, `do`, and the question variables `a_b`, `alpha`,
-  `v_0`), `tests/stack/test_question_test_inputs.py`; question
+  `v_0`), `tests/stack/test_question_test_inputs.py` (with `abs` and `mod`); question
   `examples/stack/supplement/input-text.xml`; twelve mutations of the
-  golden tables and six that pytest catches (docs/goldens.md, which counts
+  golden tables and eight that pytest catches (docs/goldens.md, which counts
   every STACK mutation's rows anew); S-01's mutations follow the names' new
   home in `student_input`. The three S-13 entries added to
   `tests/stack/native_compliance/policy.json` (STACK's own fixtures mark

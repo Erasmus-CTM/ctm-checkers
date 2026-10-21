@@ -91,7 +91,7 @@ def test_question_and_feedback_variables(answer, names):
 
 @pytest.mark.parametrize("answer, score", [("6*x+1", 1.0), ("6x+1", 1.0), ("TA", 0.0), ("ta1", 0.0), ("D", 0.0), ("x", 0.0)])
 def test_other_names_stay_answers(answer, score):
-    # Names are compared exactly, as STACK's forbidden keys are (TA and ta1 are
+    # Names are compared exactly (TA and ta1 are
     # no question variable; tab, a name of three letters, is forbidden since S-13).
     q = question(SUPPLEMENT)
     graded = grade(q, {"ans1": answer}, variant=instantiate(q, 1))

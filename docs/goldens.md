@@ -313,7 +313,7 @@ the first row that differs). Rows that differ in all (of 5,969), by table:
 | `assess_basis` without its coverage factor | 8 | questions-course |
 | the model answer `nullspace_basis(A)` gives a column-space basis | 75 | questions-course |
 | a PythonChecker's assessment (the vector colours) dropped | 64 | questions-course |
-| S-01: question variables not forbidden (neither as STACK's forbidden keys nor as a whole) | 288 | probe-questions 13, questions-project 54, questions-library 125, questions-helm 64, questions-course 16, supplement 16 |
+| S-01: question variables not forbidden | 288 | probe-questions 13, questions-project 54, questions-library 125, questions-helm 64, questions-course 16, supplement 16 |
 | S-01: feedback variables not forbidden | 9 | supplement |
 | S-01: only an answer that is a name alone is checked, not the names inside it | 19 | questions-library 4, supplement 15 |
 | S-01: only the first forbidden name in the message | 4 | supplement |
@@ -370,11 +370,11 @@ Some rules are reached by no golden row; `tests/test_mutations.py` checks
 them with pytest instead (its `TESTS`): the mutation is applied to a copy of
 `src/ctm_checkers` and the named test file must fail on it (and pass on the
 unchanged copy). S-13: the globally forbidden names (`error`, `lisp`), the
-names that Maxima's syntax reserves (`do`), question variables that are
-known words (`alpha`) or have an underscore (`a_b`, `v_0`)
-(`tests/stack/test_input_text.py`), and the question tests' inputs, which
-are computed from the teacher's answers and validated as the unsimplified
-value too (`abc*0+ta`, `tests/stack/test_question_test_inputs.py`).
+names that Maxima's syntax reserves (`do`), and the S-01 name check for
+further question-variable names (`tests/stack/test_input_text.py`); and the
+question tests' inputs, which are computed from the teacher's answers and
+validated as the unsimplified value too (`abc*0+ta`) and written as a student
+writes them (`abs`, `mod`), `tests/stack/test_question_test_inputs.py`.
 
 ## Refreshing the capture
 
