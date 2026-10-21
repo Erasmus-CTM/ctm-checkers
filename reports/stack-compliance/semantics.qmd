@@ -25,8 +25,12 @@ native observation, and port behavior are kept separate below.
 | Priority | Cases and question | What we need from the author |
 |---|---|---|
 | Semantic clarification | [50, 76, 92, 99, 101, 127, 155, 167](#domain-questions) | Specify the domain or branch assumptions for these accepted identities. The table gives counterexamples under principal-complex semantics and a question for each row. |
+| Domain/design clarification | [`log(x^2)` against `2*log(abs(x))`](#log-square), next to [155](#domain-questions) | Confirm whether `AlgEquiv` should reject `2*log(abs(x))` for a teacher's `log(x^2)` while it accepts `2*log(x)`. Maxima's default `logexpand:true` stores that teacher's answer as `2*log(x)` before any test runs. |
 | Fixture/domain clarification | [471](#case-471) | Confirm whether real `x` is part of the intended fixture contract. Its identity holds for real `x` but fails at `x=-i`; proving the real case in the port is separate engineering work. |
 | Set compatibility clarification | [212](#exact-sets) | Confirm whether rejection of mathematically equal set members is the intended prepared-form behavior, and what normalization authors should expect. The port currently accepts. |
+| Question, low impact | [Teacher's `1.015` at a tie](#rounding-teacher-tie) | Say whether `NumDecPlaces` and `NumSigFigs` should round the teacher's decimal as written, so that `1.015` gives `1.02`. Both now round it to `1.01`. STACK's fixture "Round teacher answer" (line 2636) suggests rounding as written. |
+| Known limitation: is a fix wanted? | [`abs` of a product](#abs-product): STACK fixture lines 720 and 1992 | Not a new report: STACK's fixtures already record it. Say whether a fix in `AlgEquiv`, and so in `Int`, is wanted; we could offer one. |
+| Documentation clarification | [Tie rules](#tie-rule-docs) | Say whether the `NumDecPlaces` documentation should name its tie rule. `NumDecPlaces` and `NumSigFigs` round `0.125` differently. We could send the sentence. |
 | Optional development advice | [Trig member in a set](#trig-set-identity), [474](#case-474) | Advise whether stronger bounded set preparation/matching or an exact-real algebraic-number proof would be useful. Neither is presented as a semantic dispute requiring approval for the port's current choices. |
 
 Cases [201–203](#exact-sets) are desired exact acceptances that native STACK
@@ -34,6 +38,12 @@ rejects; they are reported for visibility rather than as a request to change the
 expected outcome. Case [80](#reciprocal-roots) follows an explicit published STACK
 convention and needs no new author decision. The remaining sections document
 implemented behavior, proposed development, and deliberate port limits.
+
+The rows on `log(x^2)`, the teacher's tie, `abs` of a product and tie rules
+concern STACK itself rather than the port. Each has a minimal question file
+to download, checked on STACK 4.13.1 and 4.14.0; see
+[Minimal STACK questions](#stack-questions). Their fixture line numbers are
+lines of STACK's `answertestfixtures.class.php`, not case numbers.
 
 ## Implemented behavior and observed native agreement {#implemented}
 
@@ -151,7 +161,7 @@ For nonzero `x,y`, principal powers satisfy
 $$x^{\log y}=\exp(\log y\,\log x)=\exp(\log x\,\log y)=y^{\log x}.$$
 
 The port certifies this case 166 identity by bounded exponential rewriting,
-also used in [STACK's equivalence routine](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/stack/maxima/assessment.mac#L1084-L1180).
+also used in [STACK's equivalence routine](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/stack/maxima/assessment.mac#L1084-L1182).
 This is our mathematical proof, not a located published STACK rationale for the
 particular row. It does not expand logarithms of products or require positive
 real assumptions. The earlier characterization as a different branch
@@ -240,12 +250,48 @@ relevant to 50 and 76, without specifying those bare rows completely.
 [Simplification](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/doc/en/CAS/Simplification.md)
 warns against general nested-power denesting without assumptions, making 92 a
 question rather than a license for blanket rewriting. The
-[equivalence implementation](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/stack/maxima/assessment.mac#L1084-L1180)
+[equivalence implementation](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/stack/maxima/assessment.mac#L1084-L1182)
 sets `logexpand:super` and applies transformations including `radcan`; that is
 a mechanism for logarithmic differences, not a per-case justification for
 ignoring branches. For 50, 99, 101, 127, 155 and 167 we found fixture
 expectations and implementation, but no case-specific published rationale. The
 counterexamples and questions are the port team's analysis.
+
+### `log(x^2)` against `2*log(abs(x))` {#log-square}
+
+This belongs with case 155 (`log(a^2*b) = 2*log(a)+log(b)`, expected 1;
+[fixture line 291](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/tests/fixtures/answertestfixtures.class.php#L291)),
+with a twist: the rewrite drops the `abs`. The identity
+$\ln(x^2)=2\ln|x|$ holds for every real $x\neq 0$, but it is rejected, while
+`2*log(x)`, equal only for $x>0$, is accepted.
+
+[log-square.xml](questions/log-square.xml){download="log-square.xml"}: teacher's answer `ta: log(x^2)`, one `AlgEquiv`
+node, `questionsimplify=1`.
+
+| Answer | Mathematically | STACK 4.13.1 and 4.14.0 |
+|---|---|---|
+| `2*log(abs(x))` | Equal for every real $x\neq 0$ | **Score 0** |
+| `log(abs(x)^2)` | Equal for every real $x\neq 0$ | Score 1 |
+| `2*log(x)` | Equal only for $x>0$ | Score 1 |
+| `log(x)` | Not equal | Score 0 |
+
+With the teacher's answer `2*log(abs(x))` instead, the answers `log(x^2)`,
+`log(abs(x)^2)` and `2*log(x)` all get 0.
+
+**The cause, as far as we can see**, is Maxima's default `logexpand:true`,
+which STACK keeps. Ordinary simplification rewrites `log(x^2)` to
+`2*log(x)` before any answer test runs. With `questionsimplify=1` the
+teacher's answer is therefore stored as `2*log(x)`, and that is also the model
+answer the students see. It is not the block-local `logexpand:super` in
+`algebraic_equivalence`
+([assessment.mac line 1096](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/stack/maxima/assessment.mac#L1096)).
+A change would need a STACK-side rewrite of `log(a^(2k))` before
+simplification, or a change in Maxima. We have not tried either.
+
+**Question.** Is rejecting `2*log(abs(x))` against a teacher's `log(x^2)`
+intended, as part of the design behind case 155? If not, which route would
+you prefer: a STACK-side rewrite before simplification, or a change in
+Maxima?
 
 ### Nested radical: clarify the domain {#case-471}
 
@@ -290,6 +336,138 @@ mathematically equal set members? The port's choice between SymPy-canonical
 members and faithful Maxima prepared-form distinctions is a project
 compatibility policy. Emulating row 212 would require held member provenance
 before SymPy canonicalization; no expression-specific grading exception exists.
+
+### The teacher's `1.015` at a tie {#rounding-teacher-tie}
+
+A question rather than a bug report; the impact is low. It matters only when
+the teacher's answer is a decimal ending in 5 exactly at the rounding
+position.
+
+[decimal-tie-binary.xml](questions/decimal-tie-binary.xml){download="decimal-tie-binary.xml"}: `a: 1.015`,
+`NumDecPlaces(ans1, a, 2)` and `NumSigFigs(ans2, a, 3)`.
+
+| Answers (`ans1`, `ans2`) | Expected | STACK 4.13.1 and 4.14.0 (`NumDecPlaces`, `NumSigFigs`) |
+|---|---|---|
+| `1.02`, `1.02` | 1, 1 | **0, 0** |
+| `1.01`, `1.01` | 0, 0 | **1, 1** |
+
+`1.015` is stored as the binary float 1.01499999999999990230…, and both
+tests round that value. STACK's own `decimalplaces(1.015,2)` and
+`significantfigures(1.015,3)` also give `1.01`, so in this question the
+inputs' teacher's answers, `decimalplaces(a,2)` and
+`significantfigures(a,3)`, show `1.01` too. For `1.02`, `NumSigFigs` says
+"Either you have not rounded correctly, or you have rounded an intermediate
+answer which propagates an error." With the teacher's answer written as
+`203/200`, `NumDecPlaces` accepts `1.02`.
+
+The [rounding notes](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/doc/en/CAS/Numerical_rounding.md#L3-L15)
+explain that floats are binary in general, but not this tie case. STACK's
+fixture
+[line 2636](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/tests/fixtures/answertestfixtures.class.php#L2636),
+`['NumSigFigs', '3', '0.0499', '0.04985', 1, '', 'Round teacher answer']`,
+suggests that the teacher's decimal is meant to be rounded as written.
+`0.04985` is also below the tie in binary (0.04984999999999999848…). It
+rounds up only because `0.04985/10^-4` comes out as exactly `498.5` in
+`sigfigsfun` (a bigfloat, then `float`); for `1.015` the same arithmetic
+gives `101.49999999999999`.
+
+Where in the source: `ATNumDecPlaces` compares `round(sans*10^n)` with
+`round(tans*10^n)` in floating point
+([numericaltest.mac lines 388–389](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/stack/maxima/numericaltest.mac#L388-L389)).
+`decimalplacesfun` rounds `10^n*float(ex)`
+([assessment.mac line 858](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/stack/maxima/assessment.mac#L858)).
+`sigfigsfun` tests `ex1-floor(ex1) = 0.5` on a float
+([assessment.mac line 909](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/stack/maxima/assessment.mac#L909)),
+and `ATNumSigFigs` uses it
+([numericaltest.mac line 280](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/stack/maxima/numericaltest.mac#L280)).
+A possible approach, untested: round the decimal that the teacher wrote, for
+example through the exact rational of the float's shortest decimal form.
+
+**Question.** Should a teacher's `1.015` give `1.02` in these tests, as it
+would under either tie rule? If so, we would be glad to help with a patch.
+
+### `abs` of a product, in `AlgEquiv` and `Int` {#abs-product}
+
+This is **not a new report**. STACK's answer-test fixtures, which "document
+the expected behaviour of answer tests"
+([lines 20–22](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/tests/fixtures/answertestfixtures.class.php#L20-L22)),
+already record it:
+
+| Fixture line (case here) | Fixture | Expected |
+|---|---|---|
+| [720](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/tests/fixtures/answertestfixtures.class.php#L720) (468) | `AlgEquiv`, `abs(x^2-4)` / `abs(x-2)*abs(x+2)` | −3: "Expected maths failure, where test should return 1" ([line 61](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/tests/fixtures/answertestfixtures.class.php#L61)). Line 719 (467) is the same case as a quotient. |
+| [1992](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/tests/fixtures/answertestfixtures.class.php#L1992) (1388) | `Int`, `log(abs((x^2-9)))+c` / `log(abs(x-3))+log(abs(x+3))` | 0, `ATInt_EqFormalDiff` |
+| [1991](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/tests/fixtures/answertestfixtures.class.php#L1991) (1387) | `Int`, `log(abs((x-3)*(x+3)))+c` / `log(abs(x-3))+log(abs(x+3))` | 1, `ATInt_true_equiv`: the same teacher's answer, with the product unexpanded inside `abs` |
+
+The rows are published in
+[Results/AlgEquiv.md](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/doc/en/Authoring/Answer_Tests/Results/AlgEquiv.md)
+(class `expectedfail`) and
+[Results/Int.md](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/doc/en/Authoring/Answer_Tests/Results/Int.md).
+The `Int` documentation says "The test cannot cope with some situations.
+Please contact the developers when you find some of these."
+([Calculus.md line 40](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/doc/en/Authoring/Answer_Tests/Calculus.md#L40)).
+In this report, case 468 is a desired acceptance that native STACK rejects,
+like cases 201–203; the port accepts it.
+
+We met it in an ordinary exercise.
+[abs-product.xml](questions/abs-product.xml){download="abs-product.xml"} has the teacher's answer `abs(x^2-1)` and one
+`AlgEquiv` node.
+[int-partial-fractions.xml](questions/int-partial-fractions.xml){download="int-partial-fractions.xml"} has `Int` with
+option `x` and the teacher's answer `integrate(2*x/(x^2-1),x)+c`, which
+Maxima returns as `log(abs(x^2-1))+c`.
+
+| Question | Answer | Mathematically | STACK 4.13.1 and 4.14.0 |
+|---|---|---|---|
+| abs-product | `abs(x^2-1)` | Correct | Score 1 |
+| abs-product | `abs((x-1)*(x+1))` | Correct | **Score 0** |
+| abs-product | `abs(x-1)*abs(x+1)` | Correct | **Score 0** |
+| abs-product | `sqrt((x^2-1)^2)` | Correct | Score 1 |
+| abs-product | `x^2-1` | Wrong | Score 0 |
+| int-partial-fractions | `log(abs(x^2-1))+c` | Correct | Score 1, `ATInt_true_equiv` |
+| int-partial-fractions | `log(abs(x-1))+log(abs(x+1))+c` | Correct | **Score 0, `ATInt_EqFormalDiff`** |
+| int-partial-fractions | `log(abs(x^2+1))+c` | Wrong | Score 0 |
+
+`ATInt_EqFormalDiff` asks the student to see the teacher. With the option
+`[x,FORMAL]`, `Int` gives the partial-fraction answer mark 1 but shows the
+same feedback.
+
+A possible approach, untested: in `algebraic_equivalence`
+([assessment.mac lines 1084–1182](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/stack/maxima/assessment.mac#L1084-L1182)),
+before comparing, rewrite `abs(a)*abs(b)` to `abs(a*b)` and `abs(a)^n` to
+`abs(a^n)` on both sides, and combine `log(abs(a))+log(abs(b))` in the same
+way.
+
+**Question.** Is a fix wanted? We could offer one.
+
+### Tie rules of `NumDecPlaces` and `NumSigFigs` {#tie-rule-docs}
+
+A documentation question, not a bug. `NumDecPlaces` (and `decimalplaces`)
+round half to even, through Maxima's `round`; `NumSigFigs` (and
+`significantfigures`) round half up.
+
+[decimal-tie-rule.xml](questions/decimal-tie-rule.xml){download="decimal-tie-rule.xml"}: `a: 0.125`,
+`NumDecPlaces(ans1, a, 2)` and `NumSigFigs(ans2, a, 2)`.
+
+| Answers (`ans1`, `ans2`) | STACK 4.13.1 and 4.14.0 (`NumDecPlaces`, `NumSigFigs`) |
+|---|---|
+| `0.13`, `0.13` | 0, 1 |
+| `0.12`, `0.12` | 1, 0 |
+
+This is documented:
+[Numerical_rounding.md lines 45–47](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/doc/en/CAS/Numerical_rounding.md#L45-L47)
+(Maxima's `round` rounds half to even; `significantfigures` rounds up) and
+[Numbers.md lines 169–173](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/doc/en/CAS/Numbers.md#L169-L173)
+(`decimalplaces` rounds; with `n` = 0 it uses `round`). The `NumSigFigs`
+paragraph
+([Numerical.md line 72](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/doc/en/Authoring/Answer_Tests/Numerical.md#L72))
+links to "notes about numerical rounding" (Numbers.md). The `NumDecPlaces` paragraph
+([line 76](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/doc/en/Authoring/Answer_Tests/Numerical.md#L76))
+says only that the test "rounds the numbers to the specified number of
+decimal places".
+
+**Question.** Would a sentence there naming the tie rule, or a link to the
+rounding notes, like the one in the `NumSigFigs` paragraph, be welcome? We
+could send a pull request.
 
 ## Possible future development {#future-development}
 
@@ -524,3 +702,46 @@ observations are additional. The report distinguishes **Domain/branch
 difference** from **Unproved identity** with explanations, evidence, links and
 author questions. A changed label does not confer a compatibility pass; any
 changed result invalidates its previous exception and needs review.
+
+### Minimal STACK questions {#stack-questions}
+
+The four questions [`log(x^2)`](#log-square),
+[the teacher's tie](#rounding-teacher-tie), [`abs` of a product](#abs-product)
+and [tie rules](#tie-rule-docs) were checked with STACK's own code, not the
+port, through minimal question files:
+
+| Question file | Section |
+|---|---|
+| [log-square.xml](questions/log-square.xml){download="log-square.xml"} | [`log(x^2)` against `2*log(abs(x))`](#log-square) |
+| [decimal-tie-binary.xml](questions/decimal-tie-binary.xml){download="decimal-tie-binary.xml"} | [The teacher's `1.015` at a tie](#rounding-teacher-tie) |
+| [abs-product.xml](questions/abs-product.xml){download="abs-product.xml"} | [`abs` of a product](#abs-product) |
+| [int-partial-fractions.xml](questions/int-partial-fractions.xml){download="int-partial-fractions.xml"} | [`abs` of a product](#abs-product) |
+| [decimal-tie-rule.xml](questions/decimal-tie-rule.xml){download="decimal-tie-rule.xml"} | [Tie rules](#tie-rule-docs) |
+
+Each file is Moodle XML for the STACK question type, with question tests
+that state the expected marks; they fail where this page reports a
+difference. In decimal-tie-rule.xml the tests expect `0.13` from both,
+only to show where the two rules differ; under the documented rules
+`NumDecPlaces` expects `0.12`. The files are CC BY-SA 4.0 (Andrey
+Chesnokov, 2026).
+
+Versions, with identical results in both:
+
+- STACK 4.13.1 (2026080600): `master` at
+  [10d3233](https://github.com/maths/moodle-qtype_stack/commit/10d323311b7f39fb7b092dd10ce75f7d8632f525),
+  12 commits after tag
+  [v4.13.1](https://github.com/maths/moodle-qtype_stack/commit/d785ac3ef2e127353963b84e2e25d030304bd32a)
+  (d785ac3) that change only documentation, `CHANGES.md` and a licence
+  file; the code is identical to the tag. Source links on this page
+  are to this commit.
+- STACK 4.14.0 (2026101500): `master` at
+  [3338304](https://github.com/maths/moodle-qtype_stack/commit/33383047af39c204bf4442802a058f8b918b2b1b),
+  one CI-only commit after tag
+  [v4.14.0](https://github.com/maths/moodle-qtype_stack/commit/3946874e35f4f6c495750ef909457af8da11d855)
+  (3946874).
+- Maxima 5.46.0.
+
+We ran STACK's PHP code through the STACK API's question loader and
+grading path (input validation, then `grade_response()` and the response
+trees), and the question tests through the API's test controller. We did
+not run them in a Moodle site.

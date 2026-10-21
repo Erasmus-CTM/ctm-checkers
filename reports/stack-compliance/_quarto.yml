@@ -12,6 +12,7 @@ project:
     - report.js
     - port-regressions.js
     - report.css
+    - questions/*.xml
 
 website:
   title: "STACK SymPy"
