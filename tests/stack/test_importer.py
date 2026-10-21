@@ -89,5 +89,56 @@ class ImporterTests(unittest.TestCase):
             import_xml(xml)
 
 
+class QuestionOptionTests(unittest.TestCase):
+    """S-07: the question options the engine does not read stop the build
+    unless they are STACK's default (or a value that changes only how the
+    question writes products and matrices)."""
+
+    BASE = (ROOT / "examples/stack/probes/crash.xml").read_text()
+
+    def question(self, **options):
+        tags = "".join(f"<{name}>{value}</{name}>" for name, value in options.items())
+        return self.BASE.replace("<input>", tags + "<input>", 1)
+
+    def test_the_defaults_and_absent_options_build(self):
+        self.assertTrue(import_xml(self.BASE))
+        defaults = dict(complexno="i", decimals=".", scientificnotation="*10", inversetrig="cos-1",
+                        logicsymbol="lang", sqrtsign="1", multiplicationsign="dot", matrixparens="[")
+        self.assertTrue(import_xml(self.question(**defaults)))
+        for option, value in defaults.items():
+            with self.subTest(option=option):
+                self.assertTrue(import_xml(self.question(**{option: f" {value} "})))
+
+    def test_each_option_with_another_value_stops_the_build(self):
+        for option, value in (("complexno", "j"), ("complexno", "symi"), ("complexno", "symj"), ("decimals", ","),
+                              ("scientificnotation", "E"), ("inversetrig", "acos"), ("inversetrig", "arccos"),
+                              ("inversetrig", "arsinh"), ("logicsymbol", "symbol"), ("sqrtsign", "0"),
+                              ("multiplicationsign", "cross"), ("multiplicationsign", "onum"),
+                              ("multiplicationsign", "space"), ("matrixparens", ""), ("matrixparens", "{"),
+                              ("matrixparens", "|"), ("complexno", ""), ("decimals", "x")):
+            with self.subTest(option=option, value=value), self.assertRaisesRegex(
+                    UnsupportedQuestion, rf"^crash: question/{option}: unsupported question option: {option} is '{value}', "
+                                         r"the engine supports '.+'\. The engine does not read these options"):
+                import_xml(self.question(**{option: value}))
+
+    def test_products_and_matrices_may_be_written_as_the_example_questions_do(self):
+        self.assertTrue(import_xml(self.question(multiplicationsign="none", matrixparens="(")))
+
+    def test_every_option_that_is_not_supported_is_named(self):
+        with self.assertRaisesRegex(
+                UnsupportedQuestion, r"question/complexno: unsupported question options: complexno is 'j', the engine supports 'i'; "
+                                     r"sqrtsign is '0', the engine supports '1'\."):
+            import_xml(self.question(complexno="j", sqrtsign="0", decimals="."))
+
+    def test_the_audit_probe_stops_with_both_of_its_options(self):
+        with self.assertRaisesRegex(UnsupportedQuestion, r"complexno-j: question/complexno: .*complexno is 'j'.*decimals is ','"):
+            import_xml(ROOT / "examples/stack/probes/options.xml")
+
+    def test_the_options_of_an_input_or_a_node_are_not_question_options(self):
+        # An element of another level that has an option's name is not the question's option.
+        xml = self.BASE.replace("<input>", "<input><decimals>,</decimals>", 1)
+        self.assertTrue(import_xml(xml))
+
+
 if __name__ == "__main__":
     unittest.main()

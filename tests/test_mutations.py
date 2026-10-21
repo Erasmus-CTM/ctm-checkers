@@ -153,6 +153,13 @@ MUTATIONS = {
     'stack-s13-arc-names': ('stack/expressions.py', '"ln": "log", **INVERSE_TRIG_SYNONYMS}', '"ln": "log"}', 1, (STACK,)),
     'stack-s13-question-tests-bound': ('stack/engine.py', '            bound[inp["name"]] = evaluate(inp["teacher"], bound, assumptions=assumptions)\n',
                                        '            pass\n', 1, (STACK,)),
+    # S-07 (0.7.0): the question options the engine does not read stop the build (examples/stack/probes/options.xml sets complexno
+    # and decimals; the values of multiplicationsign and matrixparens that the example questions use stay allowed).
+    'stack-s07-question-options': ('stack/importer.py', '    _question_options(name, element)\n', '', 1, (STACK,)),
+    'stack-s07-complexno': ('stack/importer.py', '    "complexno": ("i",),\n', '', 1, (STACK,)),
+    'stack-s07-decimals': ('stack/importer.py', '    "decimals": (".",),\n', '', 1, (STACK,)),
+    'stack-s07-multiplicationsign-none': ('stack/importer.py', '"multiplicationsign": ("dot", "none"),', '"multiplicationsign": ("dot",),', 1, (STACK,)),
+    'stack-s07-matrixparens-round': ('stack/importer.py', '"matrixparens": ("[", "("),', '"matrixparens": ("[",),', 1, (STACK,)),
 }
 
 # Mutations that no golden row reaches and that tests/ catch: the pytest files of the test column must fail on the
@@ -180,6 +187,17 @@ TESTS = {
     'stack-s13-question-tests-mod': ('stack/expressions.py', 'return f"mod({self._print(expr.args[0])}, {self._print(expr.args[1])})"',
                                      'return f"Mod({self._print(expr.args[0])}, {self._print(expr.args[1])})"', 1,
                                      ('tests/stack/test_question_test_inputs.py',)),
+    # S-07 (0.7.0): the options that no golden question sets, the empty value, and every unsupported option named.
+    'stack-s07-scientificnotation': ('stack/importer.py', '    "scientificnotation": ("*10",),\n', '', 1, ('tests/stack/test_importer.py',)),
+    'stack-s07-inversetrig': ('stack/importer.py', '    "inversetrig": ("cos-1",),\n', '', 1, ('tests/stack/test_importer.py',)),
+    'stack-s07-logicsymbol': ('stack/importer.py', '    "logicsymbol": ("lang",),\n', '', 1, ('tests/stack/test_importer.py',)),
+    'stack-s07-sqrtsign': ('stack/importer.py', '    "sqrtsign": ("1",),\n', '', 1, ('tests/stack/test_importer.py',)),
+    'stack-s07-empty-value': ('stack/importer.py', 'if found is not None and (found.text or "").strip() not in supported:',
+                              'if found is not None and (found.text or "").strip() and (found.text or "").strip() not in supported:', 1,
+                              ('tests/stack/test_importer.py',)),
+    'stack-s07-first-option-only': ('stack/importer.py', 'unsupported.append((option, (found.text or "").strip(), supported))',
+                                    'unsupported.append((option, (found.text or "").strip(), supported))\n            break', 1,
+                                    ('tests/stack/test_importer.py',)),
 }
 
 # A few minutes: CI runs them in a step of their own (CTM_MUTATION_TESTS=1).

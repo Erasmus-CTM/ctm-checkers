@@ -6,6 +6,83 @@ release. Every grading change is listed under "Grading changes" with the
 finding or decision it implements, its test and the summary of its golden
 diff (docs/goldens.md).
 
+## 0.7.0 (21 October 2026)
+
+STACK: a question that sets a question option the engine does not read
+stops the build (S-07; step-2 design §9, order 4). A MINOR release (a
+question that built now fails to build); math-exercise's tables do not
+change (H2).
+
+### Grading changes
+
+- **S-07: question options.** Before, `importer._question` read the
+  question-level `questionsimplify`, `assumepositive` and `assumereal` and
+  none of the other options of a STACK question: `complexno`, `decimals`,
+  `scientificnotation`, `inversetrig`, `logicsymbol`, `sqrtsign`,
+  `multiplicationsign` and `matrixparens`. A question that set one of them
+  built, and was graded as if it had not: with `<complexno>j</complexno>`
+  the answer `3+4*j` scored 0 (the engine reads `j` as a variable), and
+  with `<decimals>,</decimals>` the answer `3,5` was refused. Now the build
+  stops, with the question's name, the first option and every option that
+  is not supported with its value and the values that are
+  (`importer.QUESTION_OPTIONS`):
+  `complexno-j: question/complexno: unsupported question options: complexno is 'j', the engine supports 'i'; decimals is ',', the engine supports '.'. The engine does not read these options, so the question would be graded as if they were not set`.
+  An absent option is its default. Supported: `complexno` `i`, `decimals`
+  `.`, `scientificnotation` `*10`, `inversetrig` `cos-1`, `logicsymbol`
+  `lang`, `sqrtsign` `1`; `multiplicationsign` `dot` and `none` and
+  `matrixparens` `[` and `(` also, because they only change how a question
+  writes products and matrices, which the engine writes in its own way, and
+  21 example questions use them (20 `none`, one `(`): none of them changes
+  its import, variants, answers or question tests. Any other value,
+  including an empty one, stops the build. Tests: `tests/stack/test_importer.py`
+  (`QuestionOptionTests`: the defaults, every option with another value and
+  its message, the two values above, all unsupported options named in one
+  message, the audit's `examples/stack/probes/options.xml`); mutations
+  (docs/goldens.md): the check not called (1 row), `complexno` (1) and
+  `decimals` (1) not in the table, `none` (1,205) and `(` not accepted;
+  six more that only the tests catch (the other four options, an empty
+  value accepted, only the first option named).
+  - **Native STACK** (STACK `10d3233` = 4.13.1 and 4.14.0 `3338304`, PHP and
+    Maxima 5.46; `oracle/run.sh`-style runs of `options.xml` with its four
+    answers): both versions honour the options. With `complexno` `j` the
+    answers `3+4*j` and `3+4*%i` score 1 and `3+4*i` scores 0 (answer note
+    `prt1-1-F`); with `decimals` `,` the answer `3,5` is read as 3.5 (and is
+    refused, as a float, by this input's `forbidfloat`). The engine before
+    graded `3+4*j` 0 and refused `3,5` for another reason; now it stops
+    before an answer is graded. 4.13.1 and 4.14.0 give the same results.
+  - **Golden diff** (`tools/golden.py diff --base 9e042dc`, with
+    `update --change S-07 --drop-stale`): 1 row changed and 28 removed, in
+    `stack/probe-questions` only (the probe `examples/stack/probes/options.xml`):
+
+    | Table | Changed | Added | Removed |
+    |---|---|---|---|
+    | `stack/probe-questions.jsonl` | 1 | 0 | 28 |
+
+    | Table | Before | After | Rows |
+    |---|---|---|---|
+    | `stack/probe-questions.jsonl` | value | raised | 1 |
+
+    The changed row is the import of `options.xml` (a question, now
+    `UnsupportedQuestion: complexno-j: question/complexno: …`). The removed
+    rows are what the stopped build no longer gives: its 3 variants
+    (seeds 1 to 3), its 3 question-test runs (no test cases) and its 22
+    answer rows; 10 of them held the result of an earlier grading change (S-01 1,
+    S-02 5 including 3 variants, S-13 4); the same answers are in the other
+    probes' rows. Ids: `00b89a4d9c5de703`, `041f95019c53c82b`,
+    `0ab645d9ed430a14`, `1bc88e949573f3c0`, `1ed4457307e9d688`,
+    `30b35293ba813fc2`, `327601d53c9c18f7`, `32f406e85cd07c12`,
+    `3dd2f1b592447208`, `42c0a3bffabb3f58`, `45efc312f1eb7310`,
+    `46a93e77698d2859`, `5637f3fb40713734`, `56f7fc3d18493e7e`,
+    `6371aea80d980bd5`, `68312522e2fcfd1e`, `68c5111183c15449`,
+    `69b5c9c03a498a54`, `79c787795ae55bc9`, `7a29e8439fe1622f`,
+    `7ed364c40fdc7709`, `8cb6c21a5aaf1498`, `8fc77c34ab08473d`,
+    `959d5ed9f805ad56`, `be2f74d80bc70f1f`, `cbf4feed0850110d`,
+    `d9c002449277573b`, `f8b0d389e8863f40`. No other table changes: no
+    `stack.card`, `stack.tests`, `stack.instantiate` or `stack.answer`
+    row of any other question, so no card, teacher's answer or question test
+    of the example questions changes; the math-exercise tables do not
+    change. The 1 row that differs from the legacy code names S-07.
+
 ## 0.6.0 (21 October 2026)
 
 STACK: an answer follows STACK's rules for its text, with STACK's messages

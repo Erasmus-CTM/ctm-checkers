@@ -10,3 +10,8 @@ at ctm-assessment `5c5b855`). Each shows one finding at the question level
 `physics-I.xml` S-02); the golden table `stack/probe-questions` grades them
 with the audit's answers (its `qprobe.py`, `crash.py` and `overflow.cjs`).
 AGPL-3.0-or-later, as the audit.
+
+Since ctm-checkers 0.7.0 (S-07) `options.xml` no longer builds: it sets two
+question options the engine does not read (`complexno`, `decimals`), and
+the build stops with the diagnostic that names them; its golden rows are
+the import's error (`stack/probe-questions`).

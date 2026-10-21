@@ -18,6 +18,23 @@ TESTS = {"AlgEquiv", "Sets", "SameType", "EqualComAss", "FacForm", "SingleFrac",
 TESTS |= {"PythonChecker"}
 INPUT_TYPES = {"algebraic", "numerical", "matrix"}
 
+# The question-level options of a STACK question that the engine does not
+# read (S-07): the values it can honour, the default first. A question that
+# sets another value would be graded or displayed as if it had not, so the
+# build stops. An absent option is the default. The second value of the last
+# two options only changes how a question writes products and matrices; the
+# engine writes both its own way, and the example questions use those values.
+QUESTION_OPTIONS = {
+    "complexno": ("i",),
+    "decimals": (".",),
+    "scientificnotation": ("*10",),
+    "inversetrig": ("cos-1",),
+    "logicsymbol": ("lang",),
+    "sqrtsign": ("1",),
+    "multiplicationsign": ("dot", "none"),
+    "matrixparens": ("[", "("),
+}
+
 
 def _matrix_config(q, element, where):
     """Explicit port extension: bounded learner dimensions, never native options."""
@@ -191,10 +208,29 @@ def _input(q, element):
     return result
 
 
+def _question_options(name, element):
+    """S-07: a question option the engine does not read must be STACK's default
+    (or a value that changes only how the question writes things): the build
+    stops with every option that is not, and the values it supports."""
+    unsupported = []
+    for option, supported in QUESTION_OPTIONS.items():
+        found = element.find(option)
+        if found is not None and (found.text or "").strip() not in supported:
+            unsupported.append((option, (found.text or "").strip(), supported))
+    if unsupported:
+        raise UnsupportedQuestion(
+            name, "question/" + unsupported[0][0],
+            "unsupported question option" + ("s: " if len(unsupported) > 1 else ": ")
+            + "; ".join(f"{option} is {value!r}, the engine supports " + " and ".join(repr(v) for v in supported)
+                        for option, value, supported in unsupported)
+            + ". The engine does not read these options, so the question would be graded as if they were not set")
+
+
 def _question(element):
     name = _text(element, "name/text", "(unnamed)").strip()
     if element.get("type") != "stack":
         raise UnsupportedQuestion(name, "question/@type", f"unsupported question type {element.get('type')!r}")
+    _question_options(name, element)
     inputs = [_input(name, x) for x in element.findall("input")]
     prts = [_prt(name, x) for x in element.findall("prt")]
     _check(name, "inputs", bool(inputs) and len({x["name"] for x in inputs}) == len(inputs), "requires unique inputs")
