@@ -60,9 +60,50 @@ def _tests(value):
     return None
 
 
+
+def _question_math(text):
+    """The component's existing plain-text math-delimiter transport."""
+    out, position = "", 0
+    while position < len(text):
+        if text[position] == "\x60" and (position == 0 or text[position-1] != "\\"):
+            end = text.find("\x60", position+1)
+            newline = text.find("\n", position+1)
+            if end > position+1 and (newline < 0 or end < newline):
+                out += text[position:end+1]
+                position = end+1
+                continue
+        if text[position] == "$" and position and text[position-1] == "\\":
+            out = out[:-1] + "\ue024"
+            position += 1
+            continue
+        if text[position] != "$":
+            out += text[position]
+            position += 1
+            continue
+        delimiter = "$" if text.startswith("$", position) else "$"
+        end = text.find(delimiter, position+len(delimiter))
+        while end >= 0:
+            slashes, before = 0, end-1
+            while before >= 0 and text[before] == "\\":
+                slashes += 1
+                before -= 1
+            if slashes % 2 == 0:
+                break
+            end = text.find(delimiter, end+len(delimiter))
+        if end < 0:
+            out += "$"
+            position += 1
+            continue
+        display = delimiter == "$"
+        out += ("\\[" if display else "\\(") + text[position+len(delimiter):end] + ("\\]" if display else "\\)")
+        position = end+len(delimiter)
+    return out
+
+
 def _teacher_fields(question):
     """Extract author keys in scalar/vector/fixed-matrix field order."""
     from .parsing import split_top
+    question = _question_math(question)
     keys, position = [], 0
     while position < len(question):
         match = re.match(r"(_+|vec|mat)\[", question[position:])
@@ -77,7 +118,7 @@ def _teacher_fields(question):
         if depth:
             position += 1
             continue
-        content = question[start:index-1]
+        content = question[start:index-1].replace("\ue024", "$")
         if match[1] == "vec":
             keys.extend(split_top(content))
         elif match[1] == "mat":
@@ -86,7 +127,7 @@ def _teacher_fields(question):
                 raise ValueError("matrix rows have different lengths")
             keys.extend(item for row in rows for item in row)
         else:
-            keys.append(content.strip())
+            keys.append(content)
         position = index
     return keys
 

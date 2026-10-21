@@ -273,3 +273,9 @@ def test_custom_json_numbers_have_browser_ieee754_precision():
     q = question("custom", checker='def check(r,s):\n    return r["point"] == 9007199254740992\n',
                  tests=[dict(name="JSON number", response={"point": "9007199254740993"}, expect="correct")])
     run_question(q, ".")
+
+
+def test_scalar_teacher_keeps_spaces_and_component_math_transport():
+    assert _teacher_fields("_[ Hello ] _[a\\$b] _[$x$]") == [" Hello ", "a$b", "\\(x\\)"]
+    run_question(question("string", question="_[ Hello ]", tests=[case("raw('Hello')", "wrong")]), ".")
+    run_question(question("string", question="_[a\\$b]", tests=[case("raw('a$b')")]), ".")

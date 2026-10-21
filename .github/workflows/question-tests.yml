@@ -20,8 +20,19 @@ jobs:
       fail-fast: false
       matrix:
         python: ['3.9', '3.12', '3.13']
+    env:
+      CTM_LEGACY_MATH_EXERCISE: _ci/math-exercise
     steps:
       - uses: actions/checkout@v7
+      - name: Existing legacy source pin
+        id: pins
+        run: jq -r '."math-exercise" | "math=\(.commit)"' tools/pins.json >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7
+        with:
+          repository: Erasmus-CTM/math-exercise
+          ref: ${{ steps.pins.outputs.math }}
+          path: _ci/math-exercise
+          persist-credentials: false
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python }}
