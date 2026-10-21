@@ -222,8 +222,9 @@ def test_stack_inputs_are_stack_sympys():
     # examples/stack/ is stack-sympy's questions/ (the STACK question XML has one home here now) and
     # tests/stack/ holds its fixtures, byte for byte; the changes: the example checker file
     # imports assess_basis from ctm_checkers.matrix, its one home (stack-sympy: stack_sympy.basis_helper),
-    # the corpus baseline names the engine it was recorded with (its results are the same), and
-    # the READMEs name the paths here.
+    # the corpus baseline names the engine it was recorded with (its results are the same),
+    # the READMEs name the paths here, and since S-13 (0.6.0) the compliance policy has three
+    # more rows in its scope.
     legacy = Path(LEGACY_STACK).resolve()
     pairs = [(legacy / 'questions', golden.ROOT / 'examples' / 'stack'),
              (legacy / 'tests' / 'native_compliance', golden.ROOT / 'tests' / 'stack' / 'native_compliance'),
@@ -236,6 +237,17 @@ def test_stack_inputs_are_stack_sympys():
             here = (new / relative).read_bytes()
             if relative.as_posix() == 'matrix-checkers.py':
                 here = here.replace(b'from ctm_checkers.matrix import assess_basis', b'from stack_sympy.basis_helper import assess_basis')
+            if relative.as_posix() == 'policy.json':
+                # S-13 (0.6.0) brought three of STACK's fixture rows into the compliance
+                # runner's scope (the inverse trigonometric functions): the pinned scope
+                # and their entries are new; every other entry is stack-sympy's.
+                here, there = (json.loads(data) for data in (here, path.read_bytes()))
+                added = set(here['cases']) - set(there['cases'])
+                assert len(added) == 3 and all('S-13' in here['cases'][key]['reason'] for key in added)
+                assert {k: v for k, v in here['cases'].items() if k not in added} == there['cases']
+                assert {k: v for k, v in here.items() if k not in ('cases', 'scope_sha256')} == \
+                    {k: v for k, v in there.items() if k not in ('cases', 'scope_sha256')}
+                continue
             if relative.as_posix() == 'corpus/baseline.json':
                 engine = ('engine_revision', 'adapter_source_sha256', 'python_version')
                 here, there = (json.loads(data) for data in (here, path.read_bytes()))

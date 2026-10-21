@@ -141,8 +141,9 @@ script `ctm-checkers-stack.js` from 91 to 128 kB; math pages do not load it.
     rows with inverse trigonometric functions (compliance 3: from
     "unsupported" to false, as STACK, which its fixture marks -3, an
     expected mathematical failure; `tests/stack/native_compliance/
-    policy.json` lists them, its scope pinned anew; `native-stack.yml`
-    allows 15 s a case: the third takes about 3 s), `AlgEquiv(atan(x),
+    policy.json` lists them, its scope pinned anew, and the test that the
+    moved fixtures are stack-sympy's allows exactly these three entries;
+    `native-stack.yml` allows 15 s a case: the third takes about 3 s), `AlgEquiv(atan(x),
     atan(x))` (probes: invalid → true), `AlgEquiv(0^0, 1)` (true →
     invalid, as STACK's CAS error). `input-text.xml` adds 77 rows. No
     question test, teacher's answer, variant or card of the corpus
