@@ -250,7 +250,7 @@ def instantiate(question: dict, seed: int = 1) -> dict:
                 if inp is None or inp["type"] != "matrix":
                     continue
                 try:
-                    value = evaluate(_qtest_answer(question, source, env, preserve_form=True), env, assumptions=assumptions, student=True)
+                    value = evaluate(_qtest_answer(question, source, _qtest_environment(question, env), preserve_form=True), env, assumptions=assumptions, student=True)
                     _matrix_input_shape(inp, value, evaluate(inp["teacher"], env, assumptions=assumptions))
                 except (InvalidAnswer, Unsupported, ValueError, TypeError) as exc:
                     raise UnsupportedQuestion(name, f"qtest[{test['testcase']}]/testinput[{key}]", str(exc)) from exc
@@ -390,23 +390,16 @@ def _teacher_answer_names(question, key, teacher, env):
                                   "which a student may not type (S-01): no student could enter this answer")
 
 
-def _parse_answer(inp, raw, env, question, question_test=False):
+def _parse_answer(inp, raw, env, question):
     """The parsed answer, after STACK's rules for its text (S-13,
     student_input): Unicode replacements and characters, spaces between
     terms, and the identifiers (names of three letters or more, case, In), with
     STACK's messages. The names of question and feedback variables are
-    forbidden (S-01): student input never reads the author's values. A
-    question test's inputs are the author's (_qtest_answer resolves the
-    question variables in them, as STACK's question tests evaluate them with
-    the question's values): only S-01 applies to them."""
+    forbidden (S-01): student input never reads the author's values. The
+    computed inputs of question tests are validated by these rules too
+    (run_question_tests)."""
     names = _author_names(question, env)
     insertstars = inp.get("insertstars", 0)
-    if question_test:
-        tree = parse(raw, insertstars=insertstars)
-        found = list(dict.fromkeys(n.value for n in _walk(tree) if n.kind == "name" and n.value in names))
-        if found:
-            raise InvalidAnswer(" ".join(FORBIDDEN_VARIABLE.format(name=name) for name in found))
-        return tree
     text = student_text(raw)
     spaces, trig = space_messages(text)
     if spaces:
@@ -428,12 +421,12 @@ def _parse_answer(inp, raw, env, question, question_test=False):
     return tree
 
 
-def _input_validation(inp, raw, env, assumptions, question=None, question_test=False):
+def _input_validation(inp, raw, env, assumptions, question=None):
     raw = str(raw or "").strip()
     if not raw:
         return {"valid": False, "latex": "", "feedback": "Enter an answer"}, None, None
     try:
-        tree = _parse_answer(inp, raw, env, question, question_test)
+        tree = _parse_answer(inp, raw, env, question)
         if any(n.value.lower() in {w.lower() for w in inp["forbidwords"]} for n in _walk(tree) if n.kind in {"name", "call"}):
             raise InvalidAnswer("Contains a forbidden word")
         if inp["forbidfloat"] and any(n.kind == "number" and ("." in n.value or "e" in n.value.lower()) for n in _walk(tree)):
@@ -615,8 +608,12 @@ def validate(question: dict, answers: Mapping[str, str], seed: int = 1, *, varia
 
 
 def grade(question: dict, answers: Mapping[str, str], seed: int = 1, *, variant: dict | None = None,
-          question_test: bool = False) -> dict:
-    """Grade raw student strings against a frozen variant, returning JSON values."""
+          displayed: Mapping[str, str] | None = None) -> dict:
+    """Grade raw student strings against a frozen variant, returning JSON values.
+
+    `displayed` is for question tests (run_question_tests): the unsimplified
+    text of an input's computed value, which STACK validates as a student's
+    answer; it is validated before the answer that is graded."""
     variant = instantiate(question, seed) if variant is None else variant
     env = _environment(question, variant)
     assumptions = _assumptions(question)
@@ -625,7 +622,10 @@ def grade(question: dict, answers: Mapping[str, str], seed: int = 1, *, variant:
     student_trees = {}
     for inp in question["inputs"]:
         key = inp["name"]
-        result, value, tree = _input_validation(inp, answers.get(key, ""), env, assumptions, question, question_test)
+        for text in ([displayed[key]] if displayed and key in displayed else []) + [answers.get(key, "")]:
+            result, value, tree = _input_validation(inp, text, env, assumptions, question)
+            if not result["valid"]:
+                break
         input_results[key] = result
         if result["valid"]:
             student_values[key] = value
@@ -650,7 +650,7 @@ def grade(question: dict, answers: Mapping[str, str], seed: int = 1, *, variant:
             # using one or more inputs. The answer-test parser sees a safe string.
             try:
                 raw_student = answers.get(node["student"], "")
-                if node["student"] in student_trees and not question_test:
+                if node["student"] in student_trees:
                     raw_student = student_text(str(raw_student).strip())   # as validated (S-13: Unicode replaced)
                 if node["student"] in student_trees:
                     tested_student = student_trees[node["student"]]
@@ -715,21 +715,46 @@ def _input_uses_written_form(question, key):
                for p in question["prts"] for n in p["nodes"])
 
 
+def _qtest_environment(question, env):
+    """The values a question test's inputs are computed with, as STACK's
+    compute_response (questiontest.php) builds them: the question variables,
+    then every input's name bound to its teacher's answer (`ans1: tans`), in
+    the order of the inputs."""
+    bound = dict(env)
+    assumptions = _assumptions(question)
+    for inp in question["inputs"]:
+        try:
+            bound[inp["name"]] = evaluate(inp["teacher"], bound, assumptions=assumptions)
+        except (InvalidAnswer, Unsupported, ValueError, TypeError) as exc:
+            raise UnsupportedQuestion(question["name"], f"input[{inp['name']}]/tans", str(exc)) from exc
+    return bound
+
+
 def run_question_tests(question: dict, seeds=(1,), variants=None) -> dict:
-    """Run native qtests. Each author input is evaluated in the variant env."""
+    """Run native qtests. As STACK does (compute_response), each test input
+    is computed from the question variables and the teacher's answers (an
+    input's name stands for its teacher's answer), and the computed value is
+    then a student's answer: it must be valid under the rules of student
+    input (S-01, S-13), or the test fails as invalid. STACK validates the
+    unsimplified value (simp:false), so the unsimplified text is validated
+    (`displayed`) as well as the one that is graded."""
     variants = list(variants) if variants is not None else [instantiate(question, s) for s in seeds]
     results = []
     for variant in variants:
-        env = _environment(question, variant)
+        env = _qtest_environment(question, _environment(question, variant))
         for test in question.get("qtests", []):
-            raw = {}
+            raw, displayed = {}, {}
             for key, expression in test["inputs"].items():
                 try:
                     form = _input_uses_written_form(question, key)
                     raw[key] = _qtest_answer(question, expression, env, preserve_form=form)
+                    try:
+                        displayed[key] = raw[key] if form else _qtest_answer(question, expression, env, preserve_form=True)
+                    except Unsupported:
+                        displayed[key] = raw[key]   # no unsimplified rendering: the graded text is validated
                 except (Unsupported, InvalidAnswer, ValueError) as exc:
                     raise UnsupportedQuestion(question["name"], f"qtest[{test['testcase']}]/testinput[{key}]", str(exc)) from exc
-            actual = grade(question, raw, variant=variant, question_test=True)
+            actual = grade(question, raw, variant=variant, displayed=displayed)
             checks = []
             for name, expected in test["expected"].items():
                 result = actual["prts"].get(name, {})
