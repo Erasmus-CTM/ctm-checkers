@@ -60,14 +60,14 @@ change (H2).
     equations) is invalid in both, with another message here (the engine
     does not support a set of equations).
   - **Golden diff** (`tools/golden.py diff --base b3f7c5c`, with
-    `update --change S-10 --drop-stale`): 23 rows changed and 207 added:
+    `update --change S-10 --drop-stale`): 23 rows changed and 143 added:
 
     | Table | Changed | Added | Removed |
     |---|---|---|---|
     | `stack/probe-questions.jsonl` | 2 | 0 | 0 |
     | `stack/questions-library.jsonl` | 1 | 0 | 0 |
     | `stack/questions-project.jsonl` | 20 | 0 | 0 |
-    | `stack/supplement.jsonl` | 0 | 207 | 0 |
+    | `stack/supplement.jsonl` | 0 | 143 | 0 |
 
     - `probe-questions` (2): the answers `2*x+1` (the audit's) and `π` of
       `eqtype.xml` (graded 0.0, now invalid: "Your answer should be an
@@ -82,8 +82,8 @@ change (H2).
       `nested-collections.xml`, seeds 1 and 17).
     - `questions-library` (1): `π` in `Complex_Convert_1.xml` (seed
       817828831), invalid, the new message.
-    - `supplement` (207 added): the import, 3 variants, 3 question-test runs
-      and 200 answers of `checkanswertype.xml`; the teacher's answers of
+    - `supplement` (143 added): the import, 3 variants, 3 question-test runs
+      and 136 answers of `checkanswertype.xml`; the teacher's answers of
       its 8 inputs are valid.
     No `stack.card`, `stack.tests`, `stack.instantiate` row or teacher's
     answer of an example question changes (the teacher's answers and the
