@@ -216,9 +216,8 @@ change (H2).
   (`stackCas_forbiddenVariable`: "Forbidden variable or constant: ta."),
   with no preview and no response tree. Question tests still resolve the
   names on the author's side (`_qtest_answer`): no `stack.tests` row
-  changes. Feedback variables are forbidden too, although STACK 4.13.1 does
-  not forbid them (`question.php:436`, a TO-DO there): this engine's answer
-  tests evaluate the student's expression where they are defined.
+  changes. Feedback variables are forbidden too: this engine's answer tests
+  evaluate the student's expression where they are defined.
   Tests: `tests/stack/test_forbidden_variables.py` (the audit's leak cases,
   their question tests, feedback variables, names inside expressions,
   names that only look alike, every golden answer row); five mutations
@@ -228,10 +227,10 @@ change (H2).
     names a variable with STACK's own PHP input validation (STACK
     `10d3233`, PHP 8, no Maxima): of 373 such inputs, 356 get the same
     verdict and message; 15 the same verdict (`forbiddenVariable`) with
-    other names in STACK's message (14 S-13 cases: STACK checks
-    `ta_perimeter` part by part and names `perimeter`, an unknown name of
-    three letters or more; and `d+0*f`, where STACK names only `f`); 2 name
-    only a feedback variable, which STACK accepts.
+    other names in STACK's message (14 S-13 cases: STACK's message names
+    `perimeter` for `ta_perimeter`, an unknown name of three letters or
+    more; and `d+0*f`, which names a feedback variable); 2 name only a
+    feedback variable: invalid here (S-01), listed apart.
   - **Golden diff** (`tools/golden.py diff --base 8c3db5e`): 366 rows
     changed and 6 added, all `stack.answer` rows in which an answer names a
     question or feedback variable (the generated answer sets have every

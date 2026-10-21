@@ -142,10 +142,9 @@ After the independent review of C3 (ctm-checkers #4), AC decided:
   emulation of Moodle, PHP 8, no Maxima; the `native` job of
   `native-stack.yml`). It takes the golden rows whose answers name a question
   variable; S-13 (STACK's input rules) can extend it to its own rows. Of its
-  15 "other message" answers today, 14 are S-13's (STACK checks a name with
-  `_` part by part and forbids unknown names of three letters or more:
-  `ta_perimeter` gives "perimeter"); the 15th, `d+0*f`, also names a feedback
-  variable, which STACK does not forbid.
+  15 "other message" answers today, 14 are S-13's (STACK's message names the
+  unknown names of three letters or more: `ta_perimeter` gives "perimeter");
+  the 15th, `d+0*f`, also names a feedback variable.
 - The next fixes, one pull request each in §9's order: S-02 (`I`, `E`),
   S-13, S-07, S-05, S-10, S-11, S-12, S-04, S-08, S-09, then S-06 (a plain
   fix, AC 19 Oct); S-03 stays as it is until the STACK author answers.
