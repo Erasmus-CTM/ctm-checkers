@@ -1143,7 +1143,7 @@ def run_lines(adapter, lines, out=print):
     return 0
 
 
-def update(change, stack_legacy=None, legacy=None, probes=None, patterns=(), out=print):
+def update(change, stack_legacy=None, legacy=None, probes=None, patterns=(), out=print, drop_stale=False):
     """After a grading change named `change`: runs every row with
     ctm_checkers from src/ and writes the new results. A row whose result
     changes keeps the legacy code's result as "legacy" (the result it was
@@ -1153,7 +1153,10 @@ def update(change, stack_legacy=None, legacy=None, probes=None, patterns=(), out
     are recorded with this code, and with the legacy code in a process of its
     own: where the two differ, the row gets "legacy" and "changes" too.
     Nothing is written when a row kept per Python version changes, or when a
-    STACK table holds a row that today's inputs no longer give."""
+    STACK table holds a row that today's inputs no longer give, unless
+    `drop_stale`: then such rows are removed and listed (a change of the code
+    that writes the inputs, such as how a value is written as text; the
+    CHANGELOG names each removed row, check-changelog)."""
     if not CHANGE_NAME.fullmatch(change):
         raise SystemExit(f'{change!r}: name the grading change as the CHANGELOG does (a finding such as S-01, or a decision)')
     adapter = Adapters(CtmCheckers('src'), golden_stack.ctm())
@@ -1216,9 +1219,14 @@ def update(change, stack_legacy=None, legacy=None, probes=None, patterns=(), out
             row['output'] = run_row(adapter, row, sources)
             new[identifier] = row
         stale = sorted(known - seen)
-        if stale:
+        if stale and drop_stale:
+            rows[:] = [row for row in rows if row['id'] not in stale]
+            count['removed'] = len(stale)
+            out(f'{suite}: removed {len(stale)} rows that today\'s inputs no longer give: ' + ', '.join(stale))
+        elif stale:
             problems.append(f'{suite}: {len(stale)} rows that today\'s inputs no longer give (first: {stale[0]}); the inputs are '
-                            'generated with the code, so this change changes them: record the table again instead')
+                            'generated with the code, so this change changes them: record the table again, or remove them '
+                            '(--drop-stale) and name them in the CHANGELOG')
         rows.extend(new.values())
         pending.extend(new.values())
         count['added'] = len(new)
@@ -1243,7 +1251,8 @@ def update(change, stack_legacy=None, legacy=None, probes=None, patterns=(), out
         write_provenance()
     for suite, count in sorted(counts.items()):
         if any(count.values()):
-            out(f'{suite}: {count["changed"]} rows changed, {count["added"]} added, {count["reverted"]} back to their legacy result')
+            out(f'{suite}: {count["changed"]} rows changed, {count["added"]} added, {count.get("removed", 0)} removed, '
+                f'{count["reverted"]} back to their legacy result')
     out(f'Updated with ctm_checkers {package_version()} from src/ on Python {sys.version.split()[0]} ({change}).')
     return 0
 
@@ -1745,6 +1754,8 @@ def main(argv=None):
     upd.add_argument('--legacy', help='math-exercise checkout (the commit in tools/pins.json): legacy results of new rows')
     upd.add_argument('--stack-probes', help="the stack-sympy audit's probes (to regenerate stack/probes too)")
     upd.add_argument('--suite', action='append', default=[], help='regular expression on the table path (repeatable)')
+    upd.add_argument('--drop-stale', action='store_true',
+                     help="remove the STACK rows that today's inputs no longer give (the CHANGELOG names them; check-changelog)")
     upd.add_argument('--umbrella', help='ctm-assessment checkout at the commit in tools/pins.json (default: _ci/ctm-assessment)')
     run = commands.add_parser('run', help='run the rows given as JSON lines on standard input; print each result as a line')
     for name in ('legacy', 'stack-legacy', 'variants', 'umbrella'):
@@ -1764,7 +1775,7 @@ def main(argv=None):
         options.adapter = 'legacy'
         return 1 if record(make_adapter(options), probes=options.stack_probes) else 0
     if options.command == 'update':
-        return update(options.change, options.stack_legacy, options.legacy, options.stack_probes, options.suite)
+        return update(options.change, options.stack_legacy, options.legacy, options.stack_probes, options.suite, drop_stale=options.drop_stale)
     if options.command == 'run':
         return run_lines(make_adapter(options), sys.stdin, lambda line: print(line, flush=True))
     if options.command == 'diff':

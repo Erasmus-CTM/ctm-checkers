@@ -52,13 +52,13 @@ run them (`stack.import`, `stack.instantiate`, `stack.card`, `stack.tests`,
 | `compliance.jsonl` | 2303 | Every answer-test row of STACK's own fixtures (`tests/stack/native_compliance/fixtures.json`, STACK `10d3233`) through the compliance report's Python runner; `native` holds STACK's expected score and answer note. |
 | `regressions.jsonl` | 170 | stack-sympy's port regression cases (`tests/stack/port_regressions/fixtures.json`). |
 | `reference.jsonl` | 65 | The cases stack-sympy compares with native STACK in Maxima (`tests/stack/reference_cases.json`). |
-| `questions-project.jsonl` | 1178 | stack-sympy's own example questions (`examples/stack/*.xml`): each file's import; the cards of stack-sympy's site; for every seed the site uses and seeds 1 to 3 (stack-sympy's default card) the variant and the question tests; and answer sets: the teacher's answers, the question tests' inputs and, for the site's first seed and seed 1, for each input its sign, offsets, double, factored, expanded and decimal forms, every question variable's name (S-01) and strings the input rules must handle (empty, `x+`, `sin(`, `2 x`, `x²`, `π`, `3,5`, `__import__('os')`, 1300 characters); also the answers of the audit's leak.py. |
+| `questions-project.jsonl` | 1180 | stack-sympy's own example questions (`examples/stack/*.xml`): each file's import; the cards of stack-sympy's site; for every seed the site uses and seeds 1 to 3 (stack-sympy's default card) the variant and the question tests; and answer sets: the teacher's answers, the question tests' inputs and, for the site's first seed and seed 1, for each input its sign, offsets, double, factored, expanded and decimal forms, every question variable's name (S-01) and strings the input rules must handle (empty, `x+`, `sin(`, `2 x`, `x²`, `π`, `3,5`, `__import__('os')`, 1300 characters); also the answers of the audit's leak.py. |
 | `questions-library.jsonl` | 1049 | The same for the STACK sample questions (`examples/stack/corpus`, `corrected`, `upstream/algmap-6-1.xml`), with the seeds of the corpus replay (the first three deployed seeds, else 17, 29, 47). |
 | `questions-helm.jsonl` | 179 | **NonCommercial test data** (CC BY-NC 4.0, below): the same for the two HELM questions (`examples/stack/upstream`). |
 | `questions-course.jsonl` | 232 | **Course material** (CC BY-SA 4.0; the checker file and the answers AGPL-3.0-or-later, below): the same as `questions-project` for the three questions derived from the course ingmat3a_ntnu (`examples/stack/course-*.xml`), among them S-01's test case `course-b-rank-pivots.xml` (since 0.3.0 `r` and `P` are invalid as answers: they name question variables). |
 | `probes.jsonl` | 207 | The stack-sympy audit's answer-test probes with STACK's and Maxima's native verdicts (`native`), and its performance probes. |
-| `probe-questions.jsonl` | 285 | The audit's question probes (`examples/stack/probes/`) with its answers. |
-| `supplement.jsonl` | 166 | Rules that only the mutation tests reached (below): NumAbsolute's strict bound with STACK's 1e-9 guard and NumRelative's inclusive one, for exact and irrational numbers; AlgEquiv's numeric rejection screen (1e-4 margin); response-tree scores beyond [0, 1] (`examples/stack/supplement/score-modes.xml`); the input rules of `examples/stack/supplement/input-rules.xml` (forbidden words in any case, the numerical input's type, lowest terms with two negative numbers, and/or precedence in the validation's LaTeX, the 64-entry matrix limit), with the answer sets of the example questions and the answers in `golden_stack.PROBE_ANSWERS`; S-01's question `examples/stack/supplement/forbidden-variables.xml` (0.3.0): only its six answers that name question and feedback variables, alone, inside an expression, with implied multiplication, twice, and two names at once (`golden_stack.ANSWERS_ONLY`); and from 0.4.0 (the review of S-01) `forbidden-variables-prts.xml`'s answers that name the feedback variables of its second response tree, separated by a newline (`ANSWERS_ONLY` too), and `teacher-answer-clash.xml`, whose teacher's answer uses a feedback variable's name: its build stops (its import and three variants). |
+| `probe-questions.jsonl` | 289 | The audit's question probes (`examples/stack/probes/`) with its answers. |
+| `supplement.jsonl` | 218 | Rules that only the mutation tests reached (below): NumAbsolute's strict bound with STACK's 1e-9 guard and NumRelative's inclusive one, for exact and irrational numbers; AlgEquiv's numeric rejection screen (1e-4 margin); response-tree scores beyond [0, 1] (`examples/stack/supplement/score-modes.xml`); the input rules of `examples/stack/supplement/input-rules.xml` (forbidden words in any case, the numerical input's type, lowest terms with two negative numbers, and/or precedence in the validation's LaTeX, the 64-entry matrix limit), with the answer sets of the example questions and the answers in `golden_stack.PROBE_ANSWERS`; S-01's question `examples/stack/supplement/forbidden-variables.xml` (0.3.0): only its six answers that name question and feedback variables, alone, inside an expression, with implied multiplication, twice, and two names at once (`golden_stack.ANSWERS_ONLY`); and from 0.4.0 (the review of S-01) `forbidden-variables-prts.xml`'s answers that name the feedback variables of its second response tree, separated by a newline (`ANSWERS_ONLY` too), and `teacher-answer-clash.xml`, whose teacher's answer uses a feedback variable's name: its build stops (its import and three variants); and from 0.5.0 (S-02) `constants.xml`, whose teacher's answers hold Euler's number and the imaginary unit next to the variables `E` and `I`, with the answer sets of the example questions and answers that write them in each way (`e`, `%e`, `exp(1)`, `E`; `i`, `%i`, `sqrt(-1)`, `I`). |
 
 `excluded.json` lists the inputs that run longer than 20 s (S-12:
 `sin(exp(exp(exp(5))))`, `sin(x)^99*cos(x)^99` against `(sin(2*x)/2)^99`):
@@ -122,6 +122,11 @@ of the row's canonical `{call, input}`:
   3.9 to 3.13 is also recorded natively with the legacy code (3.12 and 3.13
   give the Pyodide results; 3.10 and 3.11 those of 3.12; 3.9 words 60 parse
   errors differently). Every version CI runs must be present.
+- Values that the generated inputs write as text (frozen variants, the
+  question tests' inputs, the answer sets) write Euler's number and the
+  imaginary unit as `%e` and `%i` since 0.5.0 (S-02: `E` and `I` are
+  variables); the rows that wrote them `E` and `I` before were removed with
+  that change (CHANGELOG 0.5.0 names them; `golden.py update --drop-stale`).
 - `legacy` and `changes`, on a row that a grading change changed after the
   row was recorded: `legacy` is the legacy code's result (what it was
   recorded with, and what the legacy adapter still verifies), `changes` the
@@ -149,8 +154,10 @@ site pages of the stack-sympy checkout) and adds the rows they add, with
 the legacy code's result in a process of its own; it writes nothing when a
 row kept per Python version changes or when a table holds a row that
 today's inputs no longer give (the inputs depend on the code: such a change
-records the table again). `manifest.json` `changes` names each change with
-its version.
+records the table again), unless `--drop-stale` removes those rows and lists
+them (0.5.0: S-02 changed how values are written, `%i` for `I`), and the
+CHANGELOG then names each removed row (`check-changelog`). `manifest.json`
+`changes` names each change with its version.
 
 `check-changelog` (CI, on pull requests): STACK's and math-exercise's
 tables never change in one pull request (H2); every changed result names a
@@ -275,7 +282,7 @@ round, the reject rule comparing expressions instead of their text, changes
 no verdict SymPy can produce here and is not listed.
 
 Mutations of the STACK engine must fail the STACK tables (the test stops at
-the first row that differs). Rows that differ in all (of 5,834), by table:
+the first row that differs). Rows that differ in all (of 5,892), by table:
 
 | Mutation | Rows | Tables |
 |---|---|---|
@@ -312,6 +319,10 @@ the first row that differs). Rows that differ in all (of 5,834), by table:
 | S-01: only the first response tree's feedback variables (the review of S-01) | 3 | supplement |
 | the assignments split at semicolons only, not at newlines (the review of S-01) | 180 | questions-helm 177, supplement 3 |
 | S-01: the build does not check the teacher's answers for names a student may not type (the review of S-01) | 3 | supplement |
+| S-02: `E` is Euler's number again | 42 | probes 2, supplement 40 |
+| S-02: `I` is the imaginary unit again | 63 | probe-questions 20, probes 1, questions-project 2, supplement 40 |
+| S-02: values written with `E` for Euler's number (frozen variants, question tests' inputs) | 22 | supplement |
+| S-02: values written with `I` for the imaginary unit | 40 | probe-questions 8, questions-library 4, questions-project 6, supplement 22 |
 
 Since 0.3.0 (S-01) some answers that reached a rule name a question variable
 and stop at validation, so five mutations above change fewer rows than in

@@ -270,7 +270,7 @@ def _unrationalized_denominator(node: Node, env, assumptions) -> bool:
     """Inspect the unsimplified denominator before cancellations erase surds."""
     if node.kind == "call" and node.value == "sqrt":
         return True
-    if node.kind == "name" and node.value in {"%i", "i", "I"}:
+    if node.kind == "name" and node.value in {"%i", "i"}:
         return True
     if node.kind == "binary" and node.value in {"^", "**"}:
         exponent = node.children[1]

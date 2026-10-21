@@ -12,7 +12,8 @@ from typing import Mapping
 import sympy as sp
 
 from .assessment import answer_test
-from .expressions import InvalidAnswer, Node, Unsupported, assignment_statements, assignments, canonical_form, evaluate, form_latex, parse
+from .expressions import (InvalidAnswer, Node, Unsupported, assignment_statements, assignments, canonical_form, evaluate, form_latex, parse,
+                          source_text)
 from .importer import UnsupportedQuestion
 from .expressions import (MatrixValue, is_logical, is_collection, validate_collection, collection_items,
                           AUTHOR_COLLECTION_FUNCTIONS, SCALAR_FUNCTIONS, FUNCTION_ALIASES,
@@ -38,7 +39,7 @@ def _environment(question, variant):
 def _source(s):
     if isinstance(s, list):
         return "[" + ",".join(_source(x) for x in s) + "]"
-    return str(s).lower() if s in (sp.true, sp.false) else str(s)
+    return str(s).lower() if s in (sp.true, sp.false) else source_text(s)
 
 
 def _definitions(question):
