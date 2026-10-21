@@ -105,15 +105,17 @@ MUTATIONS = {
     # S-01 (0.3.0): the names of question and feedback variables in student answers
     # (the feedback variables, names inside expressions and two names in one answer:
     # only stack/supplement's forbidden-variables.xml reaches them).
-    'stack-s01-question-variables': ('stack/engine.py', '    names = set(env)\n', '    names = set()\n', 1, (STACK,)),
+    'stack-s01-question-variables': ('stack/student_input.py', '    keys = frozenset(question_variables)\n',
+                                     '    keys = frozenset()\n    author_names = set(author_names) - set(question_variables)\n', 1, (STACK,)),
     'stack-s01-feedback-variables': ('stack/engine.py',
                                      'names.update(name for name, _ in assignment_statements(prt.get("feedbackvariables", "")) if name)',
                                      'pass', 1, (STACK,)),
-    'stack-s01-whole-answer-only': ('stack/engine.py', '    for node in _walk(tree):\n        if node.kind == "name" and node.value in names',
-                                    '    for node in [tree]:\n        if node.kind == "name" and node.value in names', 1, (STACK,)),
-    'stack-s01-first-name-only': ('stack/engine.py', '" ".join(FORBIDDEN_VARIABLE.format(name=name) for name in found)',
-                                  'FORBIDDEN_VARIABLE.format(name=found[0])', 1, (STACK,)),
-    'stack-s01-message': ('stack/engine.py', 'FORBIDDEN_VARIABLE = "Forbidden variable or constant: {name}."',
+    # (Since S-13, 0.6.0, the names of an answer are checked in student_input.identifier_messages.)
+    'stack-s01-whole-answer-only': ('stack/student_input.py', 'for index, (kind, value) in enumerate(tokens):',
+                                    'for index, (kind, value) in enumerate(tokens if len(tokens) == 1 else []):', 1, (STACK,)),
+    'stack-s01-first-name-only': ('stack/engine.py', '        raise InvalidAnswer(" ".join(messages))\n    return tree',
+                                  '        raise InvalidAnswer(messages[0])\n    return tree', 1, (STACK,)),
+    'stack-s01-message': ('stack/student_input.py', 'FORBIDDEN_VARIABLE = "Forbidden variable or constant: {name}."',
                           'FORBIDDEN_VARIABLE = "Forbidden variable: {name}."', 1, (STACK,)),
     # The review of S-01 (0.4.0): every response tree's feedback variables, the
     # assignments' separators (one grammar: expressions.assignment_statements),
@@ -131,6 +133,53 @@ MUTATIONS = {
     'stack-s02-I-constant': ('stack/expressions.py', '"i": sp.I, "%i": sp.I}', '"i": sp.I, "I": sp.I, "%i": sp.I}', 1, (STACK,)),
     'stack-s02-source-euler': ('stack/expressions.py', 'return "%e"', 'return "E"', 1, (STACK,)),
     'stack-s02-source-imaginary': ('stack/expressions.py', 'return "%i"', 'return "I"', 1, (STACK,)),
+    # S-13 (0.6.0): STACK's rules for the text of an answer (stack/supplement's input-text.xml and the
+    # answer sets' strings), the inverse trigonometric functions, and the question tests' inputs (bound to the
+    # teacher's answers, as STACK computes them; corpus AlgMap-1-6.xml types ans+1).
+    'stack-s13-three-letters': ('stack/student_input.py', '    return name[-1:].isdigit()', '    return True', 1, (STACK,)),
+    'stack-s13-underscore-parts': ('stack/student_input.py', 'parts = [name] if _readable(name, keys) else list(dict.fromkeys(name.split("_")))',
+                                   'parts = [name]', 1, (STACK,)),
+    'stack-s13-function-case': ('stack/student_input.py', 'message = _case_message(name, _FUNCTION_CASES, FUNCTION_CASE)', 'message = None', 1,
+                                (STACK,)),
+    'stack-s13-variable-case': ('stack/student_input.py', '            elif len(part) > 1:', '            elif False:', 1, (STACK,)),
+    'stack-s13-log-in': ('stack/student_input.py', '        if name == "In":', '        if False:', 1, (STACK,)),
+    'stack-s13-unicode': ('stack/student_input.py', '    for old, new in stack_data.REPLACEMENTS:', '    for old, new in ():', 1, (STACK,)),
+    'stack-s13-characters': ('stack/student_input.py', 'raise InvalidAnswer(FORBIDDEN_CHAR.format(char=_CONTROL.get(character, character)))', 'pass', 1,
+                             (STACK,)),
+    'stack-s13-spaces': ('stack/student_input.py', '    if not fixed:', '    if True:', 1, (STACK,)),
+    'stack-s13-comma': ('stack/expressions.py', '            raise InvalidAnswer(UNENCAPSULATED_COMMA)', '            pass', 1, (STACK,)),
+    'stack-s13-zero-to-the-zero': ('stack/expressions.py', 'if student and simplify and a.is_zero is True and b.is_zero is True:', 'if False:', 1,
+                                   (STACK,)),
+    'stack-s13-arc-names': ('stack/expressions.py', '"ln": "log", **INVERSE_TRIG_SYNONYMS}', '"ln": "log"}', 1, (STACK,)),
+    'stack-s13-question-tests-bound': ('stack/engine.py', '            bound[inp["name"]] = evaluate(inp["teacher"], bound, assumptions=assumptions)\n',
+                                       '            pass\n', 1, (STACK,)),
+}
+
+# Mutations that no golden row reaches and that tests/ catch: the pytest files of the test column must fail on the
+# mutated copy of src/. S-13: the globally forbidden names (error, lisp), the names that Maxima's syntax reserves
+# (do), the S-01 name check for further question-variable names (alpha, a_b, v_0, ...), and the question tests'
+# inputs validated as the unsimplified value (abc*0+ta) and written as a student writes them (abs, mod).
+TESTS = {
+    'stack-s13-globally-forbidden-names': ('stack/student_input.py', '        if name in stack_data.GLOBALLY_FORBIDDEN:', '        if False:', 1,
+                                           ('tests/stack/test_input_text.py',)),
+    'stack-s13-reserved-names': ('stack/student_input.py', '    if name in stack_data.UNREADABLE:\n        return False\n', '', 1,
+                                 ('tests/stack/test_input_text.py',)),
+    'stack-s01-names-a': ('stack/student_input.py', '        if name in author_names and len(messages) == before:',
+                          '        if name in author_names and not _readable(name, keys) and len(messages) == before:', 1,
+                          ('tests/stack/test_input_text.py',)),
+    'stack-s01-names-b': ('stack/student_input.py', '        if name in author_names and len(messages) == before:',
+                          '        if any(part in author_names for part in name.split("_")) and len(messages) == before:', 1,
+                          ('tests/stack/test_input_text.py',)),
+    'stack-s13-question-tests-unsimplified': ('stack/engine.py', '        for text in ([displayed[key]] if displayed and key in displayed else []) + [answers.get(key, "")]:',
+                                              '        for text in [answers.get(key, "")]:', 1, ('tests/stack/test_question_test_inputs.py',)),
+    'stack-s13-question-tests-computed': ('stack/engine.py', '            actual = grade(question, raw, variant=variant, displayed=displayed)',
+                                           '            actual = grade(question, {key: "x" for key in raw}, variant=variant, displayed=displayed)', 1,
+                                           ('tests/stack/test_question_test_inputs.py',)),
+    'stack-s13-question-tests-abs': ('stack/expressions.py', 'return f"abs({self._print(expr.args[0])})"', 'return f"Abs({self._print(expr.args[0])})"', 1,
+                                     ('tests/stack/test_question_test_inputs.py',)),
+    'stack-s13-question-tests-mod': ('stack/expressions.py', 'return f"mod({self._print(expr.args[0])}, {self._print(expr.args[1])})"',
+                                     'return f"Mod({self._print(expr.args[0])}, {self._print(expr.args[1])})"', 1,
+                                     ('tests/stack/test_question_test_inputs.py',)),
 }
 
 # A few minutes: CI runs them in a step of their own (CTM_MUTATION_TESTS=1).
@@ -142,7 +191,7 @@ def package(tmp_path, mutation=None):
     folder = tmp_path / (mutation or 'unchanged')
     shutil.copytree(ROOT / 'src' / 'ctm_checkers', folder / 'ctm_checkers', ignore=shutil.ignore_patterns('__pycache__'))
     if mutation:
-        module, text, replacement, occurrences, _ = MUTATIONS[mutation]
+        module, text, replacement, occurrences, _ = {**MUTATIONS, **TESTS}[mutation]
         path = folder / 'ctm_checkers' / module
         source = path.read_text()
         assert source.count(text) == occurrences, (module, text)
@@ -176,3 +225,20 @@ def test_each_mutation_fails(tmp_path, mutation, suite):
     rows, different = verify(package(tmp_path, mutation), suite, fail_fast=suite == STACK)
     print(f'{mutation}: {different} of {rows} {LABELS[suite]} rows differ' + (' (stopped at the first)' if suite == STACK else ''))
     assert different > 0
+
+
+def test_the_unchanged_copy_passes_those_tests(tmp_path):
+    files = sorted({name for spec in TESTS.values() for name in spec[4]})
+    result = subprocess.run([sys.executable, '-m', 'pytest', '-q', '-p', 'no:cacheprovider', *files], capture_output=True, text=True, cwd=ROOT,
+                            env=dict(os.environ, CTM_CHECKERS_WHEEL=str(package(tmp_path)), CTM_MUTATION_TESTS=''))
+    assert result.returncode == 0, result.stdout[-1500:] + result.stderr[-500:]
+
+
+@pytest.mark.parametrize('mutation', list(TESTS))
+def test_each_test_mutation_fails(tmp_path, mutation):
+    """The tests of the row fail on the mutated copy (exit status 1: a test fails; not a collection error)."""
+    folder = package(tmp_path, mutation)
+    result = subprocess.run([sys.executable, '-m', 'pytest', '-q', '-x', '-p', 'no:cacheprovider', *TESTS[mutation][4]],
+                            capture_output=True, text=True, cwd=ROOT, env=dict(os.environ, CTM_CHECKERS_WHEEL=str(folder), CTM_MUTATION_TESTS=''))
+    assert result.returncode == 1, result.stdout[-1500:] + result.stderr[-500:]
+    assert ' failed' in result.stdout.splitlines()[-1]

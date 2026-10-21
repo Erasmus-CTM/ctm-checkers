@@ -318,7 +318,12 @@ def test_import_rejects_expressions_and_paths_as_checker_identifiers():
 
 def test_callback_receives_the_validated_value_without_input_name_rebinding():
     q = question(module("{'valid':True,'correct':True,'feedback':str(student)}"))
-    assert grade(q, {'ans': 'ans+1'})['feedback'] == 'ans + 1'
+    # Since S-13 (0.6.0) a student may not type ans, a name of three letters
+    # (STACK: "Forbidden variable or constant: ans."); an input of two letters may.
+    assert grade(q, {'ans': 'ans+1'})['inputs']['ans']['feedback'] == 'Forbidden variable or constant: ans.'
+    q['inputs'][0]['name'] = q['prts'][0]['nodes'][0]['student'] = 'an'
+    q['questiontext'] = q['questiontext'].replace('[[input:ans]]', '[[input:an]]').replace('[[validation:ans]]', '[[validation:an]]')
+    assert grade(q, {'an': 'an+1'})['feedback'] == 'an + 1'
 
 
 def test_model_preflight_uses_author_expression_conversion():

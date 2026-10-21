@@ -56,7 +56,10 @@ def load_policy(path: Path, ids: set[str]) -> dict:
                 or discussion.get("category") not in {"domain_review", "proof_limitation"}
                 or discussion.get("evidence") not in {"documented_context", "observed_behavior"}
                 or any(not isinstance(discussion.get(key), str) or not discussion[key].strip()
-                       for key in ("explanation", "question"))
+                       for key in ("explanation",))
+                # A question for the STACK author is optional: a row whose discussion has none (an expected
+                # failure of STACK's own fixtures, which the port shares) is not presented as one.
+                or "question" in discussion and (not isinstance(discussion["question"], str) or not discussion["question"].strip())
                 or not isinstance(discussion.get("sources"), list) or not discussion["sources"]
                 or any(not isinstance(s, dict) or not isinstance(s.get("label"), str)
                        or not isinstance(s.get("url"), str)

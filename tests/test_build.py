@@ -55,6 +55,33 @@ def test_the_wheel_records_its_files():
         assert names[-1].endswith('.dist-info/RECORD') and not any(n.endswith('.pyc') for n in names)
 
 
+def test_the_stack_wheel_carries_stacks_licence_and_the_base_wheel_does_not():
+    # stack_data.py is STACK's data (GPL-3.0-or-later) in an AGPL-3.0-or-later package: the STACK wheel is
+    # licensed under both and holds the GPL's text; the base wheel (math pages) holds neither.
+    manifest, _ = committed()
+    version, _ = build.package_info()
+    stack_wheel = (build.OUT / manifest['parts']['stack']['wheel']).read_bytes()
+    with zipfile.ZipFile(io.BytesIO(stack_wheel)) as archive:
+        dist = f'ctm_checkers_stack-{version}.dist-info'
+        metadata = archive.read(f'{dist}/METADATA').decode()
+        gpl = archive.read(f'{dist}/licenses/{build.GPL_NAME}')
+        names = archive.namelist()
+        assert 'ctm_checkers/stack/stack_data.py' in names
+        header = ' '.join(archive.read('ctm_checkers/stack/stack_data.py').decode().split('"""')[1].split())
+    assert 'License: AGPL-3.0-or-later AND GPL-3.0-or-later\n' in metadata
+    assert gpl == build.GPL_TEXT.read_bytes() and gpl.startswith(b'                    GNU GENERAL PUBLIC LICENSE\n                       Version 3, 29 June 2007')
+    assert f'{dist}/LICENSE' in names                              # the AGPL, too
+    for notice in ('University of Edinburgh', 'Aalto University', 'GPL-3.0-or-later', 'section 13',
+                   'AGPL-3.0-or-later AND GPL-3.0-or-later'):
+        assert notice in header, notice
+    base_wheel = (build.OUT / manifest['wheel']).read_bytes()
+    with zipfile.ZipFile(io.BytesIO(base_wheel)) as archive:
+        assert 'License: AGPL-3.0-or-later\n' in archive.read(f'ctm_checkers-{version}.dist-info/METADATA').decode()
+        assert not any('GPL-3.0-STACK' in name or 'stack_data' in name for name in archive.namelist())
+    script_header = ' '.join((build.OUT / manifest['parts']['stack']['script']).read_text()[:1500].split())
+    assert 'AGPL-3.0-or-later AND GPL-3.0-or-later' in script_header and 'stack_data.py' in script_header
+
+
 def test_the_page_script_carries_the_committed_wheel():
     manifest, data = committed()
     script = (build.OUT / manifest['script']).read_text()
@@ -135,6 +162,9 @@ def copy_of_repository(tmp_path):
         shutil.copytree(ROOT / name, tmp_path / name, ignore=shutil.ignore_patterns('__pycache__'))
     for name in ('LICENSE', 'pyproject.toml'):
         shutil.copy2(ROOT / name, tmp_path / name)
+    gpl = tmp_path / build.GPL_TEXT.relative_to(ROOT)    # the STACK wheel carries it
+    gpl.parent.mkdir(parents=True)
+    shutil.copy2(build.GPL_TEXT, gpl)
     return tmp_path
 
 

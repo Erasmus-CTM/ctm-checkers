@@ -48,12 +48,21 @@ _NAMES = {"pi": sp.pi, "%pi": sp.pi, "Pi": sp.pi, "PI": sp.pi,
 
 class _SourcePrinter(StrPrinter):
     """SymPy's text with Maxima's %e and %i for Euler's number and the
-    imaginary unit, which SymPy writes E and I, names of variables here (S-02)."""
+    imaginary unit, which SymPy writes E and I, names of variables here (S-02),
+    and abs and mod for the functions SymPy writes Abs and Mod: a student's
+    answer is case sensitive (S-13), and a question test's input is computed
+    and then validated as one."""
     def _print_Exp1(self, expr):
         return "%e"
 
     def _print_ImaginaryUnit(self, expr):
         return "%i"
+
+    def _print_Abs(self, expr):
+        return f"abs({self._print(expr.args[0])})"
+
+    def _print_Mod(self, expr):
+        return f"mod({self._print(expr.args[0])}, {self._print(expr.args[1])})"
 
 
 def source_text(value) -> str:
@@ -66,8 +75,19 @@ SCALAR_FUNCTIONS = {
     "sinh": sp.sinh, "cosh": sp.cosh, "tanh": sp.tanh,
     "sech": sp.sech, "csch": sp.csch, "coth": sp.coth,
     "exp": sp.exp, "log": sp.log, "abs": sp.Abs,
+    # Inverse trigonometric functions (S-13), as STACK's students may call them.
+    "asin": sp.asin, "acos": sp.acos, "atan": sp.atan, "asec": sp.asec, "acsc": sp.acsc, "acot": sp.acot,
+    "asinh": sp.asinh, "acosh": sp.acosh, "atanh": sp.atanh, "asech": sp.asech, "acsch": sp.acsch, "acoth": sp.acoth,
 }
-FUNCTION_ALIASES = {"cosec": "csc", "cosech": "csch", "ln": "log"}
+# STACK replaces the arc names before it parses an answer (parsingrules/
+# 022_trig_replace_synonyms.filter.php: arcsin(x) is asin(x)).
+INVERSE_TRIG_SYNONYMS = {
+    "arcsin": "asin", "arccos": "acos", "arctan": "atan", "arcsec": "asec", "arccot": "acot", "arccsc": "acsc",
+    "arcsinh": "asinh", "arccosh": "acosh", "arctanh": "atanh", "arcsech": "asech", "arccoth": "acoth", "arccsch": "acsch",
+    "arccosec": "acsc", "arsinh": "asinh", "arcosh": "acosh", "artanh": "atanh", "arsech": "asech", "arcoth": "acoth",
+    "arcsch": "acsch",
+}
+FUNCTION_ALIASES = {"cosec": "csc", "cosech": "csch", "ln": "log", **INVERSE_TRIG_SYNONYMS}
 _STUDENT_FUNCTIONS = frozenset(SCALAR_FUNCTIONS) | FUNCTION_ALIASES.keys() | {"gcd", "mod", "matrix"}
 LOGIC_OPERATORS = {"and": "and", "or": "or", "not": "not",
                    "implies": "implies", "xor": "xor", "xnor": "xnor",
@@ -386,10 +406,18 @@ class _Parser:
         return lhs
 
 
+# STACK's message for a comma outside a list, set or call (3,5: a decimal
+# comma; lang/en/qtype_stack.php stackCas_unencpsulated_comma; S-13).
+UNENCAPSULATED_COMMA = ("A comma in your expression appears in a strange way.  Commas are used to separate items in lists, sets etc.  "
+                        "You need to use a decimal point, not a comma, in floating point numbers.")
+
+
 def parse(text: str, *, insertstars: int = 0) -> Node:
     parser = _Parser(text, insertstars)
     node = parser.expression()
     if parser.tokens[parser.pos][0] != "end":
+        if parser.tokens[parser.pos][1] == ",":
+            raise InvalidAnswer(UNENCAPSULATED_COMMA)
         raise InvalidAnswer("Unexpected trailing text")
     return node
 
@@ -461,7 +489,8 @@ def form_latex(node: Node, env: Mapping[str, Any] | None = None) -> str:
             if n.value == "matrix":
                 return r"\begin{pmatrix}" + r" \\ ".join(
                     " & ".join(show(c) for c in row.children) for row in n.children) + r"\end{pmatrix}"
-            name = "\\" + n.value if n.value in {"sin", "cos", "tan", "exp", "log", "ln", "gcd"} else r"\operatorname{" + n.value + "}"
+            shown = INVERSE_TRIG_SYNONYMS.get(n.value, n.value)
+            name = "\\" + shown if shown in {"sin", "cos", "tan", "exp", "log", "ln", "gcd"} else r"\operatorname{" + shown + "}"
             if n.value == "sqrt" and len(n.children) == 1:
                 return r"\sqrt{" + show(n.children[0]) + "}"
             return name + wrap(", ".join(show(c) for c in n.children))
@@ -626,6 +655,12 @@ def transformed_decimal_collection(node: Node):
     return collection(node)
 
 
+def _zero_text(node):
+    """A zero as Maxima writes it in an error: 0, or 0.0 for a float (a
+    written decimal makes the value a float)."""
+    return "0.0" if contains_decimal(node) else "0"
+
+
 def evaluate(node_or_string: Node | str, env: Mapping[str, Any] | None = None, *, rng: random.Random | None = None,
              assumptions: Mapping[str, bool] | None = None, student: bool = False, simplify: bool = True):
     """Evaluate a parsed expression with a small explicit function whitelist.
@@ -710,6 +745,10 @@ def evaluate(node_or_string: Node | str, env: Mapping[str, Any] | None = None, *
                     raise InvalidAnswer("Division by zero")
                 result = sp.Mul(a, sp.Pow(b, -1, evaluate=simplify), evaluate=simplify)
             else:
+                if student and simplify and a.is_zero is True and b.is_zero is True:
+                    # Maxima: "expt: undefined: 0^0", a CAS error of STACK's
+                    # validation (S-13; SymPy's 0**0 is 1).
+                    raise InvalidAnswer("expt: undefined: " + _zero_text(n.children[0]) + "^" + _zero_text(n.children[1]))
                 if b.is_number and b.is_real and abs(float(sp.N(b, 16))) > MAX_POWER:
                     raise InvalidAnswer("Exponent too large")
                 _bounded_power(a, b)

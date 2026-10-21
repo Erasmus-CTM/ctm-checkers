@@ -9,7 +9,7 @@
 // cases.json: [{"raw", "forbiddenkeys", "insertstars", "forbidwords", "forbidfloat", "type"}, ...]
 // For each case, what STACK's input validation does with the student's string
 // (stack/input/inputbase.class.php validate_contents_filters and validate_contents):
-// the question's security with the names its question variables write as forbidden keys
+// the question's security as STACK's question class sets it up
 // (question.php:430-442), the input's forbidden words, and the parser filters that the
 // input's options select. The result: valid, the errors (STACK's English strings) and
 // the answer notes.

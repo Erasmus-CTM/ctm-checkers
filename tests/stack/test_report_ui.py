@@ -62,12 +62,12 @@ def render_report_shell(name):
         return (project / "test.html").read_text()
 
 
-def test_browser_legacy_report_explains_differences_without_marking_pass(tmp_path):
-    """Synthetic saved observations exercise the real report presentation."""
+def write_report(tmp_path, ordinals):
+    """The real report page with synthetic saved observations of the cases (by ordinal)."""
     fixture = json.loads((ROOT/'tests/stack/native_compliance/fixtures.json').read_text())
     policy = json.loads((ROOT/'tests/stack/native_compliance/policy.json').read_text())
     rows = []
-    for ordinal in (50, 471):
+    for ordinal in ordinals:
         case = next(c for c in fixture['cases'] if c['ordinal'] == ordinal)
         entry = policy['cases'][case['id']]
         observed = {'kind':'result','valid':True,'cas_valid':True,'correct':False}
@@ -81,18 +81,28 @@ def test_browser_legacy_report_explains_differences_without_marking_pass(tmp_pat
             'native_mark_status':'mismatch' if ordinal == 50 else 'match',
             'native_applicability_status':'match','native_desired_status':'matches_desired',
             'parity_status':'match'})
-    report = {'cases':rows,'summary':{'desired':{'known_defect':2}},
+    report = {'cases':rows,'summary':{'desired':{'known_defect':len(rows)}},
               'results':{'python':{'passed':True},'compatibility':{'passed':True}},
               'provenance':{'code_sha':'0'*40},'scope':'synthetic UI fixture'}
     (tmp_path/'report.json').write_text(json.dumps(report))
     for name in ('report-ui.js','report.js'):
         (tmp_path/name).write_text((REPORT/name).read_text())
     (tmp_path/'index.html').write_text(render_report_shell('index'))
+    return rows
+
+
+def chromium_options():
+    options = {'headless':True}
+    if os.environ.get('STACK_SYMPY_CHROMIUM'):
+        options['executable_path'] = os.environ['STACK_SYMPY_CHROMIUM']
+    return options
+
+
+def test_browser_legacy_report_explains_differences_without_marking_pass(tmp_path):
+    """Synthetic saved observations exercise the real report presentation."""
+    rows = write_report(tmp_path, (50, 471))
     with serve(tmp_path) as url, sync_playwright() as pw:
-        options = {'headless':True}
-        if os.environ.get('STACK_SYMPY_CHROMIUM'):
-            options['executable_path'] = os.environ['STACK_SYMPY_CHROMIUM']
-        browser = pw.chromium.launch(**options)
+        browser = pw.chromium.launch(**chromium_options())
         page = browser.new_page()
         page.goto(url+'/index.html')
         page.locator('#case-list .case').first.wait_for()
@@ -155,4 +165,22 @@ def test_browser_project_regression_report_keeps_suites_separate(tmp_path):
         page.locator('#port-search').fill('')
         page.locator('#port-group').select_option('declared boundaries')
         assert page.locator('#port-regressions-list .case').count()==sum(c['group']=='declared boundaries' for c in cases)
+        browser.close()
+
+
+def test_browser_report_presents_no_question_where_there_is_none(tmp_path):
+    """Case 477 (atan(1/2)) fails in STACK's own fixtures too: its discussion has no question for STACK."""
+    write_report(tmp_path, (477,))
+    with serve(tmp_path) as url, sync_playwright() as pw:
+        browser = pw.chromium.launch(**chromium_options())
+        page = browser.new_page()
+        page.goto(url+'/index.html')
+        page.locator('#case-list .case').first.wait_for()
+        page.locator('#case-list .case summary').first.click()
+        discussion = page.locator('.case-discussion')
+        assert discussion.is_visible()
+        text = discussion.inner_text()
+        assert 'Question for STACK' not in text and 'None for STACK' not in text
+        assert 'expected mathematical failure' in page.locator('.case-explanation').inner_text()
+        assert discussion.locator('a[href^="https://github.com/maths/moodle-qtype_stack/"]').count() > 0
         browser.close()

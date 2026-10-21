@@ -6,6 +6,191 @@ release. Every grading change is listed under "Grading changes" with the
 finding or decision it implements, its test and the summary of its golden
 diff (docs/goldens.md).
 
+## 0.6.0 (21 October 2026)
+
+STACK: an answer follows STACK's rules for its text, with STACK's messages
+(S-13; step-2 design §9, order 3), and the inverse trigonometric functions
+are allowed. A MINOR release (verdicts change); math-exercise's tables do
+not change (H2). The STACK wheel carries STACK's data for these rules
+(`ctm_checkers/stack/stack_data.py`, GPL-3.0-or-later, with its copyright
+notice and the GPL's text; the wheel's licence is `AGPL-3.0-or-later AND
+GPL-3.0-or-later`): it grows from 65 to 105 kB, its page script
+`ctm-checkers-stack.js` from 91 to 145 kB; math pages do not load it.
+
+### Grading changes
+
+- **S-13: STACK's input rules.** Before, the engine accepted what STACK
+  rejects (`sinx` and other names of three letters or more, `sin*x`,
+  `Sin(x)` and `SQRT(x)`, whose names it lower-cased, `0^0` as 1) and
+  rejected with technical text what STACK converts or explains (`x²`, `π`:
+  "Unexpected character …"; `3,5`, `2 x`: "Unexpected trailing text");
+  `atan(1)` got "use atan*(...) for multiplication". Now
+  `ctm_checkers.stack.student_input` applies STACK's own rules before an
+  answer is parsed, with STACK's messages (STACK `10d3233`:
+  `maximaparser/corrective_parser.php`,
+  `cas/parsingrules/998_security.filter.php`, `cassecurity.class.php`):
+  - Unicode: the letters and symbols STACK replaces are replaced (`π`: pi,
+    `α`: alpha, `−`: -, `×`: *); any other character outside STACK's set
+    is "CAS commands may not contain the following characters: ²." (the
+    first one, as STACK).
+  - Spaces between two terms (`2 x`, `sin x`, `(x+1) (x-1)`, `sin (x)`):
+    "Illegal spaces found in expression 2_x." (with or without
+    insertstars), and for a trigonometric function STACK's hint.
+  - A comma between terms (`3,5`): STACK's message on decimal commas.
+  - Names: a student may use a name of one or two letters (not a function
+    name: `ln*x` is forbidden), one ending in a digit, or one STACK knows
+    (`alpha`, `theta`, `pi`, `inf`, …); any other is "Forbidden variable
+    or constant: sinx." (`sin*x`: sin), part by part at underscores
+    (`ta_perimeter`: perimeter; before: ta_perimeter). Case:
+    `Sin(x)`, `SQRT(x)`, `Diff(x)` ("Input is case sensitive: Sin is an
+    unknown function. Did you mean sin?"), `PI`, `XI`, `ALPHA` (… unknown
+    variable …), `In(x)` (STACK's "Lima November" message). The names of
+    question and feedback variables are forbidden (S-01).
+  - `0^0` (also `(x-x)^0`, `0.0^0`): Maxima's error "expt: undefined: 0^0",
+    STACK's validation error (SymPy's 0**0 is 1).
+  - The inverse trigonometric functions (`asin`, `acos`, `atan`, `asec`,
+    `acsc`, `acot` and their hyperbolic forms) for students and authors,
+    and STACK's other names for them (`arcsin`, `arsinh`, `arccosec`, …),
+    which STACK replaces.
+  - **Question tests** (AC's decision of 21 October): their inputs are
+    computed as STACK computes them (`questiontest.php`, `compute_response`)
+    and the computed value is a student's answer. Every input's name is
+    bound to its teacher's answer (`ans1: ta`, in the order of the inputs),
+    then each test input is computed with the question variables and these
+    values: `ans1+1` is the teacher's answer plus 1, `ans1-x^2+x^2` is the
+    teacher's answer. The computed value then goes through the input's
+    validation like a student's answer, by S-01 and S-13: `sinx` is
+    invalid, and so is `abc*0+ta`, whose unsimplified value (STACK computes
+    with `simp:false`) keeps `abc`; a test that expects a score then fails as
+    invalid. Both the unsimplified text and the text that is graded are
+    validated; the exemption of the question tests' inputs that this
+    release had before is gone. The computed value is written as a student
+    writes it: `abs(x-1)` and `mod(x,3)`, not SymPy's `Abs(x - 1)` and
+    `Mod(x, 3)`, which the case rule rejects (native STACK passes a test
+    whose input is `abs(x-1)`, `ta` or `ans1`, with the teacher's answer
+    `abs(x-1)`, or `mod(x,3)` with `mod(x,3)`); this also writes frozen
+    variants and every other value the engine reads back that way. Corpus `AlgMap-1-6.xml` types `ans+1`, the
+    input's own name: its inputs are now 9, 9 and 17 (it was `ans + 1`, a
+    name a student may not type) and its question tests pass at the three
+    deployed seeds; no other question test of `examples/stack/` changes its
+    inputs or its outcome (363 runs at seeds 1 to 3 compared before and
+    after: 3 differ, in the inputs of `AlgMap-1-6.xml` only; and the golden
+    rows of all of them, below). Native STACK computes the same outcomes for the test
+    question in `tests/stack/test_question_test_inputs.py` (`ta`,
+    `ans1-x^2+x^2` and `ans1+1` pass; `abc*0+ta` and `sinx` are invalid).
+  STACK's data for these rules (the identifiers by their security, the
+  case variants, the Unicode replacements) is generated from STACK's own
+  files by `tools/stack_native/stack_input_data.py` into
+  `ctm_checkers/stack/stack_data.py` (STACK's data, copyright the
+  University of Edinburgh, Aalto University and STACK's other contributors,
+  GPL-3.0-or-later, combined under section 13 of the GPL and the AGPL: the
+  STACK wheel's metadata licence is `AGPL-3.0-or-later AND GPL-3.0-or-later`
+  and the wheel holds the GPL's text, `dist-info/licenses/GPL-3.0-STACK.txt`;
+  README, "Licence"); `native-stack.yml` checks it is current. Tests:
+  `tests/stack/test_input_text.py` (57 answers with native STACK's verdict
+  and message, `0^0`, the inverse functions; the globally forbidden names
+  `error` and `lisp`, `do`, and the question variables `a_b`, `alpha`,
+  `v_0`), `tests/stack/test_question_test_inputs.py` (with `abs` and `mod`); question
+  `examples/stack/supplement/input-text.xml`; twelve mutations of the
+  golden tables and eight that pytest catches (docs/goldens.md, which counts
+  every STACK mutation's rows anew); S-01's mutations follow the names' new
+  home in `student_input`. The three S-13 entries added to
+  `tests/stack/native_compliance/policy.json` (STACK's own fixtures mark
+  them -3, as expected failures that the port shares) carry no question for
+  STACK: the compliance report shows one only where a discussion has one.
+  - **Native STACK** (`tools/stack_native/check_validation.py`, now on every
+    golden answer: STACK `10d3233`'s PHP input validation; the S-13 rows
+    are those that name S-13): of the 1,000 inputs of the answer rows that
+    name S-13, 958 get STACK's verdict and message; 37 are valid for
+    STACK's PHP and invalid here by a rule of the CAS side, which PHP alone
+    does not decide (`0^0`, 3: Maxima's error, checked natively; `π` in a
+    matrix or collection input, 34: "Enter a matrix", "Use the same
+    collection type …"); 4 are invalid for both with this engine's message
+    for a rule outside S-13 (`x+`, `sin(`, an apostrophe, an oversized
+    answer); 1 adds STACK's error for a forbidden operator (HELM's
+    `bodmas.xml` forbids `*`, a rule outside S-13); 0 disagree. Of all
+    5,174 golden answers: 4,455 agree, 439 the other rules, 269 after
+    STACK's PHP, 5 S-01 names (listed apart), 2 other message
+    (two rules at once), 4 valid here but invalid for STACK by its
+    forbidden operators (bodmas.xml, as before), 0 disagree. S-01's
+    answers: 376 of 382 agree in verdict and message (in 0.4.0: 356 of
+    376); the 14 `ta_perimeter` and `ta_area` answers now name what STACK
+    names; `d+0*f` and the 5 feedback-variable answers stay as in 0.4.0.
+  - **Golden diff** (`tools/golden.py diff --base` the 0.5.0 head; `update
+    --change S-13 --drop-stale`): 446 rows changed, 80 added, 3 removed:
+
+    | Table | Changed | Added | Removed |
+    |---|---|---|---|
+    | `stack/compliance.jsonl` | 3 | 0 | 0 |
+    | `stack/probe-questions.jsonl` | 44 | 0 | 0 |
+    | `stack/probes.jsonl` | 2 | 0 | 0 |
+    | `stack/questions-course.jsonl` | 32 | 0 | 0 |
+    | `stack/questions-helm.jsonl` | 28 | 0 | 0 |
+    | `stack/questions-library.jsonl` | 127 | 3 | 3 |
+    | `stack/questions-project.jsonl` | 177 | 0 | 0 |
+    | `stack/supplement.jsonl` | 33 | 77 | 0 |
+
+    | Table | Before | After | Rows |
+    |---|---|---|---|
+    | `stack/compliance.jsonl` | other | false | 3 |
+    | `stack/probe-questions.jsonl` | invalid 0.0 | graded 0.0 | 6 |
+    | `stack/probe-questions.jsonl` | invalid 0.0 | graded 0.5 | 2 |
+    | `stack/probe-questions.jsonl` | invalid 0.0 | graded 0.6666666 | 3 |
+    | `stack/probe-questions.jsonl` | invalid 0.0 | invalid 0.0 | 33 |
+    | `stack/probes.jsonl` | invalid | true | 1 |
+    | `stack/probes.jsonl` | true | invalid | 1 |
+    | `stack/questions-course.jsonl` | invalid 0.0 | graded 0.5 | 2 |
+    | `stack/questions-course.jsonl` | invalid 0.0 | invalid 0.0 | 30 |
+    | `stack/questions-helm.jsonl` | invalid 0.0 | graded 0.0 | 1 |
+    | `stack/questions-helm.jsonl` | invalid 0.0 | invalid 0.0 | 27 |
+    | `stack/questions-library.jsonl` | (new) | graded 0.0 | 3 |
+    | `stack/questions-library.jsonl` | invalid 0.0 | graded 0.0 | 19 |
+    | `stack/questions-library.jsonl` | invalid 0.0 | graded 0.5 | 2 |
+    | `stack/questions-library.jsonl` | invalid 0.0 | graded 1.0 | 1 |
+    | `stack/questions-library.jsonl` | invalid 0.0 | invalid 0.0 | 100 |
+    | `stack/questions-library.jsonl` | invalid 0.0 | raised | 2 |
+    | `stack/questions-library.jsonl` | passed | passed | 3 |
+    | `stack/questions-project.jsonl` | invalid 0.0 | graded 0.0 | 10 |
+    | `stack/questions-project.jsonl` | invalid 0.0 | graded 0.6666666667 | 2 |
+    | `stack/questions-project.jsonl` | invalid 0.0 | invalid 0.0 | 165 |
+    | `stack/supplement.jsonl` | (new) | value | 1 |
+    | `stack/supplement.jsonl` | invalid 0.0 | graded 0.0 | 1 |
+    | `stack/supplement.jsonl` | invalid 0.0 | graded 0.5 | 2 |
+    | `stack/supplement.jsonl` | invalid 0.0 | graded 0.8 | 5 |
+    | `stack/supplement.jsonl` | invalid 0.0 | invalid 0.0 | 25 |
+    | `stack/supplement.jsonl` | raised (legacy code) | graded 0.0 | 23 |
+    | `stack/supplement.jsonl` | raised (legacy code) | graded 1.0 | 6 |
+    | `stack/supplement.jsonl` | raised (legacy code) | invalid 0.0 | 41 |
+    | `stack/supplement.jsonl` | raised (legacy code) | other | 3 |
+    | `stack/supplement.jsonl` | raised (legacy code) | passed | 3 |
+
+    By rule (inputs of changed answer rows): `x²` 106 (the new message),
+    `3,5` 106, `2 x` 106, `π` 106 (valid: 72; then a matrix or collection
+    input's rule: 34), `ta_perimeter` and `ta_area` 14 (STACK's names),
+    `x+SIN` 1 (`input-rules.xml`:
+    STACK's message instead of "Contains a forbidden word"). Two answers
+    `π` in corpus `AlgMap-10-1.xml` and `AlgMap-13-1-.xml` now reach the
+    response tree and raise "FacForm supports univariate rational
+    polynomials", as `pi` did before (S-11). Answer tests: STACK's fixture
+    rows with inverse trigonometric functions (compliance 3: from
+    "unsupported" to false, as STACK, which its fixture marks -3, an
+    expected mathematical failure; `tests/stack/native_compliance/
+    policy.json` lists them, its scope pinned anew, and the test that the
+    moved fixtures are stack-sympy's allows exactly these three entries;
+    `native-stack.yml` allows 15 s a case: the third takes about 3 s), `AlgEquiv(atan(x),
+    atan(x))` (probes: invalid → true), `AlgEquiv(0^0, 1)` (true →
+    invalid, as STACK's CAS error). `input-text.xml` adds 77 rows.
+    Question tests (above): corpus `AlgMap-1-6.xml`'s three `stack.tests`
+    rows (`questions-library`, seeds 1536647851, 1858711800, 891319547) keep
+    their outcome (`passed`) and change their inputs, `ans + 1` to 9, 9 and
+    17; so its three answer rows with the question test's input typed as an
+    answer (`ans + 1`, which S-13 made invalid because `ans` is a name a
+    student may not type) are no longer generated and are removed (ids
+    `14f2d3ad4ac8d581`, `36390a37664587ff`, `92f8385572a53c93`), and the
+    answers 9, 9 and 17 are added (graded 0.0, as in the legacy code). No
+    other question test, teacher's answer, variant or card of the corpus
+    changes.
+
 ## 0.5.0 (21 October 2026)
 
 STACK: only `e`, `pi`, `Pi`, `PI` and `i` (and Maxima's `%e`, `%pi`, `%i`)

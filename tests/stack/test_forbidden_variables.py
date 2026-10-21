@@ -43,6 +43,9 @@ LEAKS = [
 ]
 
 
+STACK_PARTS = {"ta_perimeter": "perimeter", "ta_area": "area"}
+
+
 @pytest.mark.parametrize("name, checkers, answers", LEAKS, ids=[case[0] for case in LEAKS])
 def test_the_leak_cases_are_invalid_without_a_preview(name, checkers, answers):
     q = question(name, checkers)
@@ -54,7 +57,10 @@ def test_the_leak_cases_are_invalid_without_a_preview(name, checkers, answers):
     assert graded["prts"] == {}
     for key, text in answers.items():
         if text in variant["env"]:
-            assert checked["inputs"][key] == {"valid": False, "latex": "", "feedback": message(text)}
+            # STACK checks ta_perimeter part by part and forbids perimeter, a
+            # name of three letters or more (S-13, 0.6.0; before: ta_perimeter).
+            named = STACK_PARTS.get(text, text)
+            assert checked["inputs"][key] == {"valid": False, "latex": "", "feedback": message(named)}
             assert graded["inputs"][key] == checked["inputs"][key]
 
 
@@ -83,9 +89,10 @@ def test_question_and_feedback_variables(answer, names):
     assert grade(q, {"ans1": answer}, variant=variant)["status"] == "invalid"
 
 
-@pytest.mark.parametrize("answer, score", [("6*x+1", 1.0), ("6x+1", 1.0), ("TA", 0.0), ("tab", 0.0), ("D", 0.0), ("x", 0.0)])
+@pytest.mark.parametrize("answer, score", [("6*x+1", 1.0), ("6x+1", 1.0), ("TA", 0.0), ("ta1", 0.0), ("D", 0.0), ("x", 0.0)])
 def test_other_names_stay_answers(answer, score):
-    # Names are compared exactly, as STACK's forbidden keys are (TA and tab are no question variable).
+    # Names are compared exactly (TA and ta1 are
+    # no question variable; tab, a name of three letters, is forbidden since S-13).
     q = question(SUPPLEMENT)
     graded = grade(q, {"ans1": answer}, variant=instantiate(q, 1))
     assert graded["status"] == "graded" and graded["score"] == score
@@ -199,9 +206,10 @@ def test_golden_answer_rows():
             checked = row["output"]["validate"]["inputs"]
             for name, found in used.items():
                 if found:
-                    assert checked[name] == {"valid": False, "latex": "", "feedback": message(*dict.fromkeys(found))}, row["id"]
-                else:
-                    assert not checked[name]["feedback"].startswith("Forbidden variable"), row["id"]
+                    # Each name, or with S-13 (0.6.0) the part STACK forbids (ta_perimeter: perimeter).
+                    feedback = checked[name]["feedback"]
+                    assert not checked[name]["valid"] and checked[name]["latex"] == "", row["id"]
+                    assert all(any(message(part) in feedback for part in [n] + n.split("_")) for n in found), row["id"]
             assert ("S-01" in row.get("changes", [])) <= any(used.values()), row["id"]
             rows += any(used.values())
     assert rows >= 372

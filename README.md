@@ -66,10 +66,24 @@ calls it at its pin).
 GNU Affero General Public License, version 3 or (at your option) any later
 version (AGPL-3.0-or-later); see [LICENSE](LICENSE). The STACK engine and its
 tools came from stack-sympy (AGPL-3.0), relicensed AGPL-3.0-or-later by the
-CTM team, its authors (October 2026). Third-party test data and example
-questions keep their own licences, with their notices:
-`tests/stack/native_compliance/COPYING.txt` (STACK's answer-test fixtures,
-GPL-3.0-or-later) and those in `examples/stack/`
+CTM team, its authors (October 2026).
+
+**STACK's data in the STACK wheel.** `src/ctm_checkers/stack/stack_data.py` is
+data of STACK (the identifiers by their security, the case spellings, the
+Unicode replacements; generated from STACK's files by
+`tools/stack_native/stack_input_data.py`), copyright the University of
+Edinburgh, Aalto University and STACK's other contributors, licensed
+GPL-3.0-or-later. It is combined with our AGPL-3.0-or-later code under
+section 13 of both licences. The wheel that carries it (`ctm_checkers_stack`,
+and the page script `ctm-checkers-stack.js` with it) is licensed
+`AGPL-3.0-or-later AND GPL-3.0-or-later`, and holds the GPL's text
+(`dist-info/licenses/GPL-3.0-STACK.txt`, the copy of
+`tests/stack/native_compliance/COPYING.txt`); the base wheel and math pages
+carry none of it.
+
+Third-party test data and example questions keep their own licences, with
+their notices: `tests/stack/native_compliance/COPYING.txt` (STACK's
+answer-test fixtures, GPL-3.0-or-later, in no wheel) and those in `examples/stack/`
 ([README](examples/stack/README.md)); `tests/golden/PROVENANCE.md` names the
 source and licence of each golden table. One STACK table is course material:
 `tests/golden/stack/questions-course.jsonl`, derived from the course
