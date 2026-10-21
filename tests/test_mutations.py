@@ -106,13 +106,25 @@ MUTATIONS = {
     # (the feedback variables, names inside expressions and two names in one answer:
     # only stack/supplement's forbidden-variables.xml reaches them).
     'stack-s01-question-variables': ('stack/engine.py', '    names = set(env)\n', '    names = set()\n', 1, (STACK,)),
-    'stack-s01-feedback-variables': ('stack/engine.py', 'names.add(match.group(1))', 'pass', 1, (STACK,)),
+    'stack-s01-feedback-variables': ('stack/engine.py',
+                                     'names.update(name for name, _ in assignment_statements(prt.get("feedbackvariables", "")) if name)',
+                                     'pass', 1, (STACK,)),
     'stack-s01-whole-answer-only': ('stack/engine.py', '    for node in _walk(tree):\n        if node.kind == "name" and node.value in names',
                                     '    for node in [tree]:\n        if node.kind == "name" and node.value in names', 1, (STACK,)),
     'stack-s01-first-name-only': ('stack/engine.py', '" ".join(FORBIDDEN_VARIABLE.format(name=name) for name in found)',
                                   'FORBIDDEN_VARIABLE.format(name=found[0])', 1, (STACK,)),
     'stack-s01-message': ('stack/engine.py', 'FORBIDDEN_VARIABLE = "Forbidden variable or constant: {name}."',
                           'FORBIDDEN_VARIABLE = "Forbidden variable: {name}."', 1, (STACK,)),
+    # The review of S-01 (0.4.0): every response tree's feedback variables, the
+    # assignments' separators (one grammar: expressions.assignment_statements),
+    # and the build's check of the teacher's answers (stack/supplement's
+    # forbidden-variables-prts.xml and teacher-answer-clash.xml).
+    'stack-s01-first-prt-only': ('stack/engine.py', '        for prt in question.get("prts", []):\n            names.update(',
+                                 '        for prt in question.get("prts", [])[:1]:\n            names.update(', 1, (STACK,)),
+    'stack-assignment-separators': ('stack/expressions.py', 'for stmt in re.split(r"[;\\n]+", source):',
+                                    'for stmt in re.split(r"[;]+", source):', 1, (STACK,)),
+    'stack-s01-teacher-answer-names': ('stack/engine.py', '            _teacher_answer_names(question, inp["name"], teacher, env)\n', '', 1,
+                                       (STACK,)),
 }
 
 # A few minutes: CI runs them in a step of their own (CTM_MUTATION_TESTS=1).

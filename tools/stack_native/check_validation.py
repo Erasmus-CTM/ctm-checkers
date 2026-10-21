@@ -12,15 +12,13 @@ For every input of a `stack.answer` row whose answer names such a variable
 is STACK's PHP side):
 
 - agree: both invalid, with the same message (STACK's markup removed);
-- agree, other message: both invalid with STACK's forbiddenVariable, but STACK
-  names other parts of the answer: a name with "_" is checked part by part,
-  and STACK forbids every unknown name of three letters or more (S-13, not
-  yet in ctm_checkers.stack);
-- feedback variable: the answer names only a PRT's feedback variable, which
-  STACK does not forbid (question.php:436, "TO-DO: shouldn't we also protect
-  variables used in PRT logic? Feedback vars"); ctm_checkers.stack does,
-  because its answer tests evaluate the student's expression where the
-  feedback variables are defined (S-01);
+- agree, other message: both invalid with STACK's forbiddenVariable, but
+  STACK's message names other names of the answer: the unknown names of
+  three letters or more (S-13, not yet in ctm_checkers.stack);
+- feedback variable: the answer names only a PRT's feedback variable;
+  ctm_checkers.stack forbids it (S-01), because its answer tests evaluate the
+  student's expression where the feedback variables are defined; listed apart,
+  not part of the comparison;
 - disagree: anything else (the command fails).
 
 Matrix inputs are validated as the expression typed (STACK's matrix input

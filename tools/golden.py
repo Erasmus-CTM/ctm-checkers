@@ -53,10 +53,12 @@ ctm_checkers from src/ and writes the results that a change of the code
 changed; such a row keeps the legacy code's result as "legacy" (what the
 legacy adapter verifies) and names the change in "changes". `diff` writes
 the golden diff against a Git commit (rows per table, transitions,
-the changes named), and `check-changelog` holds a pull request to the
-rules: STACK's and math-exercise's tables never change together (H2), every
-changed result names its change, the version is a new MINOR one (0.x) and
-the CHANGELOG lists the change under "Grading changes".
+the changes named, the rows removed), and `check-changelog` holds a pull
+request to the rules: STACK's and math-exercise's tables never change
+together (H2), every changed result names its change, a row removed or
+changed in another field than its result is named (its id) in the
+CHANGELOG, the version is a new MINOR one (0.x) and the CHANGELOG lists the
+change under "Grading changes".
 
 This file runs in native Python (3.9 or later) and inside Pyodide
 (tools/pyodide/verify.cjs): standard library only; subprocesses only for
@@ -1235,8 +1237,7 @@ def update(change, stack_legacy=None, legacy=None, probes=None, patterns=(), out
             write_rows(path, rows)
             if rows[0]['suite'] in manifest.get('recorded', {}):
                 manifest['recorded'][rows[0]['suite']]['rows'] = len(rows)
-    entry = manifest.setdefault('changes', {}).setdefault(change, {})
-    entry.update({'version': release_of(package_version()), 'python': MINOR})
+    record_change(manifest, change, release_of(package_version()))
     write_manifest(manifest)
     if manifest.get('capture'):
         write_provenance()
@@ -1245,6 +1246,23 @@ def update(change, stack_legacy=None, legacy=None, probes=None, patterns=(), out
             out(f'{suite}: {count["changed"]} rows changed, {count["added"]} added, {count["reverted"]} back to their legacy result')
     out(f'Updated with ctm_checkers {package_version()} from src/ on Python {sys.version.split()[0]} ({change}).')
     return 0
+
+
+def record_change(manifest, change, version):
+    """manifest.json "changes": a grading change with the version that made
+    it ("version", the first) and every later version that wrote rows naming
+    it ("versions"), with the Python it ran on."""
+    entry = manifest.setdefault('changes', {}).setdefault(change, {})
+    entry.setdefault('version', version)
+    entry['python'] = MINOR
+    versions = entry.get('versions', [entry['version']])
+    entry['versions'] = versions + ([version] if version not in versions else [])
+    return entry
+
+
+def change_versions(entry):
+    """The versions of a grading change (manifest.json "changes"), first to last."""
+    return entry.get('versions', [entry['version']])
 
 
 def git_tables(base):
@@ -1279,6 +1297,17 @@ def golden_diff(base):
 
 def result_of(row):
     return row['output'] if 'output' in row else row.get('by_python')
+
+
+# The fields of a row that hold its result (and the legacy code's result and
+# the changes that made it). A change of any other field (tags, native) is
+# not a grading change; the pull request names the row in the CHANGELOG.
+RESULT_FIELDS = ('output', 'by_python', 'legacy', 'changes')
+
+
+def other_fields_changed(before, after):
+    strip = lambda row: canonical({key: value for key, value in row.items() if key not in RESULT_FIELDS})
+    return strip(before) != strip(after)
 
 
 def verdict(row, result=None):
@@ -1337,6 +1366,13 @@ def diff_summary(report, rows=False):
     lines += [f'| `{name}` | {before} | {after} | {count} |' for (name, before, after), count in sorted(transitions.items())]
     lines += ['', 'Grading changes named by the rows: ' + (', '.join(f'{name} ({count} rows)' for name, count in sorted(names.items())) or 'none') + '.',
               f'Rows with a native STACK verdict that now agree with it: {native["agree"]}; that now disagree: {native["disagree"]}.']
+    removed = [(name, row) for name, (added, gone, changed) in report.items() for row in gone]
+    edited = [(name, after) for name, (added, gone, changed) in report.items() for before, after in changed if other_fields_changed(before, after)]
+    for title, entries in (('Rows removed', removed), ('Rows changed in another field than the result', edited)):
+        if entries:
+            lines += ['', f'{title} (the CHANGELOG names each id): ' + '; '.join(
+                f'`{name}` ' + ', '.join(f'`{row["id"]}`' for table, row in entries if table == name)
+                for name in dict.fromkeys(table for table, _ in entries)) + '.']
     if rows:
         lines += ['', '| Table | File | Question | Seed | Answers | Before | After | Validation now |', '|---|---|---|---|---|---|---|---|']
         for name, (added, removed, changed) in report.items():
@@ -1377,16 +1413,19 @@ def changelog_problems(report, version, base_version, changelog):
     if len(families) > 1:
         problems.append('H2: one pull request changes ' + ' and '.join(families) + ' rows; STACK and math-exercise grading changes '
                         'come in pull requests of their own (design §6.6)')
-    names = set()
+    names, unnamed = set(), []
     for name, (added, removed, changed) in report.items():
         for before, after in changed:
             new = set(after.get('changes', [])) - set(before.get('changes', []))
             if canonical(result_of(before)) != canonical(result_of(after)) and not new:
                 problems.append(f'{name} {after["id"]}: its result changed, but the row names no new grading change '
                                 '("changes"; tools/golden.py update --change NAME writes it)')
+            if other_fields_changed(before, after):
+                unnamed.append((name, after['id'], 'changed in another field than its result (tags, native)'))
             names |= new
         for row in added:
             names |= set(row.get('changes', []))
+        unnamed += [(name, row['id'], 'removed') for row in removed]
     key = lambda v: tuple(int(part) for part in release_of(v).split('.'))
     if key(version)[:2] <= key(base_version)[:2]:
         problems.append(f'version {version}: golden rows changed, so the release after {base_version} is a new MINOR '
@@ -1398,6 +1437,10 @@ def changelog_problems(report, version, base_version, changelog):
         problems.append(f'CHANGELOG.md {release_of(version)}: no "Grading changes" for the changed golden rows')
     else:
         problems += [f'CHANGELOG.md {release_of(version)}: "Grading changes" does not name {name}' for name in sorted(names) if name not in section]
+    # A removed row, or one whose other fields changed, names no change itself:
+    # the CHANGELOG section names it by its id (golden.py diff lists them).
+    problems += [f'{name} {identifier}: {what}, but CHANGELOG.md {release_of(version)} does not name the row (its id)'
+                 for name, identifier, what in unnamed if identifier not in section]
     return problems
 
 
@@ -1599,11 +1642,20 @@ def write_provenance():
                   'of a table is not the licence of ctm-checkers\' code, which is AGPL-3.0-or-later.',
                   'Rows that ran longer than ' + str(STACK_LIMIT) + ' s are listed in `stack/excluded.json`, not recorded.', '',
                   '| File | Rows | Source | Licence |', '|---|---|---|---|']
+        written = {}
+        for path in table_files():
+            for row in read_rows(path):
+                for change in row.get('changes', []):
+                    written.setdefault(row['suite'], {}).setdefault(change, 0)
+                    written[row['suite']][change] += 1
         for suite, (source, licence) in golden_stack.TABLES.items():
             info = manifest.get('recorded', {}).get(suite)
             if info:
+                later = ''.join(f'; {count} rows hold the result of ctm-checkers after {change} '
+                                f'({", ".join(change_versions(manifest["changes"][change]))}; their stack-sympy result in `legacy`; '
+                                'below, "Grading changes")' for change, count in sorted(written.get(suite, {}).items()))
                 lines.append(f'| `{suite}.jsonl` | {info["rows"]} | {source}; recorded with stack-sympy `{stack[:12]}` '
-                             f'(Python {", ".join(info["python"])}) | {licence} |')
+                             f'(Python {", ".join(info["python"])}){later} | {licence} |')
         helm = manifest.get('recorded', {}).get('stack/questions-helm')
         if helm:
             sources = {entry['file']: entry for entry in
@@ -1654,7 +1706,7 @@ def write_provenance():
                   'legacy code\'s keeps that result as `legacy` and names the change in `changes`. Inputs and licences are',
                   'those of the table.', '']
         for change, info in sorted(changes.items()):
-            lines.append(f'- {change}: ctm-checkers {info["version"]} (Python {info["python"]}); rows naming it: '
+            lines.append(f'- {change}: ctm-checkers {", ".join(change_versions(info))} (Python {info["python"]}); rows naming it: '
                          + ', '.join(f'`{suite}.jsonl` {count}' for suite, count in sorted(counted.get(change, {}).items())) + '.')
     (GOLDEN / 'PROVENANCE.md').write_text('\n'.join(lines) + '\n', encoding='utf-8')
 

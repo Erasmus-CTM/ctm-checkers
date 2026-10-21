@@ -12,7 +12,7 @@ from typing import Mapping
 import sympy as sp
 
 from .assessment import answer_test
-from .expressions import InvalidAnswer, Node, Unsupported, assignments, canonical_form, evaluate, form_latex, parse
+from .expressions import InvalidAnswer, Node, Unsupported, assignment_statements, assignments, canonical_form, evaluate, form_latex, parse
 from .importer import UnsupportedQuestion
 from .expressions import (MatrixValue, is_logical, is_collection, validate_collection, collection_items,
                           AUTHOR_COLLECTION_FUNCTIONS, SCALAR_FUNCTIONS, FUNCTION_ALIASES,
@@ -226,6 +226,7 @@ def instantiate(question: dict, seed: int = 1) -> dict:
                     raise Unsupported("Finite collection helpers require questionsimplify=1")
             except (InvalidAnswer, Unsupported) as exc:
                 raise UnsupportedQuestion(name, where + "/tans", str(exc)) from exc
+            _teacher_answer_names(question, inp["name"], teacher, env)
             if is_logical(teacher):
                 validate_logic(teacher)
             if inp["type"] == "numerical" and getattr(teacher, "is_number", None) is not True:
@@ -352,15 +353,39 @@ def _author_names(question, env):
     question variables write: "If the teacher defines 'ta' to be the answer,
     the student could type in 'ta'! We forbid this." (question.php:430-441,
     cassecurity.class.php:373-376). Feedback variables are forbidden too: the
-    answer tests evaluate the student's expression where they are defined."""
+    answer tests evaluate the student's expression where they are defined.
+    Every response tree's, in the grammar of the assignments
+    (expressions.assignment_statements)."""
     names = set(env)
     if question is not None:
         for prt in question.get("prts", []):
-            for statement in re.split(r"[;\n]+", prt.get("feedbackvariables", "")):
-                match = re.match(r"\s*([A-Za-z_][A-Za-z_0-9]*)\s*:", statement)
-                if match:
-                    names.add(match.group(1))
+            names.update(name for name, _ in assignment_statements(prt.get("feedbackvariables", "")) if name)
     return names
+
+
+def _value_names(value):
+    """The names of the free symbols in an author value (an expression, a
+    collection, a matrix, an equation or a logical expression), in a stable order."""
+    if is_collection(value):
+        items = collection_items(value)
+    elif isinstance(value, MatrixValue):
+        items = [x for row in value.args for x in row.args]
+    else:
+        items = [value]
+    names = set()
+    for item in items:
+        names |= _value_names(item) if is_collection(item) else {s.name for s in getattr(item, "free_symbols", ()) if isinstance(s, sp.Symbol)}
+    return names
+
+
+def _teacher_answer_names(question, key, teacher, env):
+    """A teacher's answer that uses a name a student may not type (a
+    question or feedback variable, S-01) cannot be entered: the build stops."""
+    clash = sorted(_value_names(teacher) & _author_names(question, env))
+    if clash:
+        raise UnsupportedQuestion(question["name"], f"input[{key}]/tans",
+                                  "the teacher's answer uses " + ", ".join(clash) + ", the name of a question or feedback variable, "
+                                  "which a student may not type (S-01): no student could enter this answer")
 
 
 def _forbid_author_names(tree, names):

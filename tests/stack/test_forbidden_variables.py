@@ -97,6 +97,66 @@ def test_the_supplements_question_tests_use_the_names():
     assert result["passed"] and [r["inputs"]["ans1"] for r in result["results"]] == ["6*x + 1", "3*x**2 + x"]
 
 
+PRTS = "supplement/forbidden-variables-prts.xml"   # prt1: d; sa (semicolons); prt2: w, zz (a newline)
+
+
+@pytest.mark.parametrize("answer, names", [
+    ("w", ["w"]), ("zz", ["zz"]),                  # the second response tree's, separated by a newline
+    ("sa+zz", ["sa", "zz"]), ("d*w", ["d", "w"]),  # both trees' at once
+])
+def test_the_feedback_variables_of_every_response_tree(answer, names):
+    # The review of S-01: reading only the first tree's feedback variables, or
+    # splitting them only at semicolons, left w and zz typeable (w scored 0.5).
+    q = question(PRTS)
+    variant = instantiate(q, 1)
+    assert validate(q, {"ans1": answer}, variant=variant)["inputs"]["ans1"] == {"valid": False, "latex": "", "feedback": message(*names)}
+    assert engine._author_names(q, variant["env"]) == {"k", "f", "ta", "d", "sa", "w", "zz"}
+    assert run_question_tests(q)["passed"]
+
+
+@pytest.mark.parametrize("source, statements", [
+    ("a:1; b:2", [("a", "1"), ("b", "2")]),
+    ("a:1\nb:2", [("a", "1"), ("b", "2")]),
+    ("a:1;\n\n b : x+1 ;", [("a", "1"), ("b", "x+1")]),
+    ("a:1; 2+3", [("a", "1"), (None, "2+3")]),
+])
+def test_assignment_statements(source, statements):
+    # One grammar for the assignments and the names they write (_author_names).
+    from ctm_checkers.stack.expressions import assignment_statements
+    assert list(assignment_statements(source)) == statements
+
+
+CLASH = "supplement/teacher-answer-clash.xml"   # ta: t^2+1 with a feedback variable t
+
+
+def clash_question(variables, feedback, teacher="ta"):
+    q = question(CLASH)
+    q["variables"] = variables
+    q["prts"][0]["feedbackvariables"] = feedback
+    q["inputs"][0]["teacher"] = teacher
+    return q
+
+
+@pytest.mark.parametrize("variables, feedback, teacher, names", [
+    ("ta:t^2+1;", "t:2; sa:ans1;", "ta", "t"),                         # a feedback variable (the supplement question)
+    ("ta:[t,{u+1}];", "t:2\nu:3", "ta", "t, u"),                        # inside collections, newline-separated
+    ("k:2;", "sa:ans1; t:1;", "matrix([1,t],[0,k])", "t"),             # a matrix teacher's answer
+])
+def test_a_teacher_answer_a_student_cannot_type_stops_the_build(variables, feedback, teacher, names):
+    # The review of S-01 (should-fix 3): such a question had no answer a
+    # student could enter; the build now says so (before: only if a question
+    # test happened to cover it).
+    q = clash_question(variables, feedback, teacher)
+    with pytest.raises(engine.UnsupportedQuestion, match=r"input\[ans1\]/tans: the teacher's answer uses " + names + ","):
+        instantiate(q, 1)
+
+
+def test_a_teacher_answer_with_other_names_builds():
+    q = clash_question("ta:t^2+1;", "s:2; sa:ans1;")
+    variant = instantiate(q, 1)
+    assert grade(q, {"ans1": "t^2+1"}, variant=variant)["score"] == 1.0
+
+
 def test_the_message_is_stacks():
     # lang/en/qtype_stack.php: $string['stackCas_forbiddenVariable'] = 'Forbidden variable or constant: {$a->forbid}.';
     assert engine.FORBIDDEN_VARIABLE.format(name="ta") == "Forbidden variable or constant: ta."
@@ -119,7 +179,9 @@ def test_golden_answer_rows():
             continue
         for row in golden.read_rows(path):
             if row["call"] != "stack.answer":
-                assert "S-01" not in row.get("changes", []), row["id"]
+                # Only the build of a question whose teacher's answer uses such a name (0.4.0).
+                assert "S-01" not in row.get("changes", []) or (
+                    row["call"] == "stack.instantiate" and "(S-01)" in row["output"].get("raised", "")), row["id"]
                 continue
             value = row["input"]
             key = (value["file"], value.get("python_checkers"))

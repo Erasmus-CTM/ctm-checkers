@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Written for ctm-checkers' golden tables (stack/supplement): S-01, the feedback variables of every response tree, separated by semicolons and by newlines (ctm-checkers 0.4.0). AGPL-3.0-or-later. -->
+<quiz><question type="stack">
+<name><text>forbidden-variables-prts</text></name>
+<questionvariables><text>k:3; f:k*x^2+x; ta:diff(f,x);</text></questionvariables>
+<questiontext format="html"><text><![CDATA[<p>Differentiate \(f(x)={@f@}\): [[input:ans1]] [[validation:ans1]] [[feedback:prt1]] [[feedback:prt2]]</p>]]></text></questiontext>
+<defaultgrade>1</defaultgrade><penalty>0.1</penalty><questionsimplify>1</questionsimplify>
+<input><name>ans1</name><type>algebraic</type><tans>ta</tans><insertstars>1</insertstars></input>
+<prt><name>prt1</name><value>1</value><autosimplify>1</autosimplify>
+<feedbackvariables><text>d:diff(f,x); sa:ans1-d;</text></feedbackvariables>
+<node><name>0</name><answertest>AlgEquiv</answertest><sans>ans1</sans><tans>d</tans><truescoremode>=</truescoremode><truescore>1</truescore><truenextnode>-1</truenextnode><trueanswernote>prt1-T</trueanswernote><falsescoremode>=</falsescoremode><falsescore>0</falsescore><falsenextnode>-1</falsenextnode><falseanswernote>prt1-F</falseanswernote></node></prt>
+<prt><name>prt2</name><value>1</value><autosimplify>1</autosimplify>
+<feedbackvariables><text>w:2*k*x+1
+zz:ans1-f</text></feedbackvariables>
+<node><name>0</name><answertest>AlgEquiv</answertest><sans>ans1</sans><tans>w</tans><truescoremode>=</truescoremode><truescore>1</truescore><truenextnode>-1</truenextnode><trueanswernote>prt2-T</trueanswernote><falsescoremode>=</falsescoremode><falsescore>0</falsescore><falsenextnode>-1</falsenextnode><falseanswernote>prt2-F</falseanswernote></node></prt>
+<qtest><testcase>1</testcase><testinput><name>ans1</name><value>ta</value></testinput><expected><name>prt1</name><expectedscore>1</expectedscore><expectedpenalty>0</expectedpenalty><expectedanswernote>prt1-T</expectedanswernote></expected><expected><name>prt2</name><expectedscore>1</expectedscore><expectedpenalty>0</expectedpenalty><expectedanswernote>prt2-T</expectedanswernote></expected></qtest>
+</question></quiz>

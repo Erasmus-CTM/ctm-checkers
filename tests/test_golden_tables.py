@@ -253,8 +253,9 @@ def test_grading_changes_are_in_the_changelog_and_the_manifest():
     assert named <= set(manifest.get('changes', {})), named
     changelog = (golden.ROOT / 'CHANGELOG.md').read_text(encoding='utf-8')
     for change in named:
-        section = golden.changelog_section(manifest['changes'][change]['version'], changelog)
-        assert 'Grading changes' in section and change in section, change
+        for version in golden.change_versions(manifest['changes'][change]):
+            section = golden.changelog_section(version, changelog)
+            assert 'Grading changes' in section and change in section, (change, version)
 
 
 def row(identifier, output, **extra):
@@ -277,6 +278,17 @@ def test_check_changelog_rules():
     assert any('does not name S-01' in p for p in golden.changelog_problems(report, '0.3.0', '0.2.0', CHANGELOG.replace('S-01', 'S-02')))
     assert any('no section' in p for p in golden.changelog_problems(report, '0.4.0.dev0', '0.3.0', CHANGELOG))
     assert any('no "Grading changes"' in p for p in golden.changelog_problems(report, '0.2.0', '0.1.0', CHANGELOG))
+    # A removed row, or a row whose other fields changed, is named by its id (the review of S-01).
+    gone = {'stack/x.jsonl': ([], [row('0123456789abcdef', {'score': 1})], [])}
+    assert any('0123456789abcdef: removed' in p for p in golden.changelog_problems(gone, '0.3.0', '0.2.0', CHANGELOG))
+    assert golden.changelog_problems(gone, '0.3.0', '0.2.0', CHANGELOG.replace('- S-01: ...', '- S-01: removes `0123456789abcdef`')) == []
+    tagged = row('fedcba9876543210', before['output'])
+    retagged = {'stack/x.jsonl': ([], [], [(tagged, dict(tagged, tags=['other']))])}
+    assert any('fedcba9876543210: changed in another field' in p for p in golden.changelog_problems(retagged, '0.3.0', '0.2.0', CHANGELOG))
+    renative = {'stack/x.jsonl': ([], [], [(tagged, dict(tagged, native={'correct': True}, output=after['output'], legacy=tagged['output'],
+                                                         changes=['S-01']))])}
+    assert any('fedcba9876543210: changed in another field' in p for p in golden.changelog_problems(renative, '0.3.0', '0.2.0', CHANGELOG))
+    assert golden.changelog_problems(retagged, '0.3.0', '0.2.0', CHANGELOG.replace('- S-01: ...', '- S-01: retags `fedcba9876543210`')) == []
     # H2: STACK and math-exercise rows never change in one pull request.
     both = dict(report, **{'math_exercise/y.jsonl': ([row('b', {'score': 1})], [], [])})
     assert any(p.startswith('H2') for p in golden.changelog_problems(both, '0.3.0', '0.2.0', CHANGELOG))
@@ -292,6 +304,17 @@ def test_the_diff_summary_counts_rows_and_transitions():
     assert '| `stack/x.jsonl` | graded 1.0 | invalid 0.0 | 1 |' in text
     assert 'S-01 (1 rows)' in text and 'ans=`ta`' in text and 'ans: F.' in text
     assert golden.diff_summary({}) == 'No golden row changed.\n'
+    removed = golden.diff_summary({'stack/x.jsonl': ([], [row('0123456789abcdef', {'score': 1})], [])})
+    assert '| `stack/x.jsonl` | 0 | 0 | 1 |' in removed and 'Rows removed (the CHANGELOG names each id): `stack/x.jsonl` `0123456789abcdef`.' in removed
+
+
+def test_a_grading_change_keeps_its_first_version():
+    manifest = {'changes': {'S-01': {'version': '0.3.0', 'python': '3.12'}}}
+    golden.record_change(manifest, 'S-01', '0.4.0')
+    golden.record_change(manifest, 'S-01', '0.4.0')
+    assert manifest['changes']['S-01']['version'] == '0.3.0'
+    assert golden.change_versions(manifest['changes']['S-01']) == ['0.3.0', '0.4.0']
+    assert golden.change_versions(golden.record_change({}, 'S-02', '0.5.0')) == ['0.5.0']
 
 
 def test_legacy_results_are_what_the_legacy_adapter_verifies():

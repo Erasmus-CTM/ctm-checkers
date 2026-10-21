@@ -1,17 +1,17 @@
 {
  "name": "ctm-checkers",
- "version": "0.3.0",
+ "version": "0.4.0",
  "api": 1,
- "dependency": "0.3.0",
- "wheel": "ctm_checkers-0.3.0-py3-none-any.whl",
- "sha256": "e60029ccfb41cdf0078fb0c8b5f6d66c348fd9c5559f3dcfe23340a8da263b86",
+ "dependency": "0.4.0",
+ "wheel": "ctm_checkers-0.4.0-py3-none-any.whl",
+ "sha256": "ac5ec6594ebaec4ba32ae52226484fe8815837fd453fde17ce4a2596b9926e43",
  "script": "ctm-checkers.js",
  "parts": {
   "stack": {
    "name": "ctm-checkers-stack",
-   "dependency": "0.3.0",
-   "wheel": "ctm_checkers_stack-0.3.0-py3-none-any.whl",
-   "sha256": "23889e89f7b7c2f1dd401716b5b3675ad63e253721a004afd62574fb538a00db",
+   "dependency": "0.4.0",
+   "wheel": "ctm_checkers_stack-0.4.0-py3-none-any.whl",
+   "sha256": "b06013e167297c7e270604ccc0c50442c6316f65a32089d68098501aabd9df3b",
    "script": "ctm-checkers-stack.js"
   }
  },
