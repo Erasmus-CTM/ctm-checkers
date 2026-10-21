@@ -107,7 +107,10 @@ class AssessmentTest(unittest.TestCase):
         self.assertFalse(answer_test("NumDecPlaces", "2.13", "2.125", "2")["correct"])
         self.assertTrue(answer_test("NumDecPlaces", "2.36", "2.355", "2")["correct"])
         self.assertTrue(answer_test("NumDecPlaces", "0.556", "0.5555", "3")["correct"])
-        self.assertFalse(answer_test("NumDecPlaces", "1/2", "0.5", "2")["valid"])
+        # S-05: not a float (`1/2`): the test cannot be applied, which is false, not invalid.
+        half = answer_test("NumDecPlaces", "1/2", "0.5", "2")
+        self.assertEqual((half["valid"], half["correct"], half["cas_valid"], half["note"]),
+                         (True, False, False, "ATNumDecPlaces_SA_Not_num"))
 
     def test_decimal_places_supported_precision_boundary(self):
         self.assertTrue(answer_test("NumDecPlaces", "0." + "3" * 50, "1/3", "50")["correct"])
