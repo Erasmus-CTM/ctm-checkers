@@ -215,7 +215,7 @@ def run(argv):
         questions = [(path, question) for path in map(Path, argv) for question in authored_questions(path)]
     tested = untested = 0
     for path, options in questions:
-        if not options.get('tests') or (isinstance(options['tests'], str) and not options['tests'].strip()):
+        if 'tests' not in options or (isinstance(options['tests'], str) and not options['tests'].strip()):
             untested += options.get('mode') == 'custom'
             continue
         label = options.get('label', '(unlabelled exercise)')

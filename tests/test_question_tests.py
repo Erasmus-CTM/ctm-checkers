@@ -176,3 +176,19 @@ def test_null_or_empty_explicit_expectation_never_passes(expected):
     with pytest.raises(ValueError, match="null or empty"):
         run_declarative([dict(name="false green", response={}, expect=expected)],
                         lambda payload: {"status": "wrong", "score": 0})
+
+
+@pytest.mark.parametrize("source", [
+    "sqrt(raw('2+2'))", "Matrix([[raw('2+2')]])",
+    "1+raw('2')", "raw('2')^2", "sqrt(value)", "Matrix(value)",
+])
+def test_raw_and_variable_strings_cannot_reach_sympy_functions(source):
+    with pytest.raises(ValueError, match="raw|strings"):
+        expression(source, {"value": ["2+2"]})
+
+
+def test_raw_caret_is_literal_and_computed_power_keeps_precedence():
+    assert expression('raw("a^b")') == "a^b"
+    assert expression("2*3^2") == 18
+    with pytest.raises(ValueError):
+        expression("value", {"value": "2+2"})

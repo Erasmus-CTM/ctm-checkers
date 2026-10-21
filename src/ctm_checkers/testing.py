@@ -6,6 +6,8 @@ checks only declared expectations; it never implements grading.
 """
 import ast
 import math
+import io
+import tokenize
 from pathlib import Path
 
 
@@ -41,7 +43,27 @@ def expression(value, variables=None):
         "together", "cancel", "apart", "Matrix", "Rational", "Integer")}
     names.update(abs=sp.Abs, ln=sp.log, pi=sp.pi, E=sp.E, I=sp.I, oo=sp.oo)
     names.update(variables or {})
-    tree = ast.parse(value.replace("^", "**"), mode="eval")
+    # Rewrite only operator tokens: raw("x^2") must remain byte-for-byte text.
+    tokens = tokenize.generate_tokens(io.StringIO(value).readline)
+    source = tokenize.untokenize((kind, "**" if kind == tokenize.OP and text == "^" else text)
+                                for kind, text, *_ in tokens)
+    tree = ast.parse(source, mode="eval")
+    if isinstance(tree.body, ast.Call) and isinstance(tree.body.func, ast.Name) and tree.body.func.id == "raw":
+        node = tree.body
+        if len(node.args) == 1 and not node.keywords and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
+            return raw(node.args[0].value)
+        raise ValueError("raw() needs one literal string")
+
+    def computed(item):
+        if isinstance(item, str):
+            raise ValueError("strings and raw() cannot be used inside computed expressions")
+        if isinstance(item, (list, tuple)):
+            for child in item: computed(child)
+        if isinstance(item, dict):
+            for key, child in item.items():
+                computed(key)
+                computed(child)
+        return item
     if len(list(ast.walk(tree))) > 300:
         raise ValueError("test expression is too large")
 
@@ -50,19 +72,20 @@ def expression(value, variables=None):
             if isinstance(node.value, bool) or node.value is None:
                 return node.value
             if isinstance(node.value, (int, float)):
-                return sp.Rational(ast.get_source_segment(value.replace("^", "**"), node))
+                return sp.Rational(ast.get_source_segment(source, node))
             raise ValueError("literal strings need raw('...')")
         if isinstance(node, ast.Name) and node.id in names:
-            return names[node.id]
+            return computed(names[node.id])
         if isinstance(node, (ast.List, ast.Tuple)):
             return [visit(item) for item in node.elts]
         if isinstance(node, ast.Dict):
             return {visit(key): visit(item) for key, item in zip(node.keys, node.values)}
         if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
             v = visit(node.operand)
+            computed(v)
             return v if isinstance(node.op, ast.UAdd) else -v
         if isinstance(node, ast.BinOp):
-            left, right = visit(node.left), visit(node.right)
+            left, right = computed(visit(node.left)), computed(visit(node.right))
             if isinstance(node.op, ast.Add): return left + right
             if isinstance(node.op, ast.Sub): return left - right
             if isinstance(node.op, ast.Mult): return left * right
@@ -74,14 +97,11 @@ def expression(value, variables=None):
                 return left ** right
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
             name = node.func.id
-            if name == "raw" and len(node.args) == 1 and not node.keywords:
-                arg = node.args[0]
-                if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
-                    return raw(arg.value)
-                raise ValueError("raw() needs one literal string")
+            if name == "raw":
+                raise ValueError("raw() is allowed only as a complete fixture value")
             fn = names.get(name)
             if callable(fn) and not node.keywords:
-                return fn(*[visit(arg) for arg in node.args])
+                return fn(*[computed(visit(arg)) for arg in node.args])
         raise ValueError("unsupported test expression: " + ast.dump(node, include_attributes=False))
     return visit(tree.body)
 
@@ -159,6 +179,11 @@ def run_declarative(tests, grade, *, fields=(), variables=None, resolve=None):
             raise ValueError(where + ": give an expectation")
         if "expect" in case and (case["expect"] is None or case["expect"] == "" or case["expect"] == [] or case["expect"] == {}):
             raise ValueError(where + ": expectation cannot be null or empty")
+        def resolved(value):
+            try:
+                return resolve(value)
+            except Exception as error:
+                raise ValueError(where + ": " + str(error)) from error
         if "answers" in case:
             answers = case["answers"]
             if isinstance(answers, list):
@@ -167,7 +192,7 @@ def run_declarative(tests, grade, *, fields=(), variables=None, resolve=None):
                 answers = dict(zip(fields, answers))
             if not isinstance(answers, dict) or set(answers) != set(fields):
                 raise ValueError(where + ": answers must name exactly " + repr(fields))
-            payload = {"answers": {key: resolve(answers[key]) for key in fields}}
+            payload = {"answers": {key: resolved(answers[key]) for key in fields}}
         else:
             # Map keys are author field/property names, never CAS expressions.
             def nested(value):
@@ -175,7 +200,7 @@ def run_declarative(tests, grade, *, fields=(), variables=None, resolve=None):
                     return {key: nested(item) for key, item in value.items()}
                 if isinstance(value, list):
                     return [nested(item) for item in value]
-                return resolve(value)
+                return resolved(value)
             payload = {"response": nested(case["response"])}
         try:
             actual = grade(payload)
