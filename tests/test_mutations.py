@@ -182,6 +182,15 @@ MUTATIONS = {
     'stack-s10-logic-answer': ('stack/collections.py', "        return None if s in {'equation', 'logic'} else SA_NOT_EQUATION\n", "        return None if s == 'equation' else SA_NOT_EQUATION\n", 1, (STACK,)),
     'stack-s10-list-message': ('stack/collections.py', 'SA_NOT_LIST = ("Your answer should be a list, but is not. Note', 'SA_NOT_LIST = ("Your answer must be a list, but is not. Note', 1, (STACK,)),
     'stack-s10-entries': ('stack/collections.py', 'return None if same_type(student, teacher) else ENTRIES_NOT_SAME_TYPE', 'return None', 1, (STACK,)),
+    # S-11 (0.10.0): a valid answer that a test does not compare or cannot decide is false (supplement rows, examples/stack/probes/crash.xml
+    # and numabs-branch.xml).
+    'stack-s11-undecided': ('stack/assessment.py', '    except (Undecided, OverflowError, DecimalException):', '    except (OverflowError, DecimalException):', 1, (STACK,)),
+    'stack-s11-overflow': ('stack/assessment.py', '    except (Undecided, OverflowError, DecimalException):', '    except (Undecided, DecimalException):', 1, (STACK,)),
+    'stack-s11-decimal': ('stack/assessment.py', '    except (Undecided, OverflowError, DecimalException):', '    except (Undecided, OverflowError):', 1, (STACK,)),
+    'stack-s11-same-type': ('stack/assessment.py', 'type_mismatch(student_value, teacher_value) is None', 'True', 1, (STACK,)),
+    'stack-s11-not-expression-note': ('stack/assessment.py', 'f"AT{name}_SA_not_expression"', 'f"AT{name}_SA_not_expr"', 1, (STACK,)),
+    'stack-s11-equation-note': ('stack/assessment.py', '("ATAlgEquiv_TA_not_equation" if equation else "ATAlgEquiv_SA_not_expression",', '("ATAlgEquiv_SA_not_expression" if equation else "ATAlgEquiv_SA_not_expression",', 1, (STACK,)),
+    'stack-s11-singlefrac': ('stack/assessment.py', 'if (name in {"FacForm", "SingleFrac"} or', 'if (name in {"FacForm"} or', 1, (STACK,)),
 }
 
 # Mutations that no golden row reaches and that tests/ catch: the pytest files of the test column must fail on the
@@ -242,6 +251,15 @@ TESTS = {
                                 ('tests/stack/test_checkanswertype.py',)),
     'stack-s10-entered-equation-message': ('stack/collections.py', 'TA_NOT_EQUATION = ("You have entered an equation', 'TA_NOT_EQUATION = ("You entered an equation', 1,
                                            ('tests/stack/test_checkanswertype.py',)),
+    # S-11 (0.10.0): the errors of the author that stay errors, and the refusal of a number too large (tests/stack/test_undecided.py).
+    'stack-s11-teacher-logic': ('stack/assessment.py', '''            raise Unsupported(f"The teacher's answer: {exc}") from exc   # an error of the author, not of the answer\n    if is_logical(student_value):''',
+                                '''            pass\n    if is_logical(student_value):''', 1, ('tests/stack/test_undecided.py',)),
+    'stack-s11-teacher-facform': ('stack/assessment.py', '''            raise Unsupported(f"The teacher's answer: {exc}") from exc   # an error of the author, not of the answer\n        _facform_preflight''',
+                                  '''            pass\n        _facform_preflight''', 1, ('tests/stack/test_assessment.py',)),
+    'stack-s11-not-compared': ('stack/assessment.py', 'not_compared = Undecided if plain_teacher else Unsupported', 'not_compared = Undecided', 1,
+                               ('tests/stack/test_undecided.py',)),
+    'stack-s11-validation-overflow': ('stack/engine.py', '    except OverflowError:\n        # A number too large', '    except ZeroDivisionError:\n        # A number too large', 1,
+                                      ('tests/stack/test_undecided.py',)),
 }
 
 # A few minutes: CI runs them in a step of their own (CTM_MUTATION_TESTS=1).

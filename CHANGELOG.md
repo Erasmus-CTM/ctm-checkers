@@ -6,6 +6,113 @@ release. Every grading change is listed under "Grading changes" with the
 finding or decision it implements, its test and the summary of its golden
 diff (docs/goldens.md).
 
+## 0.10.0 (21 October 2026)
+
+STACK: a valid answer that an answer test does not compare or cannot decide
+is not an error of the question: the test is false and the response tree
+takes its false branch (S-11; step-2 design §9, order 7). A MINOR release
+(verdicts change); math-exercise's tables do not change (H2).
+
+### Grading changes
+
+- **S-11: valid answers that stopped the grading.** Before, the answer
+  `x=1` or `a and b` for a SameType node, `x=1` for an EqualComAss, FacForm
+  or SingleFrac node, a hyperbolic answer that exceeds the equivalence's
+  expansion bound (`cosh(x)^20-((exp(x)+exp(-x))/2)^20+x+1`), a FacForm
+  answer outside its domain (`x/x`, `x^2-1+0*x^(-1)`) and a list or a matrix
+  for FacForm, SingleFrac or LowestTerms raised `Unsupported`; the engine
+  raised `UnsupportedQuestion` and the page showed "Could not check this
+  answer: crash: prt[prt1]/node[0]: SameType supports scalar expressions
+  and collections". A number too large to evaluate
+  (`exp(exp(exp(exp(10))))` in NumAbsolute) raised `OverflowError` (or, for
+  `exp(exp(100))`, `decimal.InvalidOperation`), uncaught, and the page showed
+  a Python traceback. Now `answer_test` returns a result for them, `valid`
+  true, `correct` false and `cas_valid` false, and the response tree takes
+  its false branch (`assessment.answer_test`, `expressions.Undecided`):
+  - **SameType** is STACK's rule (the types of S-10's validation,
+    `collections.type_mismatch`): an equation or a logical expression is
+    decided: `x=1`, `x=1 or x=2`, `a and b`, `[1,2]` are not the type of
+    `x+1`; `true` and `a and b`, `x=1` and `y=2` are of one type.
+  - **EqualComAss, FacForm and SingleFrac** with an answer that is not an
+    expression (an equation, a logical expression, a list, a set, a matrix)
+    and an expression as the teacher's answer: note
+    `ATAlgEquiv_TA_not_equation` (an equation, EqualComAss) or
+    `ATAlgEquiv_SA_not_expression`, `ATFacForm_SA_not_expression`,
+    `ATSingleFrac_SA_not_expression`, with STACK's message.
+  - **Everything else the engine cannot decide**: note `<test>_undecided`
+    (`FacForm_undecided`) and the message "This answer could not be checked
+    automatically.": an answer outside a bound (FacForm's domain, the
+    equivalence's expansion and rewrite bounds, the logic's bounds), a type
+    of answer a test does not compare (LowestTerms on a list, an equation
+    or a matrix), a number too large (`OverflowError`, `decimal`'s errors).
+  - **Errors of the author stay errors** (`Unsupported`): a test the engine
+    does not have, an option (the tolerance or places of a numerical test, the
+    variable of FacForm), a teacher's answer that the test does not compare
+    (a collection with NumAbsolute; an equation with EqualComAss) or that is
+    outside its bounds (`The teacher's answer: …`).
+  - An answer with a number too large for the engine's input rules is still
+    refused as input (`Exponent too large`); a number that passes them but
+    overflows while the input is evaluated is refused with "This number is
+    too large" (before, a traceback).
+
+  Tests: `tests/stack/test_undecided.py` (SameType, the notes of the three
+  tests, what is undecided, the numbers, the errors of the author, the audit's
+  `crash.xml` and `numabs-branch.xml` probes through `grade`, the refusal
+  of a number too large) and `tests/stack/test_assessment.py` (FacForm's
+  domain); mutations (docs/goldens.md): `Undecided` not caught (13 rows),
+  `OverflowError` (4) and `decimal`'s errors (2) not caught, SameType true
+  (29), the three notes (7, 1, 3), and four more that only the tests catch
+  (the teacher's answer of the logic and of FacForm, a collection as the
+  teacher's answer, the refusal in the input).
+  - **Native STACK** (STACK `10d3233` = 4.13.1 and 4.14.0 `3338304`, PHP and
+    Maxima 5.46): both versions give the same results.
+    `crash.xml` with 9 answers: for `x=1`, `a and b`, `x=1 or x=2`, `[1,2]`,
+    `{1}`, `matrix([1,2])` and `true` STACK takes the false branch of the
+    first node (score 0, answer notes `prt1-1-F`, "Give an expression."); the
+    engine gives the same score, notes and feedback. `x+1` scores 1 in both.
+    The hyperbolic answer scores 0 in both (SameType true, EqualComAss false,
+    notes `prt1-1-T`, `prt1-2-F`; STACK adds the answer note `ATEqualComAss
+    (AlgEquiv-true).`, the engine the message above). Answer tests, 29
+    cases (`tools/stack_native/dual.py`, 4.13.1): 26 verdicts agree: SameType
+    (7 cases), EqualComAss, FacForm and SingleFrac (15 cases; the notes above
+    are STACK's last notes), AlgEquiv (4, unchanged). Three differ and
+    are not changed to STACK's: LowestTerms of `x=1`, `[1,2]` and `a and
+    b` is true in STACK, false here (`LowestTerms_undecided`). And two
+    results that the cases do not show: AlgEquiv of the hyperbolic answers
+    (`cosh(x)^20` and `((exp(x)+exp(-x))/2)^20`) is true in STACK and false
+    here (`AlgEquiv_undecided`, until S-12 gives the equivalence its budgets),
+    and for `exp(exp(exp(exp(10))))` and its negative STACK has no verdict (its
+    response tree stops with the CAS error `inpart: invalid index 1 of list
+    or matrix`), the engine's tree takes the false branch.
+  - **Golden diff** (`tools/golden.py diff --base 2cfb03e`, with
+    `update --change S-11 --drop-stale`): 11 rows changed and 36 added:
+
+    | Table | Changed | Added | Removed |
+    |---|---|---|---|
+    | `stack/probe-questions.jsonl` | 4 | 6 | 0 |
+    | `stack/probes.jsonl` | 4 | 0 | 0 |
+    | `stack/questions-library.jsonl` | 2 | 0 | 0 |
+    | `stack/supplement.jsonl` | 1 | 30 | 0 |
+
+    - `probe-questions` (4 changed, 6 added): `crash.xml`'s answers `x=1`,
+      `a and b` and the hyperbolic one (raised, now graded 0.0; 6 added
+      answers: `x=1 or x=2`, `[1,2]`, `{1}`, `matrix([1,2])`, `true`) and
+      `numabs-branch.xml`'s `exp(exp(exp(exp(10))))` (raised, now graded
+      0.0; `exp(exp(100))` added).
+    - `probes` (4): SameType of `1` for `x=1` (raised, now false) and of
+      `x=1` for `y=2` (now true), which agree with the rows' native verdicts;
+      NumRelative `exp(exp(exp(exp(10))))` (raised, now false); AlgEquiv
+      `cosh(x)^20` against `((exp(x)+exp(-x))/2)^20` (raised, now false).
+    - `questions-library` (2): `π` in `corpus/AlgMap-10-1.xml` and
+      `AlgMap-13-1-.xml` (seeds 1910622122, 1874421384), raised, now graded
+      0.0 (answers of the generated answer sets).
+    - `supplement` (1 changed, 30 added): AlgEquiv of `sin(x)^20` against
+      `((1-cos(2*x))/2)^10*(1+1/100000)` (raised, now false) and 30 answer-test
+      rows of the cases above.
+    No `stack.card`, `stack.tests`, `stack.instantiate` row, teacher's answer
+    or question test of an example question changes; the math-exercise tables
+    do not change. The rows that differ from the legacy code name S-11.
+
 ## 0.9.0 (21 October 2026)
 
 STACK: the input option `checkanswertype` refuses an answer of another type

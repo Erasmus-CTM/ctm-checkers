@@ -20,6 +20,13 @@ class Unsupported(ValueError):
     """An expression or answer test is outside the supported subset."""
 
 
+class Undecided(Unsupported):
+    """A test that cannot decide this answer: a bound of the engine, or a type of answer the test does not compare.
+
+    A valid answer that raises it is not an error of the question: the test is false and the response tree takes its
+    false branch (S-11, `assessment.answer_test`). An error of the author stays `Unsupported`."""
+
+
 class InvalidAnswer(ValueError):
     """Malformed or unsafe student input."""
 
