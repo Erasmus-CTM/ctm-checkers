@@ -37,7 +37,10 @@ def _tests(value):
         return value
     if not isinstance(value, str):
         raise ValueError("tests must be Python code or a declarative list")
-    if value.lstrip().startswith(("-", "[")):
+    if "\n" not in value and value.endswith(".py"):
+        return None
+    first = next((line.strip() for line in value.splitlines() if line.strip() and not line.lstrip().startswith("#")), "")
+    if first.startswith(("-", "[")):
         try:
             import yaml
         except ImportError as error:
@@ -62,16 +65,8 @@ def _teacher_fields(question):
     from .parsing import split_top
     keys, position = [], 0
     while position < len(question):
-        if question[position] == "\\":
-            position += 2
-            continue
-        if question[position] == "\x60":
-            end = question.find("\x60", position + 1)
-            if end >= 0:
-                position = end + 1
-                continue
         match = re.match(r"(_+|vec|mat)\[", question[position:])
-        if not match or (match[1] in ("vec", "mat") and position and (question[position-1].isalnum() or question[position-1] == "_")):
+        if not match or (match[1] in ("vec", "mat") and position and re.match(r"[A-Za-z0-9_]", question[position-1])):
             position += 1
             continue
         start, depth, index = position + len(match[0]), 1, position + len(match[0])
@@ -80,7 +75,8 @@ def _teacher_fields(question):
             elif question[index] == "]": depth -= 1
             index += 1
         if depth:
-            raise ValueError("unclosed answer marker")
+            position += 1
+            continue
         content = question[start:index-1]
         if match[1] == "vec":
             keys.extend(split_top(content))
@@ -133,7 +129,12 @@ def run_question(options, base, *, variables=None, teacher=None):
     defaults = {key: str(options.get(key, "")) for key in (
         "vars", "reject", "tolerance", "decplaces", "sigfigs", "form")}
     partial = options.get("partial-credit", False) in (True, "true")
-    form_credit = float(options.get("form-credit", 0.5))
+    try:
+        form_credit = float(options.get("form-credit", 0.5))
+    except (TypeError, ValueError):
+        form_credit = 0.5
+    if not math.isfinite(form_credit) or not 0 <= form_credit <= 1:
+        form_credit = 0.5
     if mode == "custom" and not options.get("checker", "").strip():
         raise ValueError("mode custom requires a checker")
 
@@ -141,7 +142,12 @@ def run_question(options, base, *, variables=None, teacher=None):
         if mode == "custom":
             response = payload.get("response")
             if response is None:
-                response = {"kind": "expressions", "raw": [input_text(payload["answers"][field]) for field in fields]}
+                response = {"kind": "expressions", "raw": [input_text(payload["answers"][field]).strip() for field in fields], "inputs": {}}
+            if isinstance(response, dict) and response.get("kind") == "expressions" and not options.get("response"):
+                response = dict(response, raw=[str(value).strip() for value in response.get("raw", [])])
+                values = response["raw"]
+                if (not values and not response.get("inputs")) or any(not value for value in values):
+                    return {"status": "empty", "score": 0, "fields": {}}
             def literal(value):
                 if isinstance(value, Raw): return str(value)
                 if isinstance(value, dict): return {key: literal(item) for key, item in value.items()}
@@ -161,8 +167,11 @@ def run_question(options, base, *, variables=None, teacher=None):
             raise ValueError("response fixtures require mode custom")
         checked = {}
         for field, correct in zip(fields, teacher_text):
-            request = dict(defaults, mode=mode, student=input_text(payload["answers"][field]),
+            request = dict(defaults, mode=mode, student=input_text(payload["answers"][field]).strip(),
                            correct=correct, partial_credit=partial, form_credit=form_credit)
+            if not request["student"]:
+                checked[field] = {"status": "empty", "score": 0}
+                continue
             try:
                 admit(request)
                 checked[field] = check(request)
@@ -170,9 +179,10 @@ def run_question(options, base, *, variables=None, teacher=None):
                 checked[field] = {"status": "error", "message": str(error)}
         if not checked:
             raise ValueError("declarative built-in tests need answer fields")
-        if any(result["status"] == "error" for result in checked.values()):
+        if any(result["status"] in ("error", "empty") for result in checked.values()):
             return {"status": "invalid", "fields": checked}
-        score = sum(result.get("score", 0) for result in checked.values()) / len(checked)
+        score = (sum(result.get("score", 0) for result in checked.values()) / len(checked)
+                 if partial else float(all(result["status"] == "correct" for result in checked.values())))
         status = "correct" if score >= 1-1e-9 else "wrong" if score <= 1e-9 else "partial"
         return {"status": status, "score": score, "fields": checked}
     return run_declarative(tests, grade, fields=fields, variables=local)

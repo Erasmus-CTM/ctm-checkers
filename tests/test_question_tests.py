@@ -49,7 +49,7 @@ def test_numeric_rules_and_raw_written_form_are_not_simplified():
 
 
 def test_field_and_overall_expectations_partial_score_and_named_keys():
-    q = question(teacher=["x", "x^2"], **{"field-labels": "first,second"},
+    q = question(teacher=["x", "x^2"], **{"field-labels": "first,second", "partial-credit": "true"},
                  tests=[dict(name="mixed", answers={"first": "x", "second": "x+1"},
                              expect={"first": "correct", "second": "wrong"}, score=0.5, partial=True)])
     result = run_question(q, ".")[0]["actual"]
@@ -118,7 +118,7 @@ def test_component_neutral_adapter_and_answer_notes():
 
 def test_marker_order_and_literal_code():
     assert _teacher_fields("_[x[0]] vec[1, sin(x)] mat[1,2;3,4] \x60_[ignored]\x60") == [
-        "x[0]", "1", "sin(x)", "1", "2", "3", "4"]
+        "x[0]", "1", "sin(x)", "1", "2", "3", "4", "ignored"]
 
 
 def test_yaml_and_cli_failures_name_exercise_and_case(tmp_path):
@@ -192,3 +192,50 @@ def test_raw_caret_is_literal_and_computed_power_keeps_precedence():
     assert expression("2*3^2") == 18
     with pytest.raises(ValueError):
         expression("value", {"value": "2+2"})
+
+
+@pytest.mark.parametrize("partial,expected,score", [("false", "wrong", 0), ("true", "partial", 0.5)])
+def test_overall_aggregation_matches_browser_partial_credit_option(partial, expected, score):
+    q = question(teacher=["x", "x^2"], **{"field-labels": "a,b", "partial-credit": partial},
+                 tests=[dict(name="mixed aggregate", answers=["x", "x+1"], expect=expected, score=score)])
+    run_question(q, ".")
+
+
+@pytest.mark.parametrize("text", ["", "  "])
+def test_empty_fields_are_not_sent_to_python_grading(text, monkeypatch):
+    import ctm_checkers.math_exercise as math
+    def unexpected(request):
+        raise AssertionError("empty transport must not invoke a grader")
+    monkeypatch.setattr(math, "check", unexpected)
+    monkeypatch.setattr(math, "check_custom", unexpected)
+    q = question(tests=[case(Raw(text), ["empty"])])
+    run_question(q, ".")
+    q = question("custom", checker="def check(r,s): return True", tests=[case(Raw(text), "empty")])
+    run_question(q, ".")
+
+
+def test_string_answers_are_trimmed_like_browser_fields():
+    run_question(question("string", teacher=["Hello"], tests=[case('raw(" Hello ")')]), ".")
+
+
+@pytest.mark.parametrize("filename", ["-assertions.py", "[assertions].py"])
+def test_legacy_sidecar_names_are_not_misclassified_as_yaml(tmp_path, filename):
+    (tmp_path / filename).write_text("def test(check, symbols):\n    assert check({}, symbols)\n")
+    run_question(question("custom", checker="def check(r,s): return True", tests=filename), tmp_path)
+
+
+@pytest.mark.parametrize("source,keys", [
+    ("\x60_[1]\x60", ["1"]), ("\\_[1]", ["1"]), ("αvec[1,2]", ["1","2"]),
+    ("avec[1,2] _[3]", ["3"]), ("_[unclosed _[4]", ["4"]),
+])
+def test_marker_extraction_matches_current_lua_renderer(source, keys):
+    assert _teacher_fields(source) == keys
+
+
+@pytest.mark.parametrize("credit,score", [("0", 0), ("2", 0.5), ("bad", 0.5), ("nan", 0.5), ("inf", 0.5)])
+def test_form_credit_matches_browser_finite_credit(credit, score):
+    q = question("exact", teacher=["1/2"], **{"partial-credit": "true", "form-credit": credit},
+                 tests=[case("raw('2/4')", score=score)])
+    # score=0 is wrong; otherwise the native detail remains not_exact.
+    q["tests"][0]["expect"] = "wrong" if score == 0 else "partial"
+    run_question(q, ".")
