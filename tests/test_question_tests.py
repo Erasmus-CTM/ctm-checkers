@@ -239,3 +239,37 @@ def test_form_credit_matches_browser_finite_credit(credit, score):
     # score=0 is wrong; otherwise the native detail remains not_exact.
     q["tests"][0]["expect"] = "wrong" if score == 0 else "partial"
     run_question(q, ".")
+
+
+def test_common_format_can_drive_existing_stack_grade_without_changing_qtests():
+    # Existing fixture stays in place with its provenance/licence notice.
+    # H1's component adapter is later; this proves the neutral callback contract.
+    from pathlib import Path
+    from ctm_checkers.stack.engine import (
+        instantiate, grade, _environment, _qtest_environment, _qtest_answer,
+    )
+    from ctm_checkers.stack.importer import import_xml
+    q = import_xml(Path(__file__).resolve().parents[1] / "examples/stack/corpus/AlgMap-1-6.xml")[0]
+    variant = instantiate(q, 1536647851)
+    env = _qtest_environment(q, _environment(q, variant))
+    def resolve(value):
+        if value.startswith("raw("):
+            return str(expression(value))
+        return _qtest_answer(q, value, env)
+    results = run_declarative([
+        dict(name="teacher through STACK", answers={"ans": "ans"}, expect={"score": 1}),
+        dict(name="wrong through STACK", answers={"ans": "ans+1"}, expect={"score": 0}),
+        dict(name="literal through STACK", answers={"ans": "raw('sinx')"}, expect={"status": "invalid", "score": 0}),
+    ], lambda payload: grade(q, payload["answers"], variant=variant), fields=["ans"], resolve=resolve)
+    assert len(results) == 3 and all(result["passed"] for result in results)
+
+
+def test_invalid_aggregate_has_browser_zero_score():
+    run_question(question(tests=[case("raw('')", "invalid", score=0)]), ".")
+    run_question(question(tests=[case("raw('(')", "invalid", score=0)]), ".")
+
+
+def test_custom_json_numbers_have_browser_ieee754_precision():
+    q = question("custom", checker='def check(r,s):\n    return r["point"] == 9007199254740992\n',
+                 tests=[dict(name="JSON number", response={"point": "9007199254740993"}, expect="correct")])
+    run_question(q, ".")

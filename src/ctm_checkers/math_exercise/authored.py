@@ -153,14 +153,18 @@ def run_question(options, base, *, variables=None, teacher=None):
                 if isinstance(value, dict): return {key: literal(item) for key, item in value.items()}
                 if isinstance(value, list): return [literal(item) for item in value]
                 if isinstance(value, Number):
-                    number = int(value) if value.is_Integer else float(value)
+                    # JSON numbers cross the browser's IEEE754 boundary before
+                    # reaching Python; exact question variables stay outside it.
+                    number = float(value)
                     if not math.isfinite(number):
                         raise ValueError("custom response numbers must be finite")
-                    return number
+                    return int(number) if number.is_integer() else number
                 return value
             request = {"vars": defaults["vars"], "response": literal(response), "checker": options["checker"]}
             admit(request)
             result = check_custom(request)
+            if result.get("status") == "error":
+                result["score"] = 0
             result["fields"] = result.get("assessment", {}).get("fields", {})
             return result
         if "response" in payload:
@@ -180,7 +184,7 @@ def run_question(options, base, *, variables=None, teacher=None):
         if not checked:
             raise ValueError("declarative built-in tests need answer fields")
         if any(result["status"] in ("error", "empty") for result in checked.values()):
-            return {"status": "invalid", "fields": checked}
+            return {"status": "invalid", "score": 0, "fields": checked}
         score = (sum(result.get("score", 0) for result in checked.values()) / len(checked)
                  if partial else float(all(result["status"] == "correct" for result in checked.values())))
         status = "correct" if score >= 1-1e-9 else "wrong" if score <= 1e-9 else "partial"

@@ -37,7 +37,9 @@ are computed before being written in student input syntax. Use raw("...")
 for the exact text a student types, including spelling, spaces and unreduced
 fractions. Literal strings are never passed to sympify. Custom graphical
 fixtures use response with nested values evaluated in the same environment;
-literal text values use raw("..."). Field verdicts for custom graders require
+literal text values use raw("..."). Numeric JSON leaves cross the same finite
+IEEE754 boundary as browser JSON; resolved question variables and teacher
+answers stay exact. Field verdicts for custom graders require
 the real checker's assessment.fields; an overall verdict always works.
 
 The Python test(check, symbols) form and sidecar .py files retain their existing
