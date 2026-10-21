@@ -80,7 +80,7 @@ def _question_math(text):
             out += text[position]
             position += 1
             continue
-        delimiter = "$" if text.startswith("$", position) else "$"
+        delimiter = "$$" if text.startswith("$$", position) else "$"
         end = text.find(delimiter, position+len(delimiter))
         while end >= 0:
             slashes, before = 0, end-1
@@ -94,7 +94,7 @@ def _question_math(text):
             out += "$"
             position += 1
             continue
-        display = delimiter == "$"
+        display = delimiter == "$$"
         out += ("\\[" if display else "\\(") + text[position+len(delimiter):end] + ("\\]" if display else "\\)")
         position = end+len(delimiter)
     return out
