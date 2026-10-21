@@ -120,8 +120,9 @@ def _expect(actual, expected, where):
     if isinstance(expected, str):
         # partial is a semantic verdict; the detailed native status is retained.
         status = actual.get("status")
-        matches = (status == expected or (expected == "partial" and 0 < actual.get("score", 0) < 1)
+        matches = (status == expected
                    or (expected == "invalid" and status == "error")
+                   or (expected == "partial" and status in ("not_exact", "not_form") and actual.get("score", 0) > 0)
                    or (expected == "wrong" and status in ("not_exact", "not_form", "rejected") and actual.get("score") == 0))
         if not matches:
             raise AssertionError("{}: expected {}, got {}".format(where, expected, actual))
@@ -144,10 +145,30 @@ def _expect(actual, expected, where):
         partial = expected["partial"]
         if not isinstance(partial, bool):
             raise ValueError(where + ": partial must be true or false")
-        if (0 < actual.get("score", 0) < 1) != partial:
+        observed_partial = (actual.get("status") == "partial" or
+                            actual.get("status") in ("not_exact", "not_form") and actual.get("score", 0) > 0)
+        if observed_partial != partial:
             raise AssertionError(where + ": partial verdict differs: " + repr(actual))
     if "answer-note" in expected and actual.get("answer-note") != expected["answer-note"]:
         raise AssertionError(where + ": answer note differs: " + repr(actual))
+
+
+
+def _invalid_expected(actual, expected, fields):
+    """Invalid input is never implicitly a zero-score/wrong answer."""
+    def explicit(result, wanted):
+        if isinstance(wanted, dict):
+            wanted = wanted.get("status")
+        return wanted == result.get("status") or (result.get("status") == "error" and wanted == "invalid")
+    if explicit(actual, expected):
+        return True
+    wanted = dict(zip(fields, expected)) if isinstance(expected, list) else expected
+    if not isinstance(wanted, dict):
+        return False
+    invalid = {name: result for name, result in actual.get("fields", {}).items()
+               if result.get("status") in ("invalid", "error", "empty")}
+    return bool(invalid) and all(name in wanted and explicit(result, wanted[name])
+                                 for name, result in invalid.items())
 
 
 def run_declarative(tests, grade, *, fields=(), variables=None, resolve=None):
@@ -205,6 +226,8 @@ def run_declarative(tests, grade, *, fields=(), variables=None, resolve=None):
         try:
             actual = grade(payload)
             expected = case.get("expect")
+            if actual.get("status") in ("invalid", "error", "empty") and not _invalid_expected(actual, expected, fields):
+                raise AssertionError("invalid or empty input needs an explicit verdict expectation")
             if isinstance(expected, list):
                 if len(expected) != len(fields):
                     raise ValueError("expected verdict count does not match fields")

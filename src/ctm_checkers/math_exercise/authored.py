@@ -202,8 +202,11 @@ def run_question(options, base, *, variables=None, teacher=None):
                     return int(number) if number.is_integer() else number
                 return value
             request = {"vars": defaults["vars"], "response": literal(response), "checker": options["checker"]}
-            admit(request)
-            result = check_custom(request)
+            try:
+                admit(request)
+                result = check_custom(request)
+            except ValueError as error:
+                result = {"status": "error", "score": 0, "message": str(error)}
             if result.get("status") == "error":
                 result["score"] = 0
             result["fields"] = result.get("assessment", {}).get("fields", {})
@@ -226,9 +229,10 @@ def run_question(options, base, *, variables=None, teacher=None):
             raise ValueError("declarative built-in tests need answer fields")
         if any(result["status"] in ("error", "empty") for result in checked.values()):
             return {"status": "invalid", "score": 0, "fields": checked}
-        score = (sum(result.get("score", 0) for result in checked.values()) / len(checked)
-                 if partial else float(all(result["status"] == "correct" for result in checked.values())))
-        status = "correct" if score >= 1-1e-9 else "wrong" if score <= 1e-9 else "partial"
+        score = sum(result.get("score", 0) for result in checked.values()) / len(checked)
+        if not partial and score < 1:
+            score = 0
+        status = "correct" if score >= 1 else "partial" if score > 0 else "wrong"
         return {"status": status, "score": score, "fields": checked}
     return run_declarative(tests, grade, fields=fields, variables=local)
 

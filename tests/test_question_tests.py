@@ -279,3 +279,51 @@ def test_scalar_teacher_keeps_spaces_and_component_math_transport():
     assert _teacher_fields("_[ Hello ] _[a\\$b] _[$x$] _[$$x$$]") == [" Hello ", "a$b", "\\(x\\)", "\\[x\\]"]
     run_question(question("string", question="_[ Hello ]", tests=[case("raw('Hello')", "wrong")]), ".")
     run_question(question("string", question="_[a\\$b]", tests=[case("raw('a$b')")]), ".")
+
+
+@pytest.mark.parametrize("assertion", [{"score": 0}, {"partial": False}, {"expect": {"answer-note": ""}}])
+def test_invalid_callback_is_not_an_implied_zero_score_answer(assertion):
+    with pytest.raises(AssertionError, match="explicit verdict"):
+        run_declarative([dict(name="invalid outcome", response={}, **assertion)],
+                        lambda payload: {"status": "invalid", "score": 0, "answer-note": ""})
+
+
+@pytest.mark.parametrize("answer", ["raw('')", "raw('(')"])
+@pytest.mark.parametrize("assertion", [{"score": 0}, {"partial": False}])
+def test_real_math_invalid_requires_an_explicit_verdict(answer, assertion):
+    q = question(tests=[dict(name="invalid learner", answers=[answer], **assertion)])
+    with pytest.raises(AssertionError, match="explicit verdict"):
+        run_question(q, ".")
+
+
+def test_explicit_invalid_overall_and_empty_field_expectations_still_work():
+    run_question(question(tests=[case("raw('(')", "invalid", score=0)]), ".")
+    run_question(question(tests=[case("raw('')", ["empty"], score=0)]), ".")
+    run_question(question("custom", checker="def check(r,s): return True",
+                          tests=[case("raw('__x')", "invalid", score=0)]), ".")
+
+
+@pytest.mark.parametrize("credit", ["0.9999999995", "0.0000000005"])
+def test_overall_verdict_uses_browser_exact_score_endpoints(credit):
+    run_question(question("exact", teacher=["1/2"],
+                          **{"partial-credit": "true", "form-credit": credit},
+                          tests=[case("raw('2/4')", "partial", score=float(credit))]), ".")
+
+
+def test_full_form_credit_preserves_actual_browser_aggregate():
+    run_question(question("exact", teacher=["1/2"],
+                          **{"partial-credit": "false", "form-credit": "1"},
+                          tests=[case("raw('2/4')", "wrong", score=0)]), ".")
+    run_question(question("exact", teacher=["1/2"],
+                          **{"partial-credit": "true", "form-credit": "1"},
+                          tests=[case("raw('2/4')", ["partial"], score=1)]), ".")
+
+
+@pytest.mark.parametrize("score,status", [(0.0000000005, "wrong"), (0.9999999995, "correct")])
+def test_custom_verdict_is_not_inferred_from_a_near_endpoint_score(score, status):
+    q = question("custom", checker="def check(r,s): return " + repr(score),
+                 tests=[case("x", status, score=score, partial=False)])
+    run_question(q, ".")
+    q["tests"][0]["expect"] = "partial"
+    with pytest.raises(AssertionError):
+        run_question(q, ".")
