@@ -1,0 +1,67 @@
+name: Native changed-golden evidence
+
+# Evidence collection is deliberately separate from the compatibility gate:
+# raw differences (including deferred ones) require independent review.
+on:
+  pull_request:
+    paths:
+      - 'src/ctm_checkers/stack/**'
+      - 'tests/golden/stack/**'
+      - 'examples/stack/**'
+      - 'tools/stack_native/observe_changed.*'
+      - '.github/workflows/native-changed-goldens.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  observe:
+    name: PHP + Maxima 5.46 / STACK ${{ matrix.version }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - version: '4.13.1'
+            commit: 10d323311b7f39fb7b092dd10ce75f7d8632f525
+          - version: '4.14.0'
+            commit: 33383047af39c204bf4442802a058f8b918b2b1b
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Observe the PR head, not GitHub's synthetic merge revision.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: maths/moodle-qtype_stack
+          ref: ${{ matrix.commit }}
+          path: .stack-oracle
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install native runtimes
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y maxima maxima-share php-cli php-xml php-mbstring
+      - name: Collect every changed, added and removed STACK golden row
+        run: >-
+          python tools/stack_native/observe_changed.py
+          --base 9e042dc
+          --stack-source .stack-oracle
+          --out test-results/native-changed-${{ matrix.version }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-changed-${{ matrix.version }}
+          path: test-results/native-changed-${{ matrix.version }}/
+          if-no-files-found: error
+      - name: Record evidence scope
+        if: always()
+        run: |
+          echo 'Native observations and all comparison differences are in the job log and artifact.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'A successful collection is not acceptance of the differences. Independent review is required.' >> "$GITHUB_STEP_SUMMARY"
