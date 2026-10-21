@@ -141,11 +141,11 @@ After the independent review of C3 (ctm-checkers #4), AC decided:
   own PHP validation: `tools/stack_native/check_validation.py` (STACK's API
   emulation of Moodle, PHP 8, no Maxima; the `native` job of
   `native-stack.yml`). It takes the golden rows whose answers name a question
-  variable; S-13 (STACK's input rules) can extend it to its own rows. Of its
-  15 "other message" answers today, 14 are S-13's (STACK checks a name with
-  `_` part by part and forbids unknown names of three letters or more:
-  `ta_perimeter` gives "perimeter"); the 15th, `d+0*f`, also names a feedback
-  variable, which STACK does not forbid.
-- The next fixes, one pull request each in §9's order: S-02 (`I`, `E`),
-  S-13, S-07, S-05, S-10, S-11, S-12, S-04, S-08, S-09, then S-06 (a plain
-  fix, AC 19 Oct); S-03 stays as it is until the STACK author answers.
+  variable; since 0.6.0 (S-13) it also compares every golden answer with
+  STACK's verdict and, for the rules S-13 follows, its message. Its one
+  "other message" of S-01 is `d+0*f`, which also names a feedback variable,
+  which STACK does not forbid.
+- 0.4.0 (the review of S-01), 0.5.0 (S-02, `I` and `E`) and 0.6.0 (S-13,
+  input rules) followed as one set. The next fixes, one pull request each in
+  §9's order: S-07, S-05, S-10, S-11, S-12, S-04, S-08, S-09, then S-06 (a
+  plain fix, AC 19 Oct); S-03 stays as it is until the STACK author answers.

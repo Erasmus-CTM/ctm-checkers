@@ -21,6 +21,7 @@ from .expressions import (MatrixValue, is_logical, is_collection, validate_colle
 from .collections import normalized_value, same_type
 from .logic import validate_logic
 from .rendering import render_castext
+from .student_input import FORBIDDEN_VARIABLE as _FORBIDDEN_VARIABLE, identifier_messages, space_messages, student_text
 
 
 def _assumptions(question):
@@ -345,7 +346,7 @@ def instantiate(question: dict, seed: int = 1) -> dict:
 
 # STACK's message for a name a student may not use (lang/en/qtype_stack.php,
 # stackCas_forbiddenVariable: "Forbidden variable or constant: {$a->forbid}.").
-FORBIDDEN_VARIABLE = "Forbidden variable or constant: {name}."
+FORBIDDEN_VARIABLE = _FORBIDDEN_VARIABLE
 
 
 def _author_names(question, env):
@@ -389,25 +390,50 @@ def _teacher_answer_names(question, key, teacher, env):
                                   "which a student may not type (S-01): no student could enter this answer")
 
 
-def _forbid_author_names(tree, names):
-    """An answer that uses a question or feedback variable is invalid, with
-    STACK's message for each such name and no preview: student input never
-    reads the author's values (S-01)."""
-    found = []
-    for node in _walk(tree):
-        if node.kind == "name" and node.value in names and node.value not in found:
-            found.append(node.value)
-    if found:
-        raise InvalidAnswer(" ".join(FORBIDDEN_VARIABLE.format(name=name) for name in found))
+def _parse_answer(inp, raw, env, question, question_test=False):
+    """The parsed answer, after STACK's rules for its text (S-13,
+    student_input): Unicode replacements and characters, spaces between
+    terms, and the identifiers (names of three letters or more, case, In), with
+    STACK's messages. The names of question and feedback variables are
+    forbidden (S-01): student input never reads the author's values. A
+    question test's inputs are the author's (_qtest_answer resolves the
+    question variables in them, as STACK's question tests evaluate them with
+    the question's values): only S-01 applies to them."""
+    names = _author_names(question, env)
+    insertstars = inp.get("insertstars", 0)
+    if question_test:
+        tree = parse(raw, insertstars=insertstars)
+        found = list(dict.fromkeys(n.value for n in _walk(tree) if n.kind == "name" and n.value in names))
+        if found:
+            raise InvalidAnswer(" ".join(FORBIDDEN_VARIABLE.format(name=name) for name in found))
+        return tree
+    text = student_text(raw)
+    spaces, trig = space_messages(text)
+    if spaces:
+        # STACK lists the spaces first, then its errors for the identifiers;
+        # a trigonometric function before a space makes that product invalid,
+        # and STACK checks no identifier in it (approximated: none).
+        raise InvalidAnswer(" ".join(spaces + ([] if trig else identifier_messages(text, set(env), names))))
+    try:
+        tree = parse(text, insertstars=insertstars)
+    except InvalidAnswer as exc:
+        # STACK parses calls of any name; its messages for them (In, case) come first.
+        messages = identifier_messages(text, set(env), names) if str(exc).startswith("Function ") else []
+        if messages:
+            raise InvalidAnswer(" ".join(messages)) from exc
+        raise
+    messages = identifier_messages(text, set(env), names)
+    if messages:
+        raise InvalidAnswer(" ".join(messages))
+    return tree
 
 
-def _input_validation(inp, raw, env, assumptions, question=None):
+def _input_validation(inp, raw, env, assumptions, question=None, question_test=False):
     raw = str(raw or "").strip()
     if not raw:
         return {"valid": False, "latex": "", "feedback": "Enter an answer"}, None, None
     try:
-        tree = parse(raw, insertstars=inp.get("insertstars", 0))
-        _forbid_author_names(tree, _author_names(question, env))
+        tree = _parse_answer(inp, raw, env, question, question_test)
         if any(n.value.lower() in {w.lower() for w in inp["forbidwords"]} for n in _walk(tree) if n.kind in {"name", "call"}):
             raise InvalidAnswer("Contains a forbidden word")
         if inp["forbidfloat"] and any(n.kind == "number" and ("." in n.value or "e" in n.value.lower()) for n in _walk(tree)):
@@ -588,7 +614,8 @@ def validate(question: dict, answers: Mapping[str, str], seed: int = 1, *, varia
             "feedback": "Review the parsed answers" if valid else "Correct invalid answers before grading"}
 
 
-def grade(question: dict, answers: Mapping[str, str], seed: int = 1, *, variant: dict | None = None) -> dict:
+def grade(question: dict, answers: Mapping[str, str], seed: int = 1, *, variant: dict | None = None,
+          question_test: bool = False) -> dict:
     """Grade raw student strings against a frozen variant, returning JSON values."""
     variant = instantiate(question, seed) if variant is None else variant
     env = _environment(question, variant)
@@ -598,7 +625,7 @@ def grade(question: dict, answers: Mapping[str, str], seed: int = 1, *, variant:
     student_trees = {}
     for inp in question["inputs"]:
         key = inp["name"]
-        result, value, tree = _input_validation(inp, answers.get(key, ""), env, assumptions, question)
+        result, value, tree = _input_validation(inp, answers.get(key, ""), env, assumptions, question, question_test)
         input_results[key] = result
         if result["valid"]:
             student_values[key] = value
@@ -623,6 +650,8 @@ def grade(question: dict, answers: Mapping[str, str], seed: int = 1, *, variant:
             # using one or more inputs. The answer-test parser sees a safe string.
             try:
                 raw_student = answers.get(node["student"], "")
+                if node["student"] in student_trees and not question_test:
+                    raw_student = student_text(str(raw_student).strip())   # as validated (S-13: Unicode replaced)
                 if node["student"] in student_trees:
                     tested_student = student_trees[node["student"]]
                 else:
@@ -700,7 +729,7 @@ def run_question_tests(question: dict, seeds=(1,), variants=None) -> dict:
                     raw[key] = _qtest_answer(question, expression, env, preserve_form=form)
                 except (Unsupported, InvalidAnswer, ValueError) as exc:
                     raise UnsupportedQuestion(question["name"], f"qtest[{test['testcase']}]/testinput[{key}]", str(exc)) from exc
-            actual = grade(question, raw, variant=variant)
+            actual = grade(question, raw, variant=variant, question_test=True)
             checks = []
             for name, expected in test["expected"].items():
                 result = actual["prts"].get(name, {})

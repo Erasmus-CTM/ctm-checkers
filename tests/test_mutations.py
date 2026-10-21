@@ -131,6 +131,24 @@ MUTATIONS = {
     'stack-s02-I-constant': ('stack/expressions.py', '"i": sp.I, "%i": sp.I}', '"i": sp.I, "I": sp.I, "%i": sp.I}', 1, (STACK,)),
     'stack-s02-source-euler': ('stack/expressions.py', 'return "%e"', 'return "E"', 1, (STACK,)),
     'stack-s02-source-imaginary': ('stack/expressions.py', 'return "%i"', 'return "I"', 1, (STACK,)),
+    # S-13 (0.6.0): STACK's rules for the text of an answer (stack/supplement's input-text.xml and the
+    # answer sets' strings), the inverse trigonometric functions, and the question tests' exemption.
+    'stack-s13-three-letters': ('stack/student_input.py', '    return name[-1:].isdigit()', '    return True', 1, (STACK,)),
+    'stack-s13-underscore-parts': ('stack/student_input.py', 'parts = [name] if _readable(name, keys) else list(dict.fromkeys(name.split("_")))',
+                                   'parts = [name]', 1, (STACK,)),
+    'stack-s13-function-case': ('stack/student_input.py', 'message = _case_message(name, _FUNCTION_CASES, FUNCTION_CASE)', 'message = None', 1,
+                                (STACK,)),
+    'stack-s13-variable-case': ('stack/student_input.py', '            elif len(part) > 1:', '            elif False:', 1, (STACK,)),
+    'stack-s13-log-in': ('stack/student_input.py', '        if name == "In":', '        if False:', 1, (STACK,)),
+    'stack-s13-unicode': ('stack/student_input.py', '    for old, new in stack_data.REPLACEMENTS:', '    for old, new in ():', 1, (STACK,)),
+    'stack-s13-characters': ('stack/student_input.py', 'raise InvalidAnswer(FORBIDDEN_CHAR.format(char=_CONTROL.get(character, character)))', 'pass', 1,
+                             (STACK,)),
+    'stack-s13-spaces': ('stack/student_input.py', '    if not fixed:', '    if True:', 1, (STACK,)),
+    'stack-s13-comma': ('stack/expressions.py', '            raise InvalidAnswer(UNENCAPSULATED_COMMA)', '            pass', 1, (STACK,)),
+    'stack-s13-zero-to-the-zero': ('stack/expressions.py', 'if student and simplify and a.is_zero is True and b.is_zero is True:', 'if False:', 1,
+                                   (STACK,)),
+    'stack-s13-arc-names': ('stack/expressions.py', '"ln": "log", **INVERSE_TRIG_SYNONYMS}', '"ln": "log"}', 1, (STACK,)),
+    'stack-s13-question-tests-the-authors': ('stack/engine.py', '    if question_test:', '    if False:', 1, (STACK,)),
 }
 
 # A few minutes: CI runs them in a step of their own (CTM_MUTATION_TESTS=1).

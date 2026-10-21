@@ -113,7 +113,17 @@ page as before. They have no admission rule: STACK's grammar never evaluates
 learner text as Python. Since 0.3.0 (S-01) an answer that names a question
 variable or a PRT's feedback variable is invalid, with STACK's message for
 each name ("Forbidden variable or constant: ta.") and no preview; question
-tests still resolve those names.
+tests still resolve those names. Since 0.5.0 (S-02) only `e`, `pi`, `Pi`,
+`PI` and `i` (and `%e`, `%pi`, `%i`) are constants, as in STACK; `E` and `I`
+are variables. Since 0.6.0 (S-13) an answer follows STACK's rules for its
+text, with STACK's messages (`ctm_checkers.stack.student_input`, its data
+generated from STACK's own files): no unknown name of three letters or more
+(`sinx`, `sin*x`), names in their case (`Sin(x)`, `PI`, `In(x)`), Unicode
+letters and symbols replaced as STACK does (`π`, `α`, `−`) and other
+characters rejected (`x²`), no decimal comma (`3,5`) and no space between
+terms (`2 x`), Maxima's error for `0^0`; the inverse trigonometric functions
+(`asin`, …, and STACK's `arcsin` names) are allowed. The question tests'
+inputs are the author's: only S-01 applies to them.
 
 Statuses: `correct`, `partial`, `wrong`, `not_exact`, `not_form`, `rejected`,
 `error` (`core.result.STATUSES`).

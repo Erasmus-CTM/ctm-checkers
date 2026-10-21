@@ -2,7 +2,7 @@
 
 # The package root imports no SymPy, so a component can read the version
 # without loading it.
-__version__ = "0.5.0"
+__version__ = "0.6.0.dev0"
 # Rises only for an incompatible change of browser.call, the request and
 # result shapes or an author contract (docs/api.md).
 API = 1

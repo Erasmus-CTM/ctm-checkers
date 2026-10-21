@@ -58,7 +58,7 @@ run them (`stack.import`, `stack.instantiate`, `stack.card`, `stack.tests`,
 | `questions-course.jsonl` | 232 | **Course material** (CC BY-SA 4.0; the checker file and the answers AGPL-3.0-or-later, below): the same as `questions-project` for the three questions derived from the course ingmat3a_ntnu (`examples/stack/course-*.xml`), among them S-01's test case `course-b-rank-pivots.xml` (since 0.3.0 `r` and `P` are invalid as answers: they name question variables). |
 | `probes.jsonl` | 207 | The stack-sympy audit's answer-test probes with STACK's and Maxima's native verdicts (`native`), and its performance probes. |
 | `probe-questions.jsonl` | 289 | The audit's question probes (`examples/stack/probes/`) with its answers. |
-| `supplement.jsonl` | 218 | Rules that only the mutation tests reached (below): NumAbsolute's strict bound with STACK's 1e-9 guard and NumRelative's inclusive one, for exact and irrational numbers; AlgEquiv's numeric rejection screen (1e-4 margin); response-tree scores beyond [0, 1] (`examples/stack/supplement/score-modes.xml`); the input rules of `examples/stack/supplement/input-rules.xml` (forbidden words in any case, the numerical input's type, lowest terms with two negative numbers, and/or precedence in the validation's LaTeX, the 64-entry matrix limit), with the answer sets of the example questions and the answers in `golden_stack.PROBE_ANSWERS`; S-01's question `examples/stack/supplement/forbidden-variables.xml` (0.3.0): only its six answers that name question and feedback variables, alone, inside an expression, with implied multiplication, twice, and two names at once (`golden_stack.ANSWERS_ONLY`); and from 0.4.0 (the review of S-01) `forbidden-variables-prts.xml`'s answers that name the feedback variables of its second response tree, separated by a newline (`ANSWERS_ONLY` too), and `teacher-answer-clash.xml`, whose teacher's answer uses a feedback variable's name: its build stops (its import and three variants); and from 0.5.0 (S-02) `constants.xml`, whose teacher's answers hold Euler's number and the imaginary unit next to the variables `E` and `I`, with the answer sets of the example questions and answers that write them in each way (`e`, `%e`, `exp(1)`, `E`; `i`, `%i`, `sqrt(-1)`, `I`). |
+| `supplement.jsonl` | 295 | Rules that only the mutation tests reached (below): NumAbsolute's strict bound with STACK's 1e-9 guard and NumRelative's inclusive one, for exact and irrational numbers; AlgEquiv's numeric rejection screen (1e-4 margin); response-tree scores beyond [0, 1] (`examples/stack/supplement/score-modes.xml`); the input rules of `examples/stack/supplement/input-rules.xml` (forbidden words in any case, the numerical input's type, lowest terms with two negative numbers, and/or precedence in the validation's LaTeX, the 64-entry matrix limit), with the answer sets of the example questions and the answers in `golden_stack.PROBE_ANSWERS`; S-01's question `examples/stack/supplement/forbidden-variables.xml` (0.3.0): only its six answers that name question and feedback variables, alone, inside an expression, with implied multiplication, twice, and two names at once (`golden_stack.ANSWERS_ONLY`); and from 0.4.0 (the review of S-01) `forbidden-variables-prts.xml`'s answers that name the feedback variables of its second response tree, separated by a newline (`ANSWERS_ONLY` too), and `teacher-answer-clash.xml`, whose teacher's answer uses a feedback variable's name: its build stops (its import and three variants); and from 0.5.0 (S-02) `constants.xml`, whose teacher's answers hold Euler's number and the imaginary unit next to the variables `E` and `I`, with the answer sets of the example questions and answers that write them in each way (`e`, `%e`, `exp(1)`, `E`; `i`, `%i`, `sqrt(-1)`, `I`); and from 0.6.0 (S-13) `input-text.xml`, an answer for each of STACK's rules for the text of an answer (names of three letters or more, case, `In`, Unicode characters, decimal commas, spaces, `0^0`, the inverse trigonometric functions) with STACK's messages, next to its answer sets. |
 
 `excluded.json` lists the inputs that run longer than 20 s (S-12:
 `sin(exp(exp(exp(5))))`, `sin(x)^99*cos(x)^99` against `(sin(2*x)/2)^99`):
@@ -177,7 +177,9 @@ Where a change is about STACK's verdict, native STACK checks it (design §9):
 answer tests with `tools/stack_native/dual.py` (STACK's answer-test
 functions in Maxima), input validation with
 `tools/stack_native/check_validation.py` (STACK's own PHP validation of the
-golden rows' answers that name question variables; `native-stack.yml`).
+golden rows' answers: those that name question variables, S-01, and since
+0.6.0 every answer, for STACK's rules for the text of an answer, S-13;
+`native-stack.yml`).
 
 ## Verifying
 
@@ -282,7 +284,7 @@ round, the reject rule comparing expressions instead of their text, changes
 no verdict SymPy can produce here and is not listed.
 
 Mutations of the STACK engine must fail the STACK tables (the test stops at
-the first row that differs). Rows that differ in all (of 5,892), by table:
+the first row that differs). Rows that differ in all (of 5,969), by table:
 
 | Mutation | Rows | Tables |
 |---|---|---|
@@ -323,6 +325,18 @@ the first row that differs). Rows that differ in all (of 5,892), by table:
 | S-02: `I` is the imaginary unit again | 63 | probe-questions 20, probes 1, questions-project 2, supplement 40 |
 | S-02: values written with `E` for Euler's number (frozen variants, question tests' inputs) | 22 | supplement |
 | S-02: values written with `I` for the imaginary unit | 40 | probe-questions 8, questions-library 4, questions-project 6, supplement 22 |
+| S-13: names of three letters or more allowed | 26 | questions-library 3, questions-project 13, supplement 10 |
+| S-13: names not checked part by part at underscores | 14 | questions-project 13, supplement 1 |
+| S-13: functions in another case (`Sin(x)`) | 6 | supplement |
+| S-13: variables in another case (`PI`) | 3 | supplement |
+| S-13: `In(x)` without STACK's message | 1 | supplement |
+| S-13: Unicode letters and symbols not replaced (`π`) | 111 | probe-questions 11, questions-course 8, questions-helm 7, questions-library 31, questions-project 41, supplement 13 |
+| S-13: other characters without STACK's message (`x²`) | 110 | probe-questions 11, questions-course 8, questions-helm 7, questions-library 31, questions-project 41, supplement 12 |
+| S-13: spaces between terms without STACK's message (`2 x`) | 112 | probe-questions 11, questions-course 8, questions-helm 7, questions-library 31, questions-project 41, supplement 14 |
+| S-13: a decimal comma without STACK's message (`3,5`) | 108 | probe-questions 11, questions-course 8, questions-helm 7, questions-library 31, questions-project 41, supplement 10 |
+| S-13: `0^0` is 1 | 4 | probes 1, supplement 3 |
+| S-13: STACK's `arcsin` names not known | 76 | supplement |
+| S-13: the question tests' inputs checked as a student's (corpus `AlgMap-1-6.xml` types `ans+1`) | 3 | questions-library |
 
 Since 0.3.0 (S-01) some answers that reached a rule name a question variable
 and stop at validation, so five mutations above change fewer rows than in

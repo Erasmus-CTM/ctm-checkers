@@ -15,4 +15,8 @@ S-01): `forbidden-variables-prts.xml` has two response trees, the second's
 feedback variables (`w`, `zz`) separated by a newline (`ANSWERS_ONLY` too);
 `teacher-answer-clash.xml`'s teacher's answer uses a feedback variable's
 name (`t`), so no student could enter it, and its build stops.
+From 0.5.0 (S-02): `constants.xml` has Euler's number and the imaginary
+unit next to the variables `E` and `I`. From 0.6.0 (S-13): `input-text.xml`
+has an answer for each of STACK's rules for the text of an answer, and the
+inverse trigonometric functions in its teacher's answer.
 AGPL-3.0-or-later.

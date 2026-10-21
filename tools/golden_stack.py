@@ -398,6 +398,15 @@ PROBE_ANSWERS = {
     'examples/stack/probes/options.xml': [{'ans1': '3+4*j'}, {'ans1': '3,5'}, {'ans1': '3 + 4*I'}],
     'examples/stack/symmetric-positive-definite.xml': [{'ansm': 'matrix([2,I],[-I,2])'}],
     'examples/stack/symmetric-positive-definite-prt.xml': [{'ansm': 'matrix([2,I],[-I,2])'}],
+    # S-13 (0.6.0): STACK's rules for the text of an answer, one rule an
+    # answer (and both of a kind together), with STACK's messages.
+    'examples/stack/supplement/input-text.xml': [{'ans1': text} for text in (
+        '2*asin(x)+atan(2)', '2*arcsin(x)+arctan(2)', '2*asin(x)+atan(2.0)', 'acos(x)', 'asinh(x)', 'arsinh(x)', 'arccosec(x)',
+        'sinx', 'sin*x', 'abc', 'abc+xyz', 'abc1', 'alpha', 'theta+Theta', 'x_abc', 'x_1', 'area', 'ln*x',
+        'Sin(x)', 'SQRT(x)', 'Exp(x)', 'Ln(x)', 'In(x)', 'Diff(x)', 'PI', 'pI', 'XI', 'ALPHA', 'Sin(x)*abc',
+        '0^0', '(x-x)^0', '0.0^0', 'x^0',
+        'x²', 'x²+y³', 'π', 'πr', 'α+θ', 'x−1', '2×x', '2·x', '√x',
+        '3,5', 'x,y', '2 x', 'x y', '2  x+3 y', 'sin x', 'sin (x)', '(x+1) (x-1)', 'x + 1', 'not x', 'E', 'I')],
     'examples/stack/supplement/constants.xml': [
         {'ans1': '2*e*x+E', 'ans2': '3*i+I'}, {'ans1': '2*%e*x+E', 'ans2': '3*%i+I'}, {'ans1': '2*E*x+E', 'ans2': '3*I+I'},
         {'ans1': '2*e*x+e', 'ans2': '3*i+i'}, {'ans1': '2*exp(1)*x+E', 'ans2': '3*sqrt(-1)+I'}],

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "scope_sha256": "3dafd6687667708ea21152f006ab3e158135f6f8c599f146c5f794c18af1016d",
+  "scope_sha256": "8bd43d454b03c656f086f36b7223c133d4eb6f3032fc529b2a00b309413a62be",
   "cases": {
     "de0885f7d37d2ae319116b55bbeb142975a2298c65f19be7a7d0c90b0ca82980-1": {
       "expected_observation": {
@@ -297,6 +297,72 @@
           {
             "label": "Pinned ATSet and ATSets_prepare implementation",
             "url": "https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/stack/maxima/stackmaxima.mac"
+          }
+        ]
+      }
+    },
+    "c99bbfdcd536a27c6d8bb6c5dd0c76496c890d1d9f9c4aa99e97cc94a326bcee-1": {
+      "expected_observation": {
+        "kind": "result",
+        "valid": true,
+        "correct": false,
+        "note": "",
+        "feedback": ""
+      },
+      "reason": "atan(1/2) = %pi/2-atan(2): STACK's own fixture marks this row -3 (an expected mathematical failure: the identity holds, STACK returns false), with the note 'This is only equivalent for x>=0...'. The port returns false too. In scope since S-13 (0.6.0) brought the inverse trigonometric functions.",
+      "discussion": {
+        "category": "proof_limitation",
+        "evidence": "documented_context",
+        "explanation": "atan(1/2) = %pi/2-atan(2): STACK's own fixture marks this row -3 (an expected mathematical failure: the identity holds, STACK returns false), with the note 'This is only equivalent for x>=0...'. The port returns false too. In scope since S-13 (0.6.0) brought the inverse trigonometric functions.",
+        "question": "None for STACK parity: STACK marks the row an expected mathematical failure and returns false, as this engine does. Should the port prove this identity where STACK does not?",
+        "sources": [
+          {
+            "label": "STACK fixture row (expected_score -3), answertestfixtures.class.php line 737",
+            "url": "https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/tests/fixtures/answertestfixtures.class.php#L737"
+          }
+        ]
+      }
+    },
+    "afb7ea047359b77846ff9b7a36784b5ecc8df972e58063b97854bd2748b91087-1": {
+      "expected_observation": {
+        "kind": "result",
+        "valid": true,
+        "correct": false,
+        "note": "",
+        "feedback": ""
+      },
+      "reason": "asinh(x) = ln(x+sqrt(x^2+1)): STACK's own fixture marks this row -3 (an expected mathematical failure: true for all real x, STACK returns false), with the note 'This is true for all x...'. The port returns false too. In scope since S-13 (0.6.0) brought the inverse trigonometric functions.",
+      "discussion": {
+        "category": "proof_limitation",
+        "evidence": "documented_context",
+        "explanation": "asinh(x) = ln(x+sqrt(x^2+1)): STACK's own fixture marks this row -3 (an expected mathematical failure: true for all real x, STACK returns false), with the note 'This is true for all x...'. The port returns false too. In scope since S-13 (0.6.0) brought the inverse trigonometric functions.",
+        "question": "None for STACK parity: STACK marks the row an expected mathematical failure and returns false, as this engine does. Should the port prove this identity where STACK does not?",
+        "sources": [
+          {
+            "label": "STACK fixture row (expected_score -3), answertestfixtures.class.php line 738",
+            "url": "https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/tests/fixtures/answertestfixtures.class.php#L738"
+          }
+        ]
+      }
+    },
+    "b47dc16dd6a1c25b9fdf9865d376cb2bae4662626af460b98308a3b8a9a0831e-1": {
+      "expected_observation": {
+        "kind": "result",
+        "valid": true,
+        "correct": false,
+        "note": "",
+        "feedback": ""
+      },
+      "reason": "A nested radical with acos and atan equal to (41-sqrt(511))/2: STACK's own fixture marks this row -3 (an expected mathematical failure: STACK returns false). The port returns false too (in about 3 s). In scope since S-13 (0.6.0) brought the inverse trigonometric functions.",
+      "discussion": {
+        "category": "proof_limitation",
+        "evidence": "documented_context",
+        "explanation": "A nested radical with acos and atan equal to (41-sqrt(511))/2: STACK's own fixture marks this row -3 (an expected mathematical failure: STACK returns false). The port returns false too (in about 3 s). In scope since S-13 (0.6.0) brought the inverse trigonometric functions.",
+        "question": "None for STACK parity: STACK marks the row an expected mathematical failure and returns false, as this engine does. Should the port prove this identity where STACK does not?",
+        "sources": [
+          {
+            "label": "STACK fixture row (expected_score -3), answertestfixtures.class.php line 732",
+            "url": "https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/tests/fixtures/answertestfixtures.class.php#L732"
           }
         ]
       }

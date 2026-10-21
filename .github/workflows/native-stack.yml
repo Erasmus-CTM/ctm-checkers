@@ -10,8 +10,10 @@ name: Native STACK
 # publishes under /compliance. The native image is validated in full (paired
 # build, every runnable row) weekly, on demand, and on pull requests that
 # change its builder. The golden tables' answers that name a question
-# variable are also validated by STACK's own PHP input validation
-# (tools/stack_native/check_validation.py; S-01).
+# variable, and every answer for STACK's rules for the text of an answer,
+# are also validated by STACK's own PHP input validation
+# (tools/stack_native/check_validation.py; S-01, S-13), and the data of those
+# rules is checked to be STACK's (tools/stack_native/stack_input_data.py).
 on:
   workflow_call:
     inputs:
@@ -57,7 +59,9 @@ jobs:
           cache: pip
           cache-dependency-path: ci/requirements.txt
       - run: python -m pip install -r ci/requirements.txt
-      - run: python tools/stack_native/run_compliance_python.py --jobs 4
+      # 15 s a case: since S-13 (0.6.0) the inverse trigonometric functions bring STACK's
+      # fixture row with nested acos and atan into scope, which takes about 3 s alone.
+      - run: python tools/stack_native/run_compliance_python.py --jobs 4 --timeout 15
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -92,7 +96,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y maxima maxima-share
           python -m pip install -r ci/requirements.txt
-      - name: Answers that name question variables, against STACK's own input validation (S-01; PHP, no Maxima)
+      - name: The data of STACK's input rules is STACK's (S-13)
+        run: python tools/stack_native/stack_input_data.py --stack-source .stack-upstream-reference --check
+      - name: The golden answers against STACK's own input validation (S-01, S-13; PHP, no Maxima)
         run: python tools/stack_native/check_validation.py --stack-source .stack-upstream-reference --out test-results/compliance/validation.json
       - uses: actions/upload-artifact@v4
         if: always()
