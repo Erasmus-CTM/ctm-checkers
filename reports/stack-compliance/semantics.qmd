@@ -28,7 +28,7 @@ native observation, and port behavior are kept separate below.
 | Domain/design clarification | [`log(x^2)` against `2*log(abs(x))`](#log-square), next to [155](#domain-questions) | Confirm whether `AlgEquiv` should reject `2*log(abs(x))` for a teacher's `log(x^2)` while it accepts `2*log(x)`. Maxima's default `logexpand:true` stores that teacher's answer as `2*log(x)` before any test runs. |
 | Fixture/domain clarification | [471](#case-471) | Confirm whether real `x` is part of the intended fixture contract. Its identity holds for real `x` but fails at `x=-i`; proving the real case in the port is separate engineering work. |
 | Set compatibility clarification | [212](#exact-sets) | Confirm whether rejection of mathematically equal set members is the intended prepared-form behavior, and what normalization authors should expect. The port currently accepts. |
-| Question, low impact | [Teacher's `1.015` at a tie](#rounding-teacher-tie) | Say whether `NumDecPlaces` and `NumSigFigs` should round the teacher's decimal as written, so that `1.015` gives `1.02`. Both now give `1.01`. STACK's fixture "Round teacher answer" (line 2636) suggests rounding as written. |
+| Question, low impact | [Teacher's `1.015` at a tie](#rounding-teacher-tie) | Say whether `NumDecPlaces` and `NumSigFigs` should round the teacher's decimal as written, so that `1.015` gives `1.02`. Both now round it to `1.01`. STACK's fixture "Round teacher answer" (line 2636) suggests rounding as written. |
 | Known limitation: is a fix wanted? | [`abs` of a product](#abs-product): STACK fixture lines 720 and 1992 | Not a new report: STACK's fixtures already record it. Say whether a fix in `AlgEquiv`, and so in `Int`, is wanted; we could offer one. |
 | Documentation clarification | [Tie rules](#tie-rule-docs) | Say whether the `NumDecPlaces` documentation should name its tie rule. `NumDecPlaces` and `NumSigFigs` round `0.125` differently. We could send the sentence. |
 | Optional development advice | [Trig member in a set](#trig-set-identity), [474](#case-474) | Advise whether stronger bounded set preparation/matching or an exact-real algebraic-number proof would be useful. Neither is presented as a semantic dispute requiring approval for the port's current choices. |
@@ -368,7 +368,8 @@ fixture
 suggests that the teacher's decimal is meant to be rounded as written.
 `0.04985` is also below the tie in binary (0.04984999999999999848…). It
 rounds up only because `0.04985/10^-4` comes out as exactly `498.5` in
-floating point; for `1.015` the same arithmetic gives `101.49999999999999`.
+`sigfigsfun` (a bigfloat, then `float`); for `1.015` the same arithmetic
+gives `101.49999999999999`.
 
 Where in the source: `ATNumDecPlaces` compares `round(sans*10^n)` with
 `round(tans*10^n)` in floating point
@@ -396,7 +397,7 @@ already record it:
 |---|---|---|
 | [720](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/tests/fixtures/answertestfixtures.class.php#L720) (468) | `AlgEquiv`, `abs(x^2-4)` / `abs(x-2)*abs(x+2)` | −3: "Expected maths failure, where test should return 1" ([line 61](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/tests/fixtures/answertestfixtures.class.php#L61)). Line 719 (467) is the same case as a quotient. |
 | [1992](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/tests/fixtures/answertestfixtures.class.php#L1992) (1388) | `Int`, `log(abs((x^2-9)))+c` / `log(abs(x-3))+log(abs(x+3))` | 0, `ATInt_EqFormalDiff` |
-| [1991](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/tests/fixtures/answertestfixtures.class.php#L1991) (1387) | `Int`, `log(abs((x-3)*(x+3)))+c` / `log(abs(x-3))+log(abs(x+3))` | 1, the reverse direction |
+| [1991](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/tests/fixtures/answertestfixtures.class.php#L1991) (1387) | `Int`, `log(abs((x-3)*(x+3)))+c` / `log(abs(x-3))+log(abs(x+3))` | 1, `ATInt_true_equiv`: the same teacher's answer, with the product unexpanded inside `abs` |
 
 The rows are published in
 [Results/AlgEquiv.md](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/doc/en/Authoring/Answer_Tests/Results/AlgEquiv.md)
@@ -459,14 +460,14 @@ This is documented:
 (`decimalplaces` rounds; with `n` = 0 it uses `round`). The `NumSigFigs`
 paragraph
 ([Numerical.md line 72](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/doc/en/Authoring/Answer_Tests/Numerical.md#L72))
-points to the rounding notes. The `NumDecPlaces` paragraph
+links to "notes about numerical rounding" (Numbers.md). The `NumDecPlaces` paragraph
 ([line 76](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/doc/en/Authoring/Answer_Tests/Numerical.md#L76))
 says only that the test "rounds the numbers to the specified number of
 decimal places".
 
 **Question.** Would a sentence there naming the tie rule, or a link to the
-rounding notes as for `NumSigFigs`, be welcome? We could send a pull
-request.
+rounding notes, like the one in the `NumSigFigs` paragraph, be welcome? We
+could send a pull request.
 
 ## Possible future development {#future-development}
 
@@ -719,15 +720,19 @@ port, through minimal question files:
 
 Each file is Moodle XML for the STACK question type, with question tests
 that state the expected marks; they fail where this page reports a
-difference. The files are CC BY-SA 4.0 (Andrey Chesnokov, 2026).
+difference. In decimal-tie-rule.xml the tests expect `0.13` from both,
+only to show where the two rules differ; under the documented rules
+`NumDecPlaces` expects `0.12`. The files are CC BY-SA 4.0 (Andrey
+Chesnokov, 2026).
 
 Versions, with identical results in both:
 
 - STACK 4.13.1 (2026080600): `master` at
   [10d3233](https://github.com/maths/moodle-qtype_stack/commit/10d323311b7f39fb7b092dd10ce75f7d8632f525),
-  12 documentation-only commits after tag
+  12 commits after tag
   [v4.13.1](https://github.com/maths/moodle-qtype_stack/commit/d785ac3ef2e127353963b84e2e25d030304bd32a)
-  (d785ac3); the code is identical to the tag. Source links on this page
+  (d785ac3) that change only documentation, `CHANGES.md` and a licence
+  file; the code is identical to the tag. Source links on this page
   are to this commit.
 - STACK 4.14.0 (2026101500): `master` at
   [3338304](https://github.com/maths/moodle-qtype_stack/commit/33383047af39c204bf4442802a058f8b918b2b1b),

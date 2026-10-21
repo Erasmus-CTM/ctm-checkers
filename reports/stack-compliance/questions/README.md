@@ -12,8 +12,8 @@ The report's `_quarto.yml` copies them into the rendered site
 | `abs-product.xml`, `int-partial-fractions.xml` | `#abs-product` |
 | `decimal-tie-rule.xml` | `#tie-rule-docs` |
 
-They are copied unchanged from aacchhee/ctm-demo commit `f44ace4`
-(`_stack-repro/questions/`), where they were checked against STACK 4.13.1
+They are copied unchanged (sha256 identical) from an earlier, fact-checked
+reproduction, where they were checked against STACK 4.13.1
 (`10d3233`) and 4.14.0 (`3338304`) with Maxima 5.46.0. They are not
 graded by this repository's golden tables.
 
