@@ -85,7 +85,13 @@ def test_remaining_exceptions_have_case_specific_author_discussion():
     for entry in policy["cases"].values():
         discussion = entry["discussion"]
         assert discussion["category"] in {"domain_review", "proof_limitation"}
-        assert discussion["explanation"] and discussion["question"] and discussion["sources"]
+        assert discussion["explanation"] and discussion["sources"]
+        # A question for the STACK author, or none where STACK's fixture already records the failure
+        # (proof_limitation rows that STACK shares) and the report must not present one.
+        if "question" in discussion or discussion["category"] == "domain_review":
+            assert discussion["question"].strip() and "None for STACK" not in discussion["question"]
+        else:
+            assert discussion["category"] == "proof_limitation" and "expected mathematical failure" in discussion["explanation"]
         assert discussion["evidence"] in {"documented_context", "observed_behavior"}
 
 
