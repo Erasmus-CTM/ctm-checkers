@@ -6,6 +6,69 @@ release. Every grading change is listed under "Grading changes" with the
 finding or decision it implements, its test and the summary of its golden
 diff (docs/goldens.md).
 
+## 0.4.0 (21 October 2026)
+
+The review of S-01 (0.3.0): its follow-ups in ctm-checkers (step-2 design
+§9; the first of the set S-01 follow-ups, S-02, S-13). A MINOR release: a
+question whose teacher's answer no student could enter now stops the build
+(a new author error), and the STACK tables gain rows. No verdict of an
+existing row changes; math-exercise's tables do not change (H2).
+
+### Grading changes
+
+- **S-01, follow-ups (the review of S-01, should-fix 2 and 3).**
+  - A teacher's answer that uses the name of a question or feedback
+    variable cannot be entered by any student, since 0.3.0 forbids such
+    names in answers: `instantiate` now stops the build with
+    "input[…]/tans: the teacher's answer uses t, the name of a question or
+    feedback variable, which a student may not type (S-01): no student could
+    enter this answer". Before, the build noticed only if a question test
+    happened to cover it (the code before 0.3.0 misgraded such questions
+    instead). No question of `examples/stack/` has such an answer: every
+    `stack.import`, `stack.instantiate`, `stack.tests` and `stack.card` row
+    is unchanged. Test: `tests/stack/test_forbidden_variables.py`
+    (`test_a_teacher_answer_a_student_cannot_type_stops_the_build`, also in
+    collections and matrices); question
+    `examples/stack/supplement/teacher-answer-clash.xml`.
+  - The feedback variables of every response tree, separated by
+    semicolons or newlines, are forbidden (0.3.0 did so; no row or test
+    reached a second tree or a newline, so reading only the first tree, or
+    splitting at semicolons only, went unnoticed). Their names now come from
+    the one grammar of the assignments
+    (`expressions.assignment_statements`, which `assignments` uses too)
+    instead of a pattern of their own. Tests:
+    `test_the_feedback_variables_of_every_response_tree`,
+    `test_assignment_statements`; question
+    `examples/stack/supplement/forbidden-variables-prts.xml` (its answers
+    `w`, `zz`, `sa+zz`; `ANSWERS_ONLY`).
+  - Mutations (`tests/test_mutations.py`, docs/goldens.md): only the first
+    response tree's feedback variables (3 rows), the assignments split at
+    semicolons only (180), no check of the teacher's answers (3); the S-01
+    mutation of the feedback variables follows the new code (9 rows).
+  - **Native STACK** (`tools/stack_native/check_validation.py`, STACK
+    `10d3233`): 376 answers name a question or feedback variable: 356 agree
+    in verdict and message, 15 agree in verdict with other names in STACK's
+    message (S-13, as in 0.3.0), 5 name only feedback variables, which
+    STACK does not forbid (`d`, `sa`, and the new `w`, `zz`, `sa+zz`);
+    0 disagree.
+  - **Golden diff** (`tools/golden.py diff --base be8caa3`): 7 rows added
+    to `stack/supplement`, none changed or removed. The 3 answers of
+    `forbidden-variables-prts.xml` are invalid (the legacy code graded `w`
+    0.5, `zz` and `sa+zz` 0.0); `teacher-answer-clash.xml`'s import (as
+    the legacy code's) and its 3 variants (seeds 1 to 3: raised; the legacy
+    code built them). The 6 rows that differ from the legacy code name S-01.
+
+- Tools (the review of S-01, should-fix 1): `golden.py check-changelog` also
+  fails a pull request that removes a golden row, or changes a row in
+  another field than its result (`tags`, `native`), unless the CHANGELOG
+  section of the version names the row by its id; `golden.py diff` lists
+  such rows. `manifest.json` keeps the first version of a grading change
+  and lists every version that wrote rows naming it (`versions`); the
+  STACK tables' lines of `PROVENANCE.md` say how many rows hold
+  ctm-checkers' result after a grading change (should-fix 5).
+- Docs (should-fix 5): docs/goldens.md no longer says that
+  `course-b-rank-pivots.xml` accepts `r` and `P` as answers.
+
 ## 0.3.0 (21 October 2026)
 
 STACK: a student answer may no longer name a question variable or a

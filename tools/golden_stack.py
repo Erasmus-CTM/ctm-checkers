@@ -241,7 +241,7 @@ TABLES = {
     'stack/probe-questions': ('question probes of the stack-sympy audit (examples/stack/probes/*.xml with the answers of its '
                               'qprobe.py, crash.py and overflow.cjs)', 'AGPL-3.0-or-later'),
     'stack/supplement': ('inputs written for these tables (tools/golden_stack.py SUPPLEMENT, examples/stack/supplement/): '
-                         'rules that no other row reached (the review of C3)', 'AGPL-3.0-or-later'),
+                         'rules that no other row reached (the reviews of C3 and S-01)', 'AGPL-3.0-or-later'),
 }
 
 # Questions derived from course material (examples/stack/course-examples-provenance.json):
@@ -408,6 +408,9 @@ PROBE_ANSWERS = {
     # twice, and both kinds at once (ANSWERS_ONLY).
     'examples/stack/supplement/forbidden-variables.xml': [
         {'ans1': 'ta'}, {'ans1': 'd'}, {'ans1': 'sa'}, {'ans1': '2ta-ta'}, {'ans1': 'k*2*x+1'}, {'ans1': 'd+0*f'}],
+    # S-01 (ctm-checkers 0.4.0): the feedback variables of the second
+    # response tree, separated by a newline (w, zz), and both trees' at once.
+    'examples/stack/supplement/forbidden-variables-prts.xml': [{'ans1': 'w'}, {'ans1': 'zz'}, {'ans1': 'sa+zz'}],
     # The input rules no other row reached (the review of C3): forbidden
     # words in any case, the numerical input's type, lowest terms with two
     # negative numbers, and/or precedence in the validation's LaTeX, the
@@ -423,9 +426,9 @@ PROBE_ANSWERS = {
 
 
 # Questions whose rows are only the answers in PROBE_ANSWERS at seed 1, each of
-# which uses a question or feedback variable's name: S-01's question, so that
-# the golden diff of S-01 (ctm-checkers 0.3.0) touches only such rows.
-ANSWERS_ONLY = ('examples/stack/supplement/forbidden-variables.xml',)
+# which uses a question or feedback variable's name: S-01's questions, so that
+# the golden diffs of S-01 (ctm-checkers 0.3.0, 0.4.0) touch only such rows.
+ANSWERS_ONLY = ('examples/stack/supplement/forbidden-variables.xml', 'examples/stack/supplement/forbidden-variables-prts.xml')
 
 
 def question_inputs(engine, folder, out=print):

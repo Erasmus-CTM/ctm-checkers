@@ -798,20 +798,30 @@ def evaluate(node_or_string: Node | str, env: Mapping[str, Any] | None = None, *
     return result
 
 
+_ASSIGNMENT = re.compile(r"([A-Za-z_][A-Za-z_0-9]*)\s*:\s*(.+)", re.DOTALL)
+
+
+def assignment_statements(source: str):
+    """The statements of author assignments (question and feedback
+    variables), separated by semicolons and newlines: (name, expression), or
+    (None, statement) for a statement that is not name:expression. The one
+    grammar of assignments and of the names they write (engine._author_names)."""
+    for stmt in re.split(r"[;\n]+", source):
+        stmt = stmt.strip()
+        if stmt:
+            match = _ASSIGNMENT.fullmatch(stmt)
+            yield (match.group(1), match.group(2)) if match else (None, stmt)
+
+
 def assignments(source: str, env: Mapping[str, Any] | None = None, *, rng: random.Random | None = None,
                 assumptions: Mapping[str, bool] | None = None) -> dict[str, Any]:
     """Evaluate semicolon/newline-separated name:expression author assignments."""
     result = dict(env or {})
     if not isinstance(source, str) or len(source) > 20000:
         raise Unsupported("Assignment source too long")
-    for stmt in re.split(r"[;\n]+", source):
-        stmt = stmt.strip()
-        if not stmt:
-            continue
-        match = re.fullmatch(r"([A-Za-z_][A-Za-z_0-9]*)\s*:\s*(.+)", stmt, re.DOTALL)
-        if match is None:
+    for name, expression in assignment_statements(source):
+        if name is None:
             raise Unsupported("Only name:expression assignments are supported")
-        name, expression = match.groups()
         if name in _NAMES or name in {"simp", "true", "false"}:
             raise Unsupported("Cannot assign a reserved name")
         result[name] = evaluate(expression, result, rng=rng, assumptions=assumptions)

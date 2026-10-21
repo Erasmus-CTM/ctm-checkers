@@ -10,4 +10,9 @@ precedence in the validation's LaTeX, the 64-entry matrix limit (its
 answers: `PROBE_ANSWERS` in tools/golden_stack.py); `forbidden-variables.xml`
 (S-01, ctm-checkers 0.3.0) has question variables (`k`, `f`, `ta`) and
 feedback variables (`d`, `sa`), and its rows are only its answers that name
-them (`ANSWERS_ONLY` in tools/golden_stack.py). AGPL-3.0-or-later.
+them (`ANSWERS_ONLY` in tools/golden_stack.py). From 0.4.0 (the review of
+S-01): `forbidden-variables-prts.xml` has two response trees, the second's
+feedback variables (`w`, `zz`) separated by a newline (`ANSWERS_ONLY` too);
+`teacher-answer-clash.xml`'s teacher's answer uses a feedback variable's
+name (`t`), so no student could enter it, and its build stops.
+AGPL-3.0-or-later.
