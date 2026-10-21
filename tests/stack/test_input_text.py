@@ -79,6 +79,10 @@ NATIVE = [
     ('arccosec(x)', ''),
     ('k*x', 'Forbidden variable or constant: k.'),
     ('k_1', ''),
+    # Names that no student may use anywhere (Maxima's own: the globally forbidden words).
+    ('error', 'The expression error is forbidden.'),
+    ('lisp', 'The expression lisp is forbidden.'),
+    ('x+error', 'The expression error is forbidden.'),
 ]
 
 
@@ -126,29 +130,29 @@ def test_the_question_graded_with_unicode_and_arc_names():
     assert validate(q, {"ans1": "x−1"}, variant=variant)["inputs"]["ans1"]["latex"] == "x - 1"
 
 
+def test_a_name_in_the_final_position_of_maximas_syntax_is_forbidden():
+    # do is a word of Maxima's syntax: invalid here as a variable. Native STACK
+    # also finds it invalid, with another message ("'do' is an invalid final
+    # term in do."); the tables record this engine's.
+    for answer in ("do", "x+do", "2*do"):
+        checked = check(answer)
+        assert checked["valid"] is False and checked["feedback"] == "Forbidden variable or constant: do."
+
+
 @pytest.mark.parametrize("answer, message", [
-    ("a_b", "Forbidden variable or constant: a_b."),     # forbidden as a whole, although its parts are allowed
+    ("a_b", "Forbidden variable or constant: a_b."),     # question variables (S-01)
+    ("alpha", "Forbidden variable or constant: alpha."),
+    ("v_0", "Forbidden variable or constant: v_0."),
     ("d", "Forbidden variable or constant: d."),         # a feedback variable (S-01)
-    ("k_1", ""), ("k1", ""),
+    ("a_b+v_0", "Forbidden variable or constant: a_b. Forbidden variable or constant: v_0."),
+    ("k_1", ""), ("k1", ""), ("beta", ""), ("v_1", ""), ("a_c", ""),
 ])
-def test_question_and_feedback_variables_stay_forbidden_as_a_whole(answer, message):
+def test_the_names_of_question_and_feedback_variables_are_forbidden(answer, message):
     q = import_xml(ROOT / "examples" / "stack" / "supplement" / "input-text.xml")[0]
-    q["variables"] = "k:2; a_b:3; ta:k*asin(x)+atan(k);"
+    q["variables"] = "k:2; a_b:3; alpha:5; v_0:2; ta:k*asin(x)+atan(k);"
     q["prts"][0]["feedbackvariables"] = "d:1;"
     checked = validate(q, {"ans1": answer}, variant=instantiate(q, 1))["inputs"]["ans1"]
-    assert checked["feedback"] == message
-
-
-def test_question_tests_are_the_authors():
-    # AlgMap-1.6's second question test types ans+1, the input's own name (STACK
-    # evaluates it with the teacher's answer for ans). A student may not type
-    # ans (three letters), but the question tests' inputs are the author's:
-    # only S-01 applies to them, and the test still passes.
-    q = import_xml(ROOT / "examples" / "stack" / "corpus" / "AlgMap-1-6.xml")[0]
-    for seed in (1536647851, 1858711800, 891319547):
-        assert run_question_tests(q, seeds=[seed])["passed"], seed
-    variant = instantiate(q, 1536647851)
-    assert validate(q, {"ans": "ans + 1"}, variant=variant)["inputs"]["ans"]["feedback"] == "Forbidden variable or constant: ans."
+    assert checked["feedback"] == message and checked["valid"] is (message == "")
 
 
 def test_forbidden_characters_name_the_first():

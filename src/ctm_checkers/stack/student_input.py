@@ -14,7 +14,7 @@ forbidden ("Forbidden variable or constant: sinx."), part by part at
 underscores; a function or variable that STACK knows in another case is
 "case sensitive" (Sin(x), PI); In(x) is not ln(x). This engine also forbids
 the names of the question variables and of the response trees' feedback
-variables, each as a whole (S-01).
+variables (S-01).
 
 STACK's data for these rules is in stack_data.py, generated from STACK's
 own files by tools/stack_native/stack_input_data.py.
@@ -150,7 +150,7 @@ def identifier_messages(text: str, question_variables, author_names) -> list[str
     order: the functions' (In, case), then the variables' (forbidden,
     three letters or more, case). `question_variables` are STACK's forbidden
     keys; `author_names` (question and feedback variables, S-01) are
-    forbidden as a whole too, whatever the rules above say of their parts."""
+    forbidden."""
     try:
         tokens = [(m.lastgroup, m.group(m.lastgroup)) for m in _LEX.finditer(text)]
     except (TypeError, ValueError):
@@ -186,7 +186,6 @@ def identifier_messages(text: str, question_variables, author_names) -> list[str
                 if message:
                     messages.append(message)
         if name in author_names and len(messages) == before:
-            # S-01: every question and feedback variable is forbidden as a
-            # whole, also where the rules above allow each part of its name.
+            # S-01: the names of question and feedback variables are forbidden.
             messages.append(FORBIDDEN_VARIABLE.format(name=name))
     return messages

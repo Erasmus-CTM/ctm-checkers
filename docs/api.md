@@ -114,16 +114,20 @@ learner text as Python. Since 0.3.0 (S-01) an answer that names a question
 variable or a PRT's feedback variable is invalid, with STACK's message for
 each name ("Forbidden variable or constant: ta.") and no preview; question
 tests still resolve those names. Since 0.5.0 (S-02) only `e`, `pi`, `Pi`,
-`PI` and `i` (and `%e`, `%pi`, `%i`) are constants, as in STACK; `E` and `I`
-are variables. Since 0.6.0 (S-13) an answer follows STACK's rules for its
+`PI` and `i` (and `%e`, `%pi`, `%i`) are constants in an author's
+expressions, as in STACK; `E` and `I` are variables. A student writes `pi` or
+`Pi`: since 0.6.0 (S-13) `PI` is rejected as the wrong case ("Input is case
+sensitive: PI is an unknown variable. Did you mean Pi, pi?"). Since 0.6.0 (S-13) an answer follows STACK's rules for its
 text, with STACK's messages (`ctm_checkers.stack.student_input`, its data
 generated from STACK's own files): no unknown name of three letters or more
 (`sinx`, `sin*x`), names in their case (`Sin(x)`, `PI`, `In(x)`), Unicode
 letters and symbols replaced as STACK does (`π`, `α`, `−`) and other
 characters rejected (`x²`), no decimal comma (`3,5`) and no space between
 terms (`2 x`), Maxima's error for `0^0`; the inverse trigonometric functions
-(`asin`, …, and STACK's `arcsin` names) are allowed. The question tests'
-inputs are the author's: only S-01 applies to them.
+(`asin`, …, and STACK's `arcsin` names) are allowed. A question test's inputs
+are computed as STACK computes them (`compute_response`): each input's name
+stands for its teacher's answer, and the computed value is then validated as a
+student's answer by these rules and S-01, or the test fails as invalid.
 
 Statuses: `correct`, `partial`, `wrong`, `not_exact`, `not_form`, `rejected`,
 `error` (`core.result.STATUSES`).

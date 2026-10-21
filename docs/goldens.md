@@ -336,7 +336,7 @@ the first row that differs). Rows that differ in all (of 5,969), by table:
 | S-13: a decimal comma without STACK's message (`3,5`) | 108 | probe-questions 11, questions-project 41, questions-library 31, questions-helm 7, questions-course 8, supplement 10 |
 | S-13: `0^0` is 1 | 4 | probes 1, supplement 3 |
 | S-13: STACK's `arcsin` names not known | 76 | supplement |
-| S-13: the question tests' inputs checked as a student's (corpus `AlgMap-1-6.xml` types `ans+1`) | 3 | questions-library |
+| S-13: the question tests' inputs not bound to the teacher's answers (corpus `AlgMap-1-6.xml` types `ans+1`, which is then a name a student may not type) | 3 | questions-library |
 
 The counts are those of 0.6.0. Since 0.3.0 (S-01) some answers that reached
 a rule name a question variable and stop at validation, so some mutations
@@ -365,6 +365,16 @@ when it gets variants) and math-exercise's admission rule on the `stack.*`
 calls (it reads math-exercise's request fields, which a STACK request does
 not have). `tests/stack/test_page.py` catches the others: the envelope for
 every exception, and a variant of seed 1 instead of the card's.
+
+Some rules are reached by no golden row; `tests/test_mutations.py` checks
+them with pytest instead (its `TESTS`): the mutation is applied to a copy of
+`src/ctm_checkers` and the named test file must fail on it (and pass on the
+unchanged copy). S-13: the globally forbidden names (`error`, `lisp`), the
+names that Maxima's syntax reserves (`do`), question variables that are
+known words (`alpha`) or have an underscore (`a_b`, `v_0`)
+(`tests/stack/test_input_text.py`), and the question tests' inputs, which
+are computed from the teacher's answers and validated as the unsimplified
+value too (`abc*0+ta`, `tests/stack/test_question_test_inputs.py`).
 
 ## Refreshing the capture
 

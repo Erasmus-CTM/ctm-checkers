@@ -15,7 +15,7 @@ is STACK's PHP side):
 - agree: both invalid, with the same message (STACK's markup removed);
 - agree, other message: both invalid with STACK's forbiddenVariable, but
   STACK's message names other names of the answer: the unknown names of
-  three letters or more (S-13, not yet in ctm_checkers.stack);
+  three letters or more (S-13, in ctm_checkers.stack since 0.6.0);
 - feedback variable: the answer names only a PRT's feedback variable;
   ctm_checkers.stack forbids it (S-01), because its answer tests evaluate the
   student's expression where the feedback variables are defined; listed apart,
@@ -37,7 +37,7 @@ S-13, every input of a `stack.answer` row (not empty):
   of the CAS side (Maxima's 0^0; matrix and collection types, scalar
   arithmetic, numbers, lowest terms), which PHP alone does not decide;
 - S-01 names: invalid here because the answer names a question or feedback
-  variable, which this engine forbids as a whole (S-01); listed apart;
+  variable, which this engine forbids (S-01); listed apart;
 - other rule, valid here: invalid for STACK by a rule that S-13 does not take
   on (a forbidden word that is an operator: STACK forbids `+` in HELM's
   bodmas.xml), valid here; listed, as before S-13;
