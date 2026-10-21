@@ -173,9 +173,8 @@ existing row changes; math-exercise's tables do not change (H2).
   - **Native STACK** (`tools/stack_native/check_validation.py`, STACK
     `10d3233`): 376 answers name a question or feedback variable: 356 agree
     in verdict and message, 15 agree in verdict with other names in STACK's
-    message (S-13, as in 0.3.0), 5 name only feedback variables, which
-    STACK does not forbid (`d`, `sa`, and the new `w`, `zz`, `sa+zz`);
-    0 disagree.
+    message (S-13, as in 0.3.0), 5 name only feedback variables (`d`,
+    `sa`, and the new `w`, `zz`, `sa+zz`; listed apart, S-01); 0 disagree.
   - **Golden diff** (`tools/golden.py diff --base be8caa3`): 7 rows added
     to `stack/supplement`, none changed or removed. The 3 answers of
     `forbidden-variables-prts.xml` are invalid (the legacy code graded `w`
