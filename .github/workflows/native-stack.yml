@@ -9,7 +9,9 @@ name: Native STACK
 # rendered report is the artifact native-compliance-html, which stack-sympy
 # publishes under /compliance. The native image is validated in full (paired
 # build, every runnable row) weekly, on demand, and on pull requests that
-# change its builder.
+# change its builder. The golden tables' answers that name a question
+# variable are also validated by STACK's own PHP input validation
+# (tools/stack_native/check_validation.py; S-01).
 on:
   workflow_call:
     inputs:
@@ -90,6 +92,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y maxima maxima-share
           python -m pip install -r ci/requirements.txt
+      - name: Answers that name question variables, against STACK's own input validation (S-01; PHP, no Maxima)
+        run: python tools/stack_native/check_validation.py --stack-source .stack-upstream-reference --out test-results/compliance/validation.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-validation
+          path: test-results/compliance/validation.json
+          if-no-files-found: warn
       - name: Fingerprint native image runtime
         id: native-image
         run: echo "key=$(python tools/stack_native/prepare_native_image.py --stack-source .stack-upstream-reference --key-only)" >> "$GITHUB_OUTPUT"

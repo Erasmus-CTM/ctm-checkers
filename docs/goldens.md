@@ -58,7 +58,7 @@ run them (`stack.import`, `stack.instantiate`, `stack.card`, `stack.tests`,
 | `questions-course.jsonl` | 232 | **Course material** (CC BY-SA 4.0; the checker file and the answers AGPL-3.0-or-later, below): the same as `questions-project` for the three questions derived from the course ingmat3a_ntnu (`examples/stack/course-*.xml`), among them S-01's test case `course-b-rank-pivots.xml` (`r` and `P` accepted as answers). |
 | `probes.jsonl` | 207 | The stack-sympy audit's answer-test probes with STACK's and Maxima's native verdicts (`native`), and its performance probes. |
 | `probe-questions.jsonl` | 285 | The audit's question probes (`examples/stack/probes/`) with its answers. |
-| `supplement.jsonl` | 153 | Rules that only the mutation tests reached (below): NumAbsolute's strict bound with STACK's 1e-9 guard and NumRelative's inclusive one, for exact and irrational numbers; AlgEquiv's numeric rejection screen (1e-4 margin); response-tree scores beyond [0, 1] (`examples/stack/supplement/score-modes.xml`); the input rules of `examples/stack/supplement/input-rules.xml` (forbidden words in any case, the numerical input's type, lowest terms with two negative numbers, and/or precedence in the validation's LaTeX, the 64-entry matrix limit), with the answer sets of the example questions and the answers in `golden_stack.PROBE_ANSWERS`. |
+| `supplement.jsonl` | 159 | Rules that only the mutation tests reached (below): NumAbsolute's strict bound with STACK's 1e-9 guard and NumRelative's inclusive one, for exact and irrational numbers; AlgEquiv's numeric rejection screen (1e-4 margin); response-tree scores beyond [0, 1] (`examples/stack/supplement/score-modes.xml`); the input rules of `examples/stack/supplement/input-rules.xml` (forbidden words in any case, the numerical input's type, lowest terms with two negative numbers, and/or precedence in the validation's LaTeX, the 64-entry matrix limit), with the answer sets of the example questions and the answers in `golden_stack.PROBE_ANSWERS`; S-01's question `examples/stack/supplement/forbidden-variables.xml` (0.3.0): only its six answers that name question and feedback variables, alone, inside an expression, with implied multiplication, twice, and two names at once (`golden_stack.ANSWERS_ONLY`). |
 
 `excluded.json` lists the inputs that run longer than 20 s (S-12:
 `sin(exp(exp(exp(5))))`, `sin(x)^99*cos(x)^99` against `(sin(2*x)/2)^99`):
@@ -93,6 +93,8 @@ of this repository; the legacy adapter runs them with stack-sympy's code,
 which finds `ctm_checkers.matrix` (imported by `examples/stack/matrix-checkers.py`)
 as its own `stack_sympy.basis_helper` (design §6.3: import shims). No row
 differs between Python versions or between native Python and Pyodide.
+Rows that a grading change after the move changed keep stack-sympy's result
+as `legacy` (below, "Grading changes").
 
 ## Rows
 
@@ -120,6 +122,50 @@ of the row's canonical `{call, input}`:
   3.9 to 3.13 is also recorded natively with the legacy code (3.12 and 3.13
   give the Pyodide results; 3.10 and 3.11 those of 3.12; 3.9 words 60 parse
   errors differently). Every version CI runs must be present.
+- `legacy` and `changes`, on a row that a grading change changed after the
+  row was recorded: `legacy` is the legacy code's result (what it was
+  recorded with, and what the legacy adapter still verifies), `changes` the
+  grading changes that changed it, as the CHANGELOG names them (`["S-01"]`).
+  A new row whose legacy result differs from `output` has them too.
+
+## Grading changes
+
+A change of ctm-checkers that changes a verdict changes golden rows, and the
+golden diff in its pull request is the evidence (design §6.6):
+
+```sh
+# after the change of src/: run every row with it and write what changed
+python tools/golden.py update --change S-01 --stack-legacy _ci/stack-sympy
+python tools/golden.py diff --base origin/main --rows     # the summary for the PR and the CHANGELOG
+python tools/golden.py check-changelog --base origin/main # what CI checks on a pull request
+```
+
+`update` runs every row with `ctm_checkers` from `src/` (one Python; then
+`verify` on each Python CI runs). A row whose result changes keeps its
+recorded result as `legacy` and names the change in `changes`; a row that
+gives its legacy result again loses both. For the STACK tables it also
+writes the inputs again with today's code (`tools/golden_stack.py`, with the
+site pages of the stack-sympy checkout) and adds the rows they add, with
+the legacy code's result in a process of its own; it writes nothing when a
+row kept per Python version changes or when a table holds a row that
+today's inputs no longer give (the inputs depend on the code: such a change
+records the table again). `manifest.json` `changes` names each change with
+its version.
+
+`check-changelog` (CI, on pull requests): STACK's and math-exercise's
+tables never change in one pull request (H2); every changed result names a
+new grading change in `changes`; the version is a new MINOR one or above
+(0.x); and the CHANGELOG section of that version names each change under
+"Grading changes". `diff` writes the rows per table, the transitions of
+the results (`graded 1.0 → invalid 0.0`), the changes named, the rows with a
+native STACK verdict that now agree or disagree with it and, with `--rows`,
+each changed STACK answer row.
+
+Where a change is about STACK's verdict, native STACK checks it (design §9):
+answer tests with `tools/stack_native/dual.py` (STACK's answer-test
+functions in Maxima), input validation with
+`tools/stack_native/check_validation.py` (STACK's own PHP validation of the
+golden rows' answers that name question variables; `native-stack.yml`).
 
 ## Verifying
 
@@ -224,27 +270,27 @@ round, the reject rule comparing expressions instead of their text, changes
 no verdict SymPy can produce here and is not listed.
 
 Mutations of the STACK engine must fail the STACK tables (the test stops at
-the first row that differs). Rows that differ in all (of 5,821), by table:
+the first row that differs). Rows that differ in all (of 5,827), by table:
 
 | Mutation | Rows | Tables |
 |---|---|---|
 | NumAbsolute: `<=` instead of `<` at its bound (exact numbers) | 1 | supplement |
 | NumAbsolute without STACK's 1e-9 guard (exact numbers) | 6 | compliance 1, probes 2, supplement 3 |
-| NumRelative: `<` without its 1e-9 factor (exact numbers) | 16 | compliance 6, probes 3, questions-helm 3, supplement 4 |
+| NumRelative: `<` without its 1e-9 factor (exact numbers) | 15 | compliance 6, probes 3, questions-helm 2, supplement 4 |
 | NumAbsolute without the guard (irrational numbers) | 1 | supplement |
 | NumRelative: `<` without the factor (irrational numbers) | 1 | supplement |
 | NumDecPlaces rounds the teacher's value half up instead of half to even | 10 | probes |
 | AlgEquiv's numeric screen with a 1e-2 margin instead of 1e-4 | 2 | supplement |
 | Sets: no `ATSets_duplicates` note | 7 | compliance 3, probes 1, regressions 3 |
-| response trees: `+` sets the branch score instead of adding it | 48 | probe-questions 36, questions-library 4, supplement 8 |
-| response trees: scores not clamped to [0, 1] | 17 | supplement |
+| response trees: `+` sets the branch score instead of adding it | 42 | probe-questions 33, questions-library 2, supplement 7 |
+| response trees: scores not clamped to [0, 1] | 16 | supplement |
 | question tests: no penalty for a wrong first attempt | 138 | questions-project 60, questions-library 59, questions-helm 1, questions-course 12, probe-questions 3, supplement 3 |
 | `forbidfloat` ignored | 11 | questions-library 8, questions-helm 1, questions-course 2 |
 | the 1,200-character input limit raised to 1,400 | 104 | questions-project 41, questions-library 31, questions-helm 7, questions-course 8, probe-questions 11, supplement 6 |
 | the card's JSON without `<` escaped | 46 | questions-project 16, questions-library 25, questions-helm 2, questions-course 3 |
 | forbidden words compared with their case | 1 | supplement |
 | lowest terms: two negative numbers accepted | 1 | supplement |
-| a numerical input accepts a non-number | 2 | supplement |
+| a numerical input accepts a non-number | 1 | supplement |
 | the matrix limit raised from 64 to 65 entries | 1 | supplement |
 | the validation's LaTeX with `or` binding tighter than `and` | 82 | supplement |
 | `assess_basis` without its independence factor (also on the recorded math tables, above) | 16 | questions-course |
@@ -252,7 +298,18 @@ the first row that differs). Rows that differ in all (of 5,821), by table:
 | `assess_basis`: a zero vector counted as a basis vector | 16 | questions-course |
 | `assess_basis` without its coverage factor | 8 | questions-course |
 | the model answer `nullspace_basis(A)` gives a column-space basis | 75 | questions-course |
-| a PythonChecker's assessment (the vector colours) dropped | 66 | questions-course |
+| a PythonChecker's assessment (the vector colours) dropped | 64 | questions-course |
+| S-01: question variables not forbidden | 370 | questions-project 127, questions-library 140, questions-helm 64, questions-course 16, probe-questions 13, supplement 10 |
+| S-01: feedback variables not forbidden | 3 | supplement |
+| S-01: only an answer that is the name itself is forbidden, not a name inside it | 3 | supplement |
+| S-01: only the first forbidden name in the message | 1 | supplement |
+| S-01: another message than STACK's | 372 | questions-project 127, questions-library 140, questions-helm 64, questions-course 16, probe-questions 13, supplement 12 |
+
+Since 0.3.0 (S-01) some answers that reached a rule name a question variable
+and stop at validation, so five mutations above change fewer rows than in
+0.2.0 (NumRelative 16, `+` 48, the clamp 17, the numerical type 2, the
+colours 66); each is still caught. Only `supplement`'s
+`forbidden-variables.xml` reaches the second to fourth S-01 mutations.
 
 The rows of `supplement` were added for the first seven and for the five
 input rules after the card's JSON: the tables recorded first reached no row

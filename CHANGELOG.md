@@ -6,6 +6,155 @@ release. Every grading change is listed under "Grading changes" with the
 finding or decision it implements, its test and the summary of its golden
 diff (docs/goldens.md).
 
+## 0.3.0 (21 October 2026)
+
+STACK: a student answer may no longer name a question variable or a
+feedback variable (S-01, the stack-sympy audit's critical finding; step-2
+design §9, order 1). A MINOR release, as every release that changes a
+verdict while `0.x`; stack-sympy pins it. math-exercise's tables do not
+change (H2).
+
+### Grading changes
+
+- **S-01: the names of question and feedback variables in student
+  answers.** Before, student input read the question's frozen variables
+  (`expressions.py` `evaluate`, `engine.py` `_input_validation`): `ta` in
+  `polynomial-expansion.xml` previewed as `x^2+7x+12` and scored 1, as did
+  `r` and `P` in `course-b-rank-pivots.xml`, `T` in `determinant-one.xml`
+  and `d` in `python-checker.xml`; a feedback variable leaked the same way
+  through the answer tests (`d` in the new supplement question scored 1).
+  Now validation rejects such an answer before evaluating it, as STACK does
+  (`question.php:430-441`, `cassecurity.class.php:373-376`): the input is
+  invalid with STACK's message for each name, in order
+  (`stackCas_forbiddenVariable`: "Forbidden variable or constant: ta."),
+  with no preview and no response tree. Question tests still resolve the
+  names on the author's side (`_qtest_answer`): no `stack.tests` row
+  changes. Feedback variables are forbidden too, although STACK 4.13.1 does
+  not forbid them (`question.php:436`, a TO-DO there): this engine's answer
+  tests evaluate the student's expression where they are defined.
+  Tests: `tests/stack/test_forbidden_variables.py` (the audit's leak cases,
+  their question tests, feedback variables, names inside expressions,
+  names that only look alike, every golden answer row); five mutations
+  (`tests/test_mutations.py`, docs/goldens.md).
+  - **Native STACK.** `tools/stack_native/check_validation.py` (new; the
+    `native` job of `native-stack.yml`) validates every golden answer that
+    names a variable with STACK's own PHP input validation (STACK
+    `10d3233`, PHP 8, no Maxima): of 373 such inputs, 356 get the same
+    verdict and message; 15 the same verdict (`forbiddenVariable`) with
+    other names in STACK's message (14 S-13 cases: STACK checks
+    `ta_perimeter` part by part and names `perimeter`, an unknown name of
+    three letters or more; and `d+0*f`, where STACK names only `f`); 2 name
+    only a feedback variable, which STACK accepts.
+  - **Golden diff** (`tools/golden.py diff --base 8c3db5e`): 366 rows
+    changed and 6 added, all `stack.answer` rows in which an answer names a
+    question or feedback variable (the generated answer sets have every
+    question variable's name in each input since 0.2.0, and leak.py's
+    answers); no row removed, no other call, no `math_exercise` table.
+    372 rows name S-01 (`changes`) and keep stack-sympy's result as
+    `legacy`.
+
+    | Table | Changed | Added | Before → after (rows) |
+    |---|---|---|---|
+    | `stack/questions-project` | 127 | 0 | graded 1.0 → invalid 27; graded 0.6666666667 → invalid 14; graded 0.0 → invalid 8; invalid → invalid 78 |
+    | `stack/questions-library` | 140 | 0 | graded 1.0 → invalid 37; graded 0.5 → invalid 2; graded 0.0 → invalid 63; invalid → invalid 38 |
+    | `stack/questions-helm` | 64 | 0 | graded 1.0 → invalid 1; graded 0.0 → invalid 3; invalid → invalid 60 |
+    | `stack/questions-course` | 16 | 0 | graded 1.0 → invalid 4; graded 0.0 → invalid 2; invalid → invalid 10 |
+    | `stack/probe-questions` | 13 | 0 | graded 1.0 → invalid 8; graded 0.6666666 → invalid 3; graded 0.5 → invalid 2 |
+    | `stack/supplement` | 6 | 6 | graded 1.0 → invalid 2; graded 0.8 → invalid 3; invalid → invalid 1; new: invalid (the legacy code: graded 1.0 5, graded 0.0 1) |
+
+    In the 367 inputs that changed, 265 were valid and previewed the
+    variable's value; 102 were invalid with a message computed from that
+    value, which told the student something about it too ("Enter a
+    matrix", "Use the same collection type as the teacher answer", the
+    matrix dimensions, "Enter a numerical answer"). Each is now
+    "Forbidden variable or constant: …". The "invalid → invalid" rows had
+    such an input, or another input that was invalid already. By question
+    file (rows; the names typed; the result before):
+
+    | Table | File (examples/stack/) | Rows | Names typed | Before |
+    |---|---|---|---|---|
+    | `probe-questions` | `probes/thirds.xml` | 3 | `ta` | graded 0.6666666 ×3 |
+    | `probe-questions` | `probes/quiet.xml` | 1 | `ta` | graded 1.0 ×1 |
+    | `probe-questions` | `probes/twoparts.xml` | 4 | `a`, `b` | graded 0.5 ×2, graded 1.0 ×2 |
+    | `probe-questions` | `probes/numabs-branch.xml` | 1 | `ta` | graded 1.0 ×1 |
+    | `probe-questions` | `probes/options.xml` | 1 | `ta` | graded 1.0 ×1 |
+    | `probe-questions` | `probes/eqtype.xml` | 1 | `ta` | graded 1.0 ×1 |
+    | `probe-questions` | `probes/physics-I.xml` | 1 | `ta` | graded 1.0 ×1 |
+    | `probe-questions` | `probes/crash.xml` | 1 | `ta` | graded 1.0 ×1 |
+    | `questions-course` | `course-b-rank-pivots.xml` | 12 | `B`, `P`, `r` | graded 1.0 ×4, invalid 0.0 ×8 |
+    | `questions-course` | `course-b-nullspace.xml` | 2 | `A` | graded 0.0 ×2 |
+    | `questions-course` | `course-c-nullspace.xml` | 2 | `A` | invalid 0.0 ×2 |
+    | `questions-helm` | `upstream/rounding-three-dp.xml` | 60 | `a1`, `a2`, `a3`, `a4`, `ta1`, `ta2`, `ta3`, `ta4`, `ta5`, `ta6` | invalid 0.0 ×60 |
+    | `questions-helm` | `upstream/bodmas.xml` | 4 | `a1`, `a2`, `a3`, `ta` | graded 0.0 ×3, graded 1.0 ×1 |
+    | `questions-library` | `corpus/AlgMap-4-13.xml` | 6 | `A`, `B`, `C`, `D`, `p`, `ta` | graded 0.0 ×4, graded 1.0 ×2 |
+    | `questions-library` | `corrected/AlgMap-6-4.xml` | 2 | `p`, `ta` | graded 0.0 ×1, graded 1.0 ×1 |
+    | `questions-library` | `corpus/AlgMap-11-8.xml` | 1 | `ta` | graded 1.0 ×1 |
+    | `questions-library` | `corrected/7-3-26-(Write-sim-eqns-with-matrices).xml` | 28 | `a1`, `a2`, `a3`, `a4`, `a5`, `a6`, `a7`, `a8`, `a9`, `b1`, `b2`, `b3`, `ta1`, `ta2` | graded 1.0 ×2, invalid 0.0 ×26 |
+    | `questions-library` | `corpus/AlgMap-8-10.xml` | 8 | `a`, `b`, `c`, `d`, `fta`, `ta`, `u`, `v` | graded 0.0 ×6, graded 1.0 ×2 |
+    | `questions-library` | `corpus/AlgMap-13-1-.xml` | 6 | `a`, `b`, `cf1`, `cf2`, `ta`, `v` | graded 0.0 ×5, graded 1.0 ×1 |
+    | `questions-library` | `corpus/Complex_Convert_1.xml` | 9 | `argset`, `argsol`, `modsol`, `n1`, `principaltheta`, `rval`, `x`, `y`, `z1` | graded 0.0 ×1, invalid 0.0 ×8 |
+    | `questions-library` | `corpus/LinearAlgebra_elementary_3.xml` | 3 | `avar`, `correctanswer`, `wronganswer1` | graded 0.0 ×1, graded 1.0 ×1, invalid 0.0 ×1 |
+    | `questions-library` | `corpus/AlgMap-9-6.xml` | 2 | `ta`, `v` | graded 0.0 ×1, graded 1.0 ×1 |
+    | `questions-library` | `corpus/Logs_1.xml` | 5 | `a`, `correctanswer`, `n`, `wronganswer1`, `wronganswer2` | graded 0.0 ×4, graded 1.0 ×1 |
+    | `questions-library` | `corpus/AlgMap-4-1.xml` | 4 | `a`, `b`, `c`, `ta` | graded 0.0 ×3, graded 1.0 ×1 |
+    | `questions-library` | `corpus/AlgMap-1-5.xml` | 4 | `a`, `b`, `p`, `ta` | graded 0.0 ×2, graded 1.0 ×2 |
+    | `questions-library` | `corpus/AlgMap-14-1.xml` | 7 | `cf1`, `cf2`, `f`, `k1`, `ta`, `ta2`, `v` | graded 0.0 ×5, graded 1.0 ×2 |
+    | `questions-library` | `corpus/AlgMap-9-1.xml` | 5 | `cf1`, `k1`, `k2`, `ta`, `v` | graded 0.0 ×4, graded 1.0 ×1 |
+    | `questions-library` | `corpus/AlgMap-10-1.xml` | 5 | `cf1`, `fac`, `k1`, `ta`, `v` | graded 0.0 ×4, graded 1.0 ×1 |
+    | `questions-library` | `corrected/AlgMap-1-5.xml` | 4 | `a`, `b`, `p`, `ta` | graded 0.0 ×2, graded 1.0 ×2 |
+    | `questions-library` | `corpus/AlgMap-11-1.xml` | 4 | `ta1`, `ta2` | graded 0.5 ×2, graded 1.0 ×2 |
+    | `questions-library` | `corpus/AlgMap-2-1.xml` | 2 | `n`, `ta` | graded 0.0 ×2 |
+    | `questions-library` | `corpus/AlgMap-6-7.xml` | 4 | `a`, `b`, `ta`, `v` | graded 0.0 ×3, graded 1.0 ×1 |
+    | `questions-library` | `corpus/LinearAlgebra_elementary_1.xml` | 3 | `avar`, `correctanswer`, `wronganswer1` | graded 0.0 ×1, graded 1.0 ×1, invalid 0.0 ×1 |
+    | `questions-library` | `upstream/algmap-6-1.xml` | 5 | `a`, `b`, `c`, `d`, `ta` | graded 0.0 ×4, graded 1.0 ×1 |
+    | `questions-library` | `corpus/AlgMap-1-6.xml` | 4 | `a`, `b`, `c`, `ta` | graded 0.0 ×3, graded 1.0 ×1 |
+    | `questions-library` | `corrected/AlgMap-2-5.xml` | 4 | `a`, `b`, `c`, `ta` | graded 0.0 ×3, graded 1.0 ×1 |
+    | `questions-library` | `corpus/LinearAlgebra_elementary_4.xml` | 3 | `avar`, `correctanswer`, `wronganswer1` | graded 0.0 ×1, graded 1.0 ×1, invalid 0.0 ×1 |
+    | `questions-library` | `corpus/LinearAlgebra_elementary_2.xml` | 3 | `avar`, `correctanswer`, `wronganswer1` | graded 0.0 ×1, graded 1.0 ×1, invalid 0.0 ×1 |
+    | `questions-library` | `corpus/AlgMap-2-5.xml` | 4 | `a`, `b`, `c`, `ta` | graded 1.0 ×4 |
+    | `questions-library` | `corpus/AlgMap-7-1.xml` | 2 | `a`, `ta1` | graded 0.0 ×1, graded 1.0 ×1 |
+    | `questions-library` | `corpus/AlgMap-6-4.xml` | 2 | `p`, `ta` | graded 0.0 ×1, graded 1.0 ×1 |
+    | `questions-library` | `corpus/AlgMap-8-5.xml` | 1 | `ta` | graded 1.0 ×1 |
+    | `questions-project` | `finite-author-helpers.xml` | 54 | `a`, `common`, `converted`, `difference`, `ordered`, `present`, `size`, `sub`, `unordered` | graded 0.6666666667 ×12, graded 1.0 ×6, invalid 0.0 ×36 |
+    | `questions-project` | `determinant-one.xml` | 2 | `T` | graded 1.0 ×2 |
+    | `questions-project` | `rational-equivalence.xml` | 6 | `m`, `n`, `ta` | graded 0.0 ×4, graded 1.0 ×2 |
+    | `questions-project` | `numerical-measurement.xml` | 25 | `p`, `q`, `ta_area`, `ta_perimeter` | invalid 0.0 ×25 |
+    | `questions-project` | `finite-collections.xml` | 18 | `a`, `ordered`, `unordered` | graded 1.0 ×6, invalid 0.0 ×12 |
+    | `questions-project` | `nested-collections.xml` | 6 | `a` | graded 0.6666666667 ×2, invalid 0.0 ×4 |
+    | `questions-project` | `python-checker.xml` | 2 | `d` | graded 1.0 ×2 |
+    | `questions-project` | `zero-product.xml` | 2 | `ta` | graded 1.0 ×2 |
+    | `questions-project` | `hyperbolic-equivalence.xml` | 2 | `ta` | graded 1.0 ×2 |
+    | `questions-project` | `polynomial-expansion.xml` | 6 | `a`, `b`, `ta` | graded 0.0 ×4, graded 1.0 ×2 |
+    | `questions-project` | `boolean-equivalence.xml` | 2 | `ta` | graded 1.0 ×2 |
+    | `questions-project` | `bounded-matrices.xml` | 2 | `M`, `a` | graded 1.0 ×1, invalid 0.0 ×1 |
+    | `supplement` | `supplement/input-rules.xml` | 5 | `M` | graded 0.8 ×3, graded 1.0 ×1, invalid 0.0 ×1 |
+    | `supplement` | `supplement/score-modes.xml` | 1 | `ta` | graded 1.0 ×1 |
+    | `supplement` | `supplement/forbidden-variables.xml` | 6 (new) | `d`, `f`, `k`, `sa`, `ta` | graded 0.0 ×1, graded 1.0 ×5 |
+
+    The new rows are S-01's own question,
+    `examples/stack/supplement/forbidden-variables.xml` (question variables
+    `k`, `f`, `ta`; feedback variables `d`, `sa`): only its six answers,
+    each naming a variable (`ta`, `d`, `sa`, `2ta-ta`, `k*2*x+1`, `d+0*f`),
+    so that the diff holds no other row (`golden_stack.ANSWERS_ONLY`).
+
+- Tools for grading changes (docs/goldens.md, "Grading changes"):
+  `tools/golden.py update --change NAME` runs every row with `src/` and
+  writes what changed, a changed row keeping the legacy code's result as
+  `legacy` (what the legacy adapter verifies) and naming the change in
+  `changes`; `diff --base REF [--rows]` writes the golden diff;
+  `check-changelog --base REF` (CI, on pull requests) holds a pull request to
+  the rules: STACK's and math-exercise's rows never change together (H2),
+  each changed result names its change, a new MINOR version (0.x), the change
+  under "Grading changes" here. `manifest.json` and `PROVENANCE.md` name
+  the change and its version.
+- `tools/stack_native/check_validation.py` and `validation.php`: STACK's
+  own input validation as an oracle (above), with STACK's Moodle emulation
+  of its API.
+- Test edit: `tests/stack/test_nested_collections.py`'s learner answers
+  `[d]`, `[[alias]]` and `{d}` name question variables; they are still
+  invalid, now with S-01's message instead of the rule on decimal author
+  aliases, which a learner can no longer reach.
+
 ## 0.2.0 (20 October 2026)
 
 stack-sympy's STACK engine moves here (consolidation step 2, C3): its Python

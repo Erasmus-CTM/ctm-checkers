@@ -7,4 +7,7 @@ score is clamped to [0, 1]); `input-rules.xml` has an input for each of
 the input rules that no example reached: forbidden words in any case, the
 numerical input's type, lowest terms with two negative numbers, and/or
 precedence in the validation's LaTeX, the 64-entry matrix limit (its
-answers: `PROBE_ANSWERS` in tools/golden_stack.py). AGPL-3.0-or-later.
+answers: `PROBE_ANSWERS` in tools/golden_stack.py); `forbidden-variables.xml`
+(S-01, ctm-checkers 0.3.0) has question variables (`k`, `f`, `ta`) and
+feedback variables (`d`, `sa`), and its rows are only its answers that name
+them (`ANSWERS_ONLY` in tools/golden_stack.py). AGPL-3.0-or-later.

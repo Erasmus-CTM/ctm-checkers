@@ -7,7 +7,8 @@ CTM Assessment, which includes it.
 
 It holds math-exercise's checks, moved verbatim from math-exercise 0.10.0
 (0.1.0), and stack-sympy's STACK engine, moved as it was at stack-sympy
-`f450bcd` (0.2.0), in the October 2026 consolidation (step 2). The STACK
+`f450bcd` (0.2.0), in the October 2026 consolidation (step 2); the grading
+changes since then are in [CHANGELOG.md](CHANGELOG.md). The STACK
 engine has a wheel and a page script of its own, so pages with math-exercise
 never carry it. See
 [ctm-assessment `docs/consolidation/`](https://github.com/Erasmus-CTM/ctm-assessment/tree/main/docs/consolidation).
@@ -36,6 +37,7 @@ pytest tests
 python tools/build.py                 # after changing src/: regenerate _extensions/ctm-checkers/
 python tools/golden.py verify --adapter src --variants <math-exercise checkout>
 PYTHONPATH=src python tools/stack_native/check_corpus.py --check   # STACK's corpus replay
+python tools/golden.py update --change <finding> --stack-legacy _ci/stack-sympy   # a grading change (docs/goldens.md)
 ```
 
 `verify` records authored rows with the umbrella's recorder: check out
@@ -48,8 +50,12 @@ wheels, verifies the golden tables with the built wheels and with
 math-exercise 0.10.0's and stack-sympy `f450bcd`'s own code, and makes sure
 that mutations of the checks fail them, on Python 3.9 to 3.13 and in Pyodide
 0.27.2 and 0.28.3. A local `verify` works on any of those Python versions.
-`Native STACK` compares the STACK engine with native STACK in Maxima and
-renders the compliance report (stack-sympy's site calls it at its pin).
+A pull request that changes golden rows must name its grading change and
+list it in the CHANGELOG (`golden.py check-changelog`).
+`Native STACK` compares the STACK engine with native STACK in Maxima (and,
+for answers that name question variables, with STACK's own input
+validation in PHP) and renders the compliance report (stack-sympy's site
+calls it at its pin).
 
 - [docs/consolidation-notes.md](docs/consolidation-notes.md): notes for the
   next pull requests of the consolidation (ctm-libs, math-exercise, the
