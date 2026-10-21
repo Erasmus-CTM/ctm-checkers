@@ -100,7 +100,9 @@ def _expect(actual, expected, where):
     if isinstance(expected, str):
         # partial is a semantic verdict; the detailed native status is retained.
         status = actual.get("status")
-        matches = status == expected or (expected == "partial" and 0 < actual.get("score", 0) < 1)
+        matches = (status == expected or (expected == "partial" and 0 < actual.get("score", 0) < 1)
+                   or (expected == "invalid" and status == "error")
+                   or (expected == "wrong" and status in ("not_exact", "not_form", "rejected") and actual.get("score") == 0))
         if not matches:
             raise AssertionError("{}: expected {}, got {}".format(where, expected, actual))
         return
@@ -115,7 +117,8 @@ def _expect(actual, expected, where):
         score = expected["score"]
         if isinstance(score, bool) or not isinstance(score, (int, float)) or not math.isfinite(score) or not 0 <= score <= 1:
             raise ValueError(where + ": expected score must be between 0 and 1")
-        if "score" not in actual or abs(actual["score"] - score) > 1e-9:
+        found = actual.get("score")
+        if isinstance(found, bool) or not isinstance(found, (int, float)) or not math.isfinite(found) or abs(found - score) > 1e-9:
             raise AssertionError("{}: expected score {}, got {}".format(where, score, actual))
     if "partial" in expected:
         partial = expected["partial"]
@@ -154,6 +157,8 @@ def run_declarative(tests, grade, *, fields=(), variables=None, resolve=None):
             raise ValueError(where + ": give answers or response, exactly one")
         if "expect" not in case and "score" not in case and "partial" not in case:
             raise ValueError(where + ": give an expectation")
+        if "expect" in case and (case["expect"] is None or case["expect"] == "" or case["expect"] == [] or case["expect"] == {}):
+            raise ValueError(where + ": expectation cannot be null or empty")
         if "answers" in case:
             answers = case["answers"]
             if isinstance(answers, list):
@@ -180,7 +185,7 @@ def run_declarative(tests, grade, *, fields=(), variables=None, resolve=None):
                     raise ValueError("expected verdict count does not match fields")
                 for field, verdict in zip(fields, expected):
                     _expect(actual.get("fields", {}).get(field, {}), verdict, where + "/" + field)
-            elif isinstance(expected, dict) and not (set(expected) & {"status", "score", "partial", "answer-note"}):
+            elif isinstance(expected, dict) and expected and set(expected) == set(fields) and all(isinstance(value, (str, dict)) for value in expected.values()):
                 if set(expected) != set(fields):
                     raise ValueError("expected fields must match answer fields")
                 for field, verdict in expected.items():

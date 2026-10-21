@@ -83,7 +83,7 @@ def test_custom_checkers_go_through_check_custom_not_direct_calls():
 
 
 def test_custom_json_response_computes_values_without_string_substitution():
-    q = question("custom", checker='def check(r, s):\n    return r["point"]["x"] == Rational(1, 3)\n',
+    q = question("custom", checker='def check(r, s):\n    return bool(abs(r["point"]["x"] - Rational(1, 3)) < 1e-12)\n',
                  tests=[dict(name="point", response={"point": {"x": "radius", "y": 0}}, expect="correct")])
     run_question(q, ".", variables={"radius": Rational(1, 3)})
 
@@ -147,3 +147,32 @@ def test_mutating_real_grade_is_detected(monkeypatch):
     monkeypatch.setattr(math, "check", lambda request: {"status": "correct", "score": 1})
     with pytest.raises(AssertionError, match="expected wrong"):
         run_question(q, ".")
+
+
+def test_verdicts_for_fields_named_like_result_keys_are_not_overall_settings():
+    q = question(teacher=["x", "x^2"], **{"field-labels": "status,score"},
+                 tests=[dict(name="reserved labels", answers={"status": "x", "score": "x+1"},
+                             expect={"status": "correct", "score": "wrong"})])
+    run_question(q, ".")
+
+
+def test_duplicate_yaml_expectations_are_rejected():
+    q = question(tests="- name: duplicate\n  answers: [x^2]\n  expect: wrong\n  expect: correct\n")
+    with pytest.raises(ValueError, match="duplicate tests key"):
+        run_question(q, ".")
+
+
+def test_empty_or_nan_expectation_cannot_pass():
+    q = question(tests=[case("x^2", {})])
+    with pytest.raises(ValueError):
+        run_question(q, ".")
+    with pytest.raises(AssertionError):
+        run_declarative([dict(name="bad score", answers=[], score=1)],
+                        lambda payload: {"status": "correct", "score": float("nan")})
+
+
+@pytest.mark.parametrize("expected", [None, "", [], {}])
+def test_null_or_empty_explicit_expectation_never_passes(expected):
+    with pytest.raises(ValueError, match="null or empty"):
+        run_declarative([dict(name="false green", response={}, expect=expected)],
+                        lambda payload: {"status": "wrong", "score": 0})

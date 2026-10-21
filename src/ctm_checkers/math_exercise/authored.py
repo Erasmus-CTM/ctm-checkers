@@ -42,7 +42,18 @@ def _tests(value):
             import yaml
         except ImportError as error:
             raise ValueError("declarative question tests need PyYAML on the render machine") from error
-        return yaml.safe_load(value)
+        class UniqueKeys(yaml.SafeLoader):
+            pass
+        def mapping(loader, node):
+            result = {}
+            for key_node, value_node in node.value:
+                key = loader.construct_object(key_node)
+                if key in result:
+                    raise ValueError("duplicate tests key: " + str(key))
+                result[key] = loader.construct_object(value_node)
+            return result
+        UniqueKeys.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, mapping)
+        return yaml.load(value, Loader=UniqueKeys)
     return None
 
 
@@ -91,6 +102,8 @@ def run_question(options, base, *, variables=None, teacher=None):
     This runner neither generates variants nor unifies custom runners.
     """
     from ..testing import Raw, input_text, run_declarative
+    from sympy import Number
+    import math
     from . import check, check_custom
     from .inputs import admit
     from .parsing import build_locals
@@ -133,6 +146,11 @@ def run_question(options, base, *, variables=None, teacher=None):
                 if isinstance(value, Raw): return str(value)
                 if isinstance(value, dict): return {key: literal(item) for key, item in value.items()}
                 if isinstance(value, list): return [literal(item) for item in value]
+                if isinstance(value, Number):
+                    number = int(value) if value.is_Integer else float(value)
+                    if not math.isfinite(number):
+                        raise ValueError("custom response numbers must be finite")
+                    return number
                 return value
             request = {"vars": defaults["vars"], "response": literal(response), "checker": options["checker"]}
             admit(request)
