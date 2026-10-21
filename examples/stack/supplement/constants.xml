@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Written for ctm-checkers' golden tables (stack/supplement): S-02, only e, pi, Pi, PI and i (and %e, %pi, %i) are constants, as in STACK; E and I are variables, and the frozen variant writes Euler's number and the imaginary unit as %e and %i (ctm-checkers 0.5.0). AGPL-3.0-or-later. -->
+<quiz><question type="stack">
+<name><text>constants</text></name>
+<questionvariables><text>ta:2*%e*x+E; tb:3*%i+I;</text></questionvariables>
+<questiontext format="html"><text><![CDATA[<p>An energy \(E\) and a current \(I\): write \({@ta@}\): [[input:ans1]] [[validation:ans1]] [[feedback:prt1]] and \({@tb@}\): [[input:ans2]] [[validation:ans2]] [[feedback:prt2]]</p>]]></text></questiontext>
+<defaultgrade>1</defaultgrade><penalty>0.1</penalty><questionsimplify>1</questionsimplify>
+<input><name>ans1</name><type>algebraic</type><tans>ta</tans><insertstars>0</insertstars></input>
+<input><name>ans2</name><type>algebraic</type><tans>tb</tans><insertstars>0</insertstars></input>
+<prt><name>prt1</name><value>1</value><autosimplify>1</autosimplify>
+<node><name>0</name><answertest>AlgEquiv</answertest><sans>ans1</sans><tans>ta</tans><truescoremode>=</truescoremode><truescore>1</truescore><truenextnode>-1</truenextnode><trueanswernote>prt1-T</trueanswernote><falsescoremode>=</falsescoremode><falsescore>0</falsescore><falsenextnode>-1</falsenextnode><falseanswernote>prt1-F</falseanswernote></node></prt>
+<prt><name>prt2</name><value>1</value><autosimplify>1</autosimplify>
+<node><name>0</name><answertest>AlgEquiv</answertest><sans>ans2</sans><tans>tb</tans><truescoremode>=</truescoremode><truescore>1</truescore><truenextnode>-1</truenextnode><trueanswernote>prt2-T</trueanswernote><falsescoremode>=</falsescoremode><falsescore>0</falsescore><falsenextnode>-1</falsenextnode><falseanswernote>prt2-F</falseanswernote></node></prt>
+<qtest><testcase>1</testcase><testinput><name>ans1</name><value>ta</value></testinput><testinput><name>ans2</name><value>tb</value></testinput><expected><name>prt1</name><expectedscore>1</expectedscore><expectedpenalty>0</expectedpenalty><expectedanswernote>prt1-T</expectedanswernote></expected><expected><name>prt2</name><expectedscore>1</expectedscore><expectedpenalty>0</expectedpenalty><expectedanswernote>prt2-T</expectedanswernote></expected></qtest>
+<qtest><testcase>2</testcase><testinput><name>ans1</name><value>2*E*x+E</value></testinput><testinput><name>ans2</name><value>3*I+I</value></testinput><expected><name>prt1</name><expectedscore>0</expectedscore><expectedpenalty>0.1</expectedpenalty><expectedanswernote>prt1-F</expectedanswernote></expected><expected><name>prt2</name><expectedscore>0</expectedscore><expectedpenalty>0.1</expectedpenalty><expectedanswernote>prt2-F</expectedanswernote></expected></qtest>
+</question></quiz>

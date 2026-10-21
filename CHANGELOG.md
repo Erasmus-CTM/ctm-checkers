@@ -6,6 +6,131 @@ release. Every grading change is listed under "Grading changes" with the
 finding or decision it implements, its test and the summary of its golden
 diff (docs/goldens.md).
 
+## 0.5.0 (21 October 2026)
+
+STACK: only `e`, `pi`, `Pi`, `PI` and `i` (and Maxima's `%e`, `%pi`, `%i`)
+are constants; `E` and `I` are variables, as in STACK (S-02; step-2 design
+§9, order 2). A MINOR release (verdicts change); math-exercise's tables do
+not change (H2).
+
+### Grading changes
+
+- **S-02: `E` and `I`.** Before, the engine read `I` as the imaginary unit
+  and `E` as Euler's number (`expressions.py` `_NAMES`), so for
+  P = I²R the answer `-R` scored 1 (the audit's
+  `examples/stack/probes/physics-I.xml`), and `E` equalled `exp(1)`. STACK
+  binds only `e: exp(1)`, `pi`, `Pi`, `PI` (`%pi`) and `i: %i`
+  (`stackmaxima.mac:45-50`); `E` and `I` are a student's or an author's
+  variables (an energy, a current). Now they are here too, in answers and
+  in question variables (an author may assign `E` and `I`; `e`, `i`, `pi`
+  stay reserved). Values that the engine writes as text and reads back
+  (frozen variants, the question tests' inputs) write Euler's number and
+  the imaginary unit as `%e` and `%i` (`expressions.source_text`): before,
+  SymPy's `E` and `I`, which would now be read as the variables.
+  `log(I*x)` is an ordinary logarithm now (the rule for symbolic complex
+  logarithms names `i` and `%i`), and so is the rationalized-denominator
+  rule's imaginary unit. Tests: `tests/stack/test_constants.py` (the
+  verdicts of native STACK, the physics probe, frozen complex values);
+  question `examples/stack/supplement/constants.xml` (teacher's answers
+  `2*%e*x+E` and `3*%i+I`, with answers that write e and i in every way);
+  four mutations (docs/goldens.md: `E` constant 42 rows, `I` constant 63,
+  values written with `E` 22, with `I` 40).
+  - **Native STACK** (`tools/stack_native/dual.py`, STACK `10d3233`, Maxima
+    5.46): 44 answer tests with `E`, `I`, `e`, `i`, `%e`, `%i`, `pi`, `Pi`,
+    `PI` (the physics probe, the audit's `E` rows, the supplement's
+    answers, complex numbers): the same verdict in all 42 AlgEquiv,
+    SameType, EqualComAss and FacForm tests; the two numerical tests of a
+    variable (`E`, `I` in NumAbsolute/NumRelative) are invalid here and
+    false there, which is S-05, not S-02. STACK adds the answer note
+    `ATAlgEquiv_WrongCase` where an answer equals the teacher's up to case
+    (`3+4*I` for `3+4*%i`), which this engine does not write (as before for
+    `X` and `x`; the compliance table's two such rows). In
+    `stack/probes`, 3 rows now agree with native STACK
+    (`AlgEquiv(-R, I^2*R)`, `AlgEquiv(E, exp(1))`, `AlgEquiv(E*x, %e*x)`:
+    false), none disagree: 131 of the 162 rows with a native verdict agree
+    (before 128).
+  - **Golden diff** (`tools/golden.py diff --base` the 0.4.0 head, with
+    `update --change S-02 --drop-stale`): 29 rows changed, 100 added, 42
+    removed, in four STACK tables:
+
+    | Table | Changed | Added | Removed |
+    |---|---|---|---|
+    | `stack/probe-questions.jsonl` | 14 | 18 | 14 |
+    | `stack/probes.jsonl` | 3 | 0 | 0 |
+    | `stack/questions-library.jsonl` | 4 | 0 | 0 |
+    | `stack/questions-project.jsonl` | 8 | 30 | 28 |
+    | `stack/supplement.jsonl` | 0 | 52 | 0 |
+
+    | Table | Before | After | Rows |
+    |---|---|---|---|
+    | `stack/probe-questions.jsonl` | (new) | graded 0.0 | 6 |
+    | `stack/probe-questions.jsonl` | (new) | graded 1.0 | 3 |
+    | `stack/probe-questions.jsonl` | failed | passed | 3 |
+    | `stack/probe-questions.jsonl` | graded 0.0 (legacy code) | graded 0.0 | 6 |
+    | `stack/probe-questions.jsonl` | graded 1.0 | graded 0.0 | 5 |
+    | `stack/probe-questions.jsonl` | graded 1.0 (legacy code) | graded 1.0 | 3 |
+    | `stack/probe-questions.jsonl` | other | other | 6 |
+    | `stack/probes.jsonl` | true | false | 3 |
+    | `stack/questions-library.jsonl` | other | other | 4 |
+    | `stack/questions-project.jsonl` | (new) | graded 0.0 | 12 |
+    | `stack/questions-project.jsonl` | (new) | graded 0.5 | 6 |
+    | `stack/questions-project.jsonl` | (new) | graded 1.0 | 12 |
+    | `stack/questions-project.jsonl` | graded 1.0 | invalid 0.0 | 2 |
+    | `stack/questions-project.jsonl` | passed | passed | 6 |
+    | `stack/supplement.jsonl` | (new) | value | 1 |
+    | `stack/supplement.jsonl` | failed (legacy code) | passed | 3 |
+    | `stack/supplement.jsonl` | graded 0.5 (legacy code) | graded 0.5 | 12 |
+    | `stack/supplement.jsonl` | graded 0.5 (legacy code) | invalid 0.0 | 2 |
+    | `stack/supplement.jsonl` | graded 1.0 (legacy code) | graded 0.0 | 5 |
+    | `stack/supplement.jsonl` | graded 1.0 (legacy code) | graded 1.0 | 6 |
+    | `stack/supplement.jsonl` | graded 1.0 (legacy code) | invalid 0.0 | 2 |
+    | `stack/supplement.jsonl` | invalid 0.0 (legacy code) | invalid 0.0 | 18 |
+    | `stack/supplement.jsonl` | other (legacy code) | other | 3 |
+
+    Changed: the physics probe (`-R`: graded 1.0 → 0.0 at seeds 1-3; its
+    variants `ta: -R` → `I**2*R`; its question tests now pass: failed →
+    passed, 3), `options.xml` (`j: %i`; the answers `3 + 4*I`,
+    `3.0 + 4.0*I`: 1.0 → 0.0, as STACK; its variants `3 + 4*I` →
+    `3 + 4*%i`), `symmetric-positive-definite.xml` and its `-prt` twin (the
+    answer `matrix([2,I],[-I,2])`: graded 1.0 → invalid "Use integers or
+    exact fractions for the real and imaginary parts."; the question
+    tests' inputs written `%i` instead of `I`, still passed), corpus
+    `Complex_Convert_1.xml` (its variants' `z1` written with `%i`: 3
+    `stack.instantiate` rows and 1 card; same values, same verdicts), and
+    the three probes above. Added: the answer sets now generated with `%i`
+    and the physics probe's new teacher's answer, the answers above that
+    write `I` (`PROBE_ANSWERS`), and `constants.xml` (52 rows; its 4
+    answers `ta`, `tb` are invalid by S-01 and name S-01 and S-02).
+    Removed:
+    the 42 answer rows generated from text that wrote the imaginary unit
+    `I` or from the old `-R` (`options.xml` 8, `physics-I.xml` 6,
+    `symmetric-positive-definite*.xml` 28); their answers now come as the
+    `%i` rows with the same verdicts, and `3 + 4*I`,
+    `matrix([2,I],[-I,2])` stay as answers of their own (above).
+    No qtest outcome and no teacher's answer of the corpus changes
+    (`examples/stack/corpus`, `corrected`, `upstream`): only
+    `Complex_Convert_1.xml`'s frozen text.
+    Removed rows (ids): `stack/probe-questions.jsonl` `050ba53f680ce59e`,
+    `4e71a326b3e06f72`, `53d744a9d65e6e45`, `5e4e7516bbd0a644`,
+    `692fd246817edfc0`, `7dae19be97bc25d3`, `8ee6cb6ae290a136`,
+    `99c14c7573f31a4e`, `9b11a94694b72fa3`, `c49d744dc2a79af0`,
+    `c6336b0451a7d363`, `cd7fcbc23844c51f`, `d1e8bf2caf6991a5`,
+    `d9e714a332e95974`; `stack/questions-project.jsonl`
+    `00d769b134f50e34`, `0bcea440e57bfe06`, `1ee8935d85b575bb`,
+    `20e4ae7a8beae768`, `238238804237bb85`, `2ba8193d62fc62f1`,
+    `3f7d165681ba47cf`, `42b964a621bb50a5`, `4e974eb94a09631e`,
+    `53dc73f028976551`, `56eecf40c84de7c6`, `5edf4c66266a4a13`,
+    `61f296029afddc3e`, `62261255b0d5696a`, `747f50145806d931`,
+    `751bcb56560fcf0b`, `7da47c0df9c45a41`, `89a79858d43d10a3`,
+    `8f1eb4aecda78ff9`, `a7200147f979efbc`, `a80b05095d453277`,
+    `b41b363e2f1eb831`, `c0c8c57136e60bbb`, `d816a5290fe77926`,
+    `e58c237563333898`, `f4ac380fe9772913`, `f5b937299d5b45ec`,
+    `fa1c85838dd83ff2`.
+
+- `tools/golden.py update --drop-stale`: removes the rows that today's
+  inputs no longer give and lists them (the CHANGELOG names them;
+  check-changelog).
+
 ## 0.4.0 (21 October 2026)
 
 The review of S-01 (0.3.0): its follow-ups in ctm-checkers (step-2 design

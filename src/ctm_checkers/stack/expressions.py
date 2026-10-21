@@ -13,6 +13,7 @@ import re
 from typing import Any, Mapping
 
 import sympy as sp
+from sympy.printing.str import StrPrinter
 
 
 class Unsupported(ValueError):
@@ -37,9 +38,28 @@ MAX_MATRIX_ROWS = 16
 MAX_MATRIX_COLS = 16
 MAX_MATRIX_ENTRIES = 64
 _LEX = re.compile(r"\s*(?:(?P<number>(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)|(?P<name>%?[A-Za-z_][A-Za-z_0-9]*)|(?P<op>\*\*|\+\-|[=+*/^(),{}\[\]-]))", re.ASCII)
+# STACK's constants (stackmaxima.mac:45-50: e, pi, Pi, PI, i) and Maxima's own
+# %e, %pi, %i. E and I are variables, as in STACK (S-02): a physics answer
+# I^2*R is a current, and E an energy, not Euler's number.
 _NAMES = {"pi": sp.pi, "%pi": sp.pi, "Pi": sp.pi, "PI": sp.pi,
-          "e": sp.E, "E": sp.E, "%e": sp.E,
-          "i": sp.I, "I": sp.I, "%i": sp.I}
+          "e": sp.E, "%e": sp.E,
+          "i": sp.I, "%i": sp.I}
+
+
+class _SourcePrinter(StrPrinter):
+    """SymPy's text with Maxima's %e and %i for Euler's number and the
+    imaginary unit, which SymPy writes E and I, names of variables here (S-02)."""
+    def _print_Exp1(self, expr):
+        return "%e"
+
+    def _print_ImaginaryUnit(self, expr):
+        return "%i"
+
+
+def source_text(value) -> str:
+    """A value as source text that parse() and evaluate() read back as the
+    same value (frozen variants, question tests' inputs)."""
+    return _SourcePrinter().doprint(value)
 SCALAR_FUNCTIONS = {
     "sqrt": sp.sqrt, "sin": sp.sin, "cos": sp.cos, "tan": sp.tan,
     "sec": sp.sec, "csc": sp.csc, "cot": sp.cot,
@@ -189,7 +209,7 @@ def symbolic_complex_log(node: Node) -> bool:
         return ({tree.value} if tree.kind == "name" else set()).union(
             *(names(child) for child in tree.children))
     symbols = set().union(*(names(child) for child in node.children))
-    return bool(symbols & {"i", "I", "%i"}) and bool(symbols - _NAMES.keys())
+    return bool(symbols & {"i", "%i"}) and bool(symbols - _NAMES.keys())
 
 
 class Equation(sp.Basic):

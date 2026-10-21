@@ -393,7 +393,14 @@ PROBE_ANSWERS = {
     'examples/stack/probes/thirds.xml': [{'a': '1', 'b': '2', 'c': '3'}],
     'examples/stack/probes/physics-I.xml': [{'ans1': '-R'}],
     'examples/stack/probes/numabs-branch.xml': [{'ans1': '45*x'}, {'ans1': '0.785'}, {'ans1': 'exp(exp(exp(exp(10))))'}],
-    'examples/stack/probes/options.xml': [{'ans1': '3+4*j'}, {'ans1': '3,5'}],
+    # S-02 (0.5.0): I is a variable, as in STACK; these answers wrote the
+    # imaginary unit I, as the code before it printed it.
+    'examples/stack/probes/options.xml': [{'ans1': '3+4*j'}, {'ans1': '3,5'}, {'ans1': '3 + 4*I'}],
+    'examples/stack/symmetric-positive-definite.xml': [{'ansm': 'matrix([2,I],[-I,2])'}],
+    'examples/stack/symmetric-positive-definite-prt.xml': [{'ansm': 'matrix([2,I],[-I,2])'}],
+    'examples/stack/supplement/constants.xml': [
+        {'ans1': '2*e*x+E', 'ans2': '3*i+I'}, {'ans1': '2*%e*x+E', 'ans2': '3*%i+I'}, {'ans1': '2*E*x+E', 'ans2': '3*I+I'},
+        {'ans1': '2*e*x+e', 'ans2': '3*i+i'}, {'ans1': '2*exp(1)*x+E', 'ans2': '3*sqrt(-1)+I'}],
     'examples/stack/probes/twoparts.xml': [{'ans1': '2', 'ans2': ''}],
     'examples/stack/probes/eqtype.xml': [{'ans1': '2*x+1'}],
     'examples/stack/probes/crash.xml': [{'ans1': 'x+1'}, {'ans1': 'x=1'}, {'ans1': 'a and b'},

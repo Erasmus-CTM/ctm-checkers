@@ -125,6 +125,12 @@ MUTATIONS = {
                                     'for stmt in re.split(r"[;]+", source):', 1, (STACK,)),
     'stack-s01-teacher-answer-names': ('stack/engine.py', '            _teacher_answer_names(question, inp["name"], teacher, env)\n', '', 1,
                                        (STACK,)),
+    # S-02 (0.5.0): E and I are variables; the frozen variants write Euler's
+    # number and the imaginary unit as %e and %i (stack/supplement's constants.xml).
+    'stack-s02-E-constant': ('stack/expressions.py', '"e": sp.E, "%e": sp.E,', '"e": sp.E, "E": sp.E, "%e": sp.E,', 1, (STACK,)),
+    'stack-s02-I-constant': ('stack/expressions.py', '"i": sp.I, "%i": sp.I}', '"i": sp.I, "I": sp.I, "%i": sp.I}', 1, (STACK,)),
+    'stack-s02-source-euler': ('stack/expressions.py', 'return "%e"', 'return "E"', 1, (STACK,)),
+    'stack-s02-source-imaginary': ('stack/expressions.py', 'return "%i"', 'return "I"', 1, (STACK,)),
 }
 
 # A few minutes: CI runs them in a step of their own (CTM_MUTATION_TESTS=1).
