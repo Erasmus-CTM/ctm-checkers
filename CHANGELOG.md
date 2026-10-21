@@ -6,6 +6,13 @@ release. Every grading change is listed under "Grading changes" with the
 finding or decision it implements, its test and the summary of its golden
 diff (docs/goldens.md).
 
+## Unreleased (0.6.1.dev0)
+
+- Shared declarative authored question tests use the real math-exercise
+  graders in every mode, with named/positional fields, exact expressions,
+  raw student strings, per-field or overall expectations and scores.
+  Legacy custom assertions remain supported. No grading/golden changes.
+
 ## 0.6.0 (21 October 2026)
 
 STACK: an answer follows STACK's rules for its text, with STACK's messages
