@@ -327,3 +327,15 @@ def test_custom_verdict_is_not_inferred_from_a_near_endpoint_score(score, status
     q["tests"][0]["expect"] = "partial"
     with pytest.raises(AssertionError):
         run_question(q, ".")
+
+
+def test_asserted_custom_invalid_field_needs_its_own_explicit_verdict():
+    q = question("custom", checker='def check(r,s):\n    return {"score": 0, "assessment": {"fields": {"answer": {"status": "invalid", "score": 0}}}}\n',
+                 tests=[case("x", {"answer": {"score": 0}})])
+    with pytest.raises(AssertionError, match="explicit verdict"):
+        run_question(q, ".")
+    q["tests"][0]["expect"] = {"answer": {"status": "invalid", "score": 0}}
+    run_question(q, ".")
+    # Unasserted diagnostics do not prevent an author checking the overall grade.
+    q["tests"][0]["expect"] = "wrong"
+    run_question(q, ".")

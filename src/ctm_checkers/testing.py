@@ -116,7 +116,11 @@ def input_text(value):
     return sp.sstr(value).replace("**", "^")
 
 
-def _expect(actual, expected, where):
+def _expect(actual, expected, where, *, allow_invalid=False):
+    if actual.get("status") in ("invalid", "error", "empty") and not allow_invalid:
+        wanted = expected.get("status") if isinstance(expected, dict) else expected
+        if wanted != actual.get("status") and not (actual.get("status") == "error" and wanted == "invalid"):
+            raise AssertionError(where + ": invalid or empty input needs an explicit verdict expectation")
     if isinstance(expected, str):
         # partial is a semantic verdict; the detailed native status is retained.
         status = actual.get("status")
@@ -241,7 +245,7 @@ def run_declarative(tests, grade, *, fields=(), variables=None, resolve=None):
             elif expected is not None:
                 _expect(actual, expected, where)
             if "score" in case or "partial" in case:
-                _expect(actual, {key: case[key] for key in ("score", "partial") if key in case}, where)
+                _expect(actual, {key: case[key] for key in ("score", "partial") if key in case}, where, allow_invalid=True)
         except Exception as error:
             raise type(error)(where + ": " + str(error)) from error
         results.append({"name": name, "actual": actual, "passed": True})

@@ -9,6 +9,7 @@ format with its own CAS resolver and grading adapter.
 
 For ordinary math-exercise blocks:
 
+    #| partial-credit: true
     #| field-labels: derivative,tangent
     #| tests:
     #|   - name: a sign error
@@ -29,7 +30,11 @@ expect is an overall verdict, a field-order list, a mapping by field name,
 or an object with status, score, partial and/or answer-note. Field values
 can also be such objects. A top-level score/partial checks the overall
 result in addition to field expectations. Scores compare within 1e-9.
-Unknown keys and mismatched fields fail the build.
+Unknown keys and mismatched fields fail the build. Invalid, error or empty
+outcomes need an explicit matching verdict, overall or in each asserted
+invalid field; score zero or partial false never means invalid implicitly.
+The partial flag checks the actual verdict, with native form/exact details
+reported as partial when the browser reports them that way.
 
 Expressions use the question's symbols and resolved variables, exact rational
 arithmetic and SymPy functions such as diff, factor, sqrt and Matrix. They
