@@ -12,6 +12,11 @@ main `9e042dc` = 0.6.0 (21 Oct). Packages: `ctm_checkers.core/matrix/graph/testi
 
 - A set for **S-07, S-05, S-10, S-11** (§9 orders 4–7 of the step-2 design) may be open (an agent was still working at hand-off; notes in its PR bodies). **Needs independent review**, then a stack-sympy pin PR in the same set.
 
+## Update 21 Oct, evening: STACK set S-07/S-05/S-10/S-11
+
+- Open as ctm-checkers #10 (S-07, 0.7.0) -> #11 (S-05, 0.8.0) -> #12 (S-10, 0.9.0) -> #13 (S-11, 0.10.0), then stack-sympy #28 (pins #13's head). All target main; CI green. Needs independent review, then AC merges in that order with merge commits.
+- AC's decisions: S-07 accepting `multiplicationsign` none and `matrixparens` `(` is approved; S-05's 4 rows becoming 0.7 is approved; S-10's differing nested-list message is fine; S-11 hyperbolic AlgEquiv (false here, true in STACK) is fixed later with S-12; **S-11 LowestTerms on a non-expression (false here, true in STACK) is to be discussed with AC** before any change. No force-pushes; earlier commit messages stay.
+
 ## Next work (step-2 design §9, §13 amendments)
 
 1. Remaining STACK fixes, in order: **S-12** (deterministic budgets; `excluded.jsonl` rows become goldens), **S-04** (`quiet`), **S-08** (PRT score rounding to 3 dp, qtest replay), **S-09** (evaluate each PRT whose inputs are valid), **S-06** (plain fix: NumDecPlaces follows STACK's documented binary64 rounding; no switch). **S-03** stays unchanged until the STACK author answers (semantics page).
