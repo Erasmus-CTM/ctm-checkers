@@ -30,14 +30,19 @@ Finite choices support `pick(list, exclude=[])`,
 `pick(low, high, step=1, exclude=[])` (inclusive), ordered `sample(list,k)`
 without replacement, and `shuffle(list)`. These three calls occupy a whole
 assignment right-hand side. The native STACK-name aliases follow the
-[documented random-object semantics](https://docs.stack-assessment.org/en/CAS/Random/):
+[documented random-object semantics](https://docs.stack-assessment.org/en/CAS/Random/),
+checked against [upstream stackmaxima.mac at 33383047](https://github.com/maths/moodle-qtype_stack/blob/33383047af39c204bf4442802a058f8b918b2b1b/stack/maxima/stackmaxima.mac):
 `rand(n)` excludes n; `rand(list)` chooses an element (an empty list yields
-an empty list); `rand_with_step` and `rand_range` support exact rational bounds
-and positive or negative steps and include the upper bound only when it lies on
-the step;
-`rand_with_prohib` excludes listed values; `rand_selection` selects ordered
+an empty list); `rand_with_step` supports exact rational bounds and positive
+or negative steps and includes the upper bound only when it lies on the step.
+`rand_range` follows the upstream implementation rather than the documentation's
+synonym claim: its two or three arguments are integers, its domain count is
+`floor((upper-lower)/step)` without the extra one, and a zero count returns lower;
+`rand_with_prohib` excludes listed values from an inclusive integer range
+(an all-excluded range yields an empty list); `rand_selection` selects ordered
 distinct positions (duplicate input values may remain); and
-`rand_selection_with_replacement` permits repeated positions. Arithmetic around
+`rand_selection_with_replacement` permits repeated positions; an empty input
+produces a list of empty lists, and a nonpositive count returns an empty list. Arithmetic around
 these aliases is supported. Float, set and matrix forms of `rand`, and the
 other random-object constructors, are explicitly unsupported in this checkpoint.
 The aliases use CTM's deterministic selection, not Maxima's seeded RNG.

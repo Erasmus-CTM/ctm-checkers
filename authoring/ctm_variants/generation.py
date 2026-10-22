@@ -54,7 +54,7 @@ def _source(source):
                 normalized = text.replace("_", "").lower()
                 if "e" in normalized and abs(int(normalized.split("e")[1])) > 1000:
                     raise GenerationError("decimal exponent exceeds 1000")
-                exact = Fraction(text)
+                exact = Fraction(normalized)
                 if exact.numerator.bit_length() > 4096 or exact.denominator.bit_length() > 4096:
                     raise GenerationError("numeric literal exceeds supported exact size")
                 text = "({}/{})".format(exact.numerator, exact.denominator)
@@ -118,7 +118,7 @@ def _list_domain(values):
     return _Domain(len(values), values.__getitem__, lambda value: _key(value) in allowed)
 
 
-def _range_domain(low, high, step, exclude):
+def _range_domain(low, high, step, exclude, empty_result=False):
     low, high, step = map(_integer, (low, high, step))
     if step <= 0 or high < low:
         raise GenerationError("random range needs low <= high and positive step")
@@ -126,12 +126,20 @@ def _range_domain(low, high, step, exclude):
     if size > MAX_DOMAIN:
         raise GenerationError("random range exceeds {}".format(MAX_DOMAIN))
     prohibited = _keys(exclude)
-    return _list_domain_unbounded([low + step*i for i in range(size)
-                                  if _key(low + step*i) not in prohibited])
+    values = [low + step*i for i in range(size) if _key(low + step*i) not in prohibited]
+    if not values and empty_result:
+        return _constant_domain([])
+    return _list_domain_unbounded(values)
+
+
+def _constant_domain(value):
+    expected = _key(value)
+    return _Domain(1, lambda index: value, lambda candidate: _key(candidate) == expected)
 
 
 def _list_domain_unbounded(values):
-    return _Domain(len(values), values.__getitem__, lambda value: value in values)
+    allowed = _keys(values)
+    return _Domain(len(values), values.__getitem__, lambda value: _key(value) in allowed)
 
 
 def _stepped_domain(low, high, step):
@@ -145,6 +153,18 @@ def _stepped_domain(low, high, step):
     if not 0 < size <= MAX_DOMAIN:
         raise GenerationError("stepped random domain is empty or exceeds {}".format(MAX_DOMAIN))
     return _list_domain_unbounded([low + step*i for i in range(size)])
+
+
+def _rand_range_domain(args):
+    low, high = map(_integer, args[:2])
+    step = _integer(args[2]) if len(args) == 3 else 1
+    if step == 0:
+        raise GenerationError("rand_range needs a nonzero step")
+    # STACK rand_range uses rand_zero(floor(...)), unlike rand_with_step's +1.
+    count = (high-low)//step
+    if count < 0 or count > MAX_DOMAIN:
+        raise GenerationError("rand_range domain is invalid or exceeds {}".format(MAX_DOMAIN))
+    return _list_domain_unbounded([low + step*i for i in range(max(1,count))])
 
 
 def _selection(values, count, replacement=False):
@@ -193,14 +213,24 @@ def _domain(name, args, kwargs):
     elif name == "rand" and len(args) == 1:
         if isinstance(args[0], (list, tuple)):
             if not args[0]:
-                return _Domain(1, lambda index: [], lambda value: isinstance(value, list) and not value)
+                return _constant_domain([])
             return _list_domain(args[0])
         return _range_domain(0, _integer(args[0])-1, 1, [])
-    elif name in ("rand_with_step", "rand_range") and len(args) == 3:
+    elif name == "rand_with_step" and len(args) == 3:
         return _stepped_domain(*args)
+    elif name == "rand_range" and len(args) in (2,3):
+        return _rand_range_domain(args)
     elif name == "rand_with_prohib" and len(args) == 3:
-        return _range_domain(args[0], args[1], 1, _items(args[2]))
+        return _range_domain(args[0], args[1], 1, _items(args[2]), empty_result=True)
     elif name in ("sample", "rand_selection", "rand_selection_with_replacement") and len(args) == 2:
+        if name == "rand_selection_with_replacement":
+            values, count = _items(args[0]), _integer(args[1])
+            if count > MAX_ITEMS:
+                raise GenerationError("random selection size exceeds {}".format(MAX_ITEMS))
+            if count <= 0:
+                return _constant_domain([])
+            if not values:
+                return _constant_domain([[] for _ in range(count)])
         return _selection(*args, replacement=name == "rand_selection_with_replacement")
     elif name == "shuffle" and len(args) == 1:
         return _selection(args[0], len(_items(args[0])))

@@ -1,4 +1,5 @@
 """Native bounded variables execution tests. AGPL-3.0-or-later."""
+import os
 import pathlib
 import sys
 import threading
@@ -7,7 +8,8 @@ import unittest
 from unittest.mock import patch
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT / "authoring"), str(ROOT / "src")]
+PACKAGES = (os.environ.get("CTM_CHECKERS_WHEEL") or str(ROOT / "src")).split(os.pathsep)
+sys.path[:0] = [str(ROOT / "authoring")] + PACKAGES
 import sympy as sp
 from ctm_variants.generation import (execute, GenerationError, Rejected, _domain,
     _source, _run, _read_lines, MAX_IPC)
@@ -26,6 +28,7 @@ class LanguageTests(unittest.TestCase):
         self.assertEqual(values["t"], sp.Matrix([[1,3],[2,4]]))
 
     def test_seed_determinism_value_replay_and_range_growth(self):
+        self.assertEqual(execute("a=1_000.00_5")["variables"]["a"],sp.Rational(200001,200))
         source = "a=rand(5)+2\nb=pick(-2,2,exclude=[a-2])\nrequire(a>=2, b != a-2)"
         first = execute(source, seed="label")
         second = execute(source, seed="label")
@@ -42,7 +45,9 @@ class LanguageTests(unittest.TestCase):
         for source, replay in [
             ("a=pick([1])", [True]), ("a=pick([True])", [1]),
             ("a=sample([1,2],1)", [[True]]), ("a=sample([True,2],1)", [[1]]),
-            ("a=pick([[1]])", [[True]])]:
+            ("a=pick([[1]])", [[True]]), ("a=pick(1,1)",[True]),
+            ("a=rand(2)",[True]), ("a=rand_with_step(1,1,1)",[True]),
+            ("a=rand_range(1,1,1)",[True]), ("a=rand_with_prohib(1,1,[])",[True])]:
             with self.subTest(source=source), self.assertRaisesRegex(GenerationError,"absent"):
                 execute(source,replay=replay)
         self.assertEqual(execute("a=pick([1],exclude=[True])",replay=[1])["variables"]["a"],1)
@@ -78,8 +83,14 @@ class LanguageTests(unittest.TestCase):
         self.assertEqual(values("rand_with_step",[sp.Rational(1,2),sp.Rational(3,2),sp.Rational(1,3)]),
                          [sp.Rational(1,2),sp.Rational(5,6),sp.Rational(7,6),sp.Rational(3,2)])
         self.assertEqual(values("rand_with_step",[-5,3,3]), [-5,-2,1])
-        self.assertEqual(values("rand_range",[-5,3,3]), [-5,-2,1])
+        self.assertEqual(values("rand_range",[-5,3,3]), [-5,-2])
+        self.assertEqual(values("rand_range",[1,4]), [1,2,3])
+        self.assertEqual(values("rand_range",[1,1]), [1])
+        self.assertEqual(values("rand_range",[5,-5,-2]), [5,3,1,-1,-3])
         self.assertEqual(values("rand_with_prohib",[-2,2,[0,sp.sqrt(2)]]),[-2,-1,1,2])
+        self.assertEqual(values("rand_with_prohib",[1,1,[1]]),[[]])
+        self.assertEqual(values("rand_selection_with_replacement",[[],2]),[[[],[]]])
+        self.assertEqual(values("rand_selection_with_replacement",[[1],-1]),[[]])
         self.assertEqual(values("sample",[[1,2,3],2]),[[1,2],[1,3],[2,1],[2,3],[3,1],[3,2]])
         self.assertEqual(values("rand_selection",[[1,1,2],2]),[[1,1],[1,2],[1,1],[1,2],[2,1],[2,1]])
         self.assertEqual(values("rand_selection_with_replacement",[[1,2],2]),[[1,1],[1,2],[2,1],[2,2]])
