@@ -459,4 +459,12 @@ def test_integer_encoding_bounds_conversion_before_decimal_strings():
             encode(value)
 
 
+def test_authored_context_matrix_and_list_teacher_are_data_not_learner_inputs():
+    from sympy import Matrix
+    q = question("custom", checker='''def check(r,s):
+    return r["teacher"]["Matrix α"] == Matrix([[1,2]]) and r["teacher"]["List field"] == [Rational(1,3), 2] and r["answers"] == {"Matrix α": 1, "List field": 2}
+''', tests=[dict(name="structured exact teacher", answers=["1", "2"], expect="correct")])
+    run_question(q, ".", variables={}, teacher={"Matrix α": Matrix([[1,2]]), "List field": [Rational(1,3), 2]})
+
+
 

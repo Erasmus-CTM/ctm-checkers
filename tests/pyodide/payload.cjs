@@ -170,6 +170,12 @@ const DAMAGE = text => text.replace(/data: '([A-Za-z0-9+\/]{24})/, (match, start
     checker:'def check(r,s): return r["point"] == 9007199254740992 and "variables" not in r'})).status, 'correct');
   assert.equal((await customCall({...contextual, question_context: {...context, version:true}})).status, 'error');
   assert.equal((await customCall({...contextual, response:{point:0.1}})).status, 'error');
+  const structuredTeacher = inspect('import json\nfrom sympy import Matrix, Rational\n'
+    + 'from ctm_checkers.variants import question_context\n'
+    + 'json.dumps(question_context(["Matrix α", "List field"], {}, {"Matrix α": Matrix([[1,2]]), "List field": [Rational(1,3),2]}))');
+  assert.equal((await customCall({vars:'x', question_context:structuredTeacher,
+    response:{kind:'expressions', raw:['1','2'], inputs:{}},
+    checker:'def check(r,s): return r["teacher"]["Matrix α"] == Matrix([[1,2]]) and r["teacher"]["List field"] == [Rational(1,3),2] and r["answers"] == {"Matrix α":1,"List field":2}'})).status, 'correct');
   assert.deepEqual(names(), before);
 
 
