@@ -1,0 +1,23 @@
+name: Native variant model
+on:
+  push:
+    branches: [consolidation/2026-10-variants]
+    paths: ['authoring/**', 'tests/test_variants_model.py', '.github/workflows/variants.yml']
+  pull_request:
+    paths: ['authoring/**', 'tests/test_variants_model.py', '.github/workflows/variants.yml']
+permissions:
+  contents: read
+jobs:
+  model:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.9', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Native identity and snapshot contracts
+        run: python tests/test_variants_model.py
