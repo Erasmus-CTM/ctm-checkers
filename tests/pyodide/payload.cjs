@@ -137,6 +137,42 @@ const DAMAGE = text => text.replace(/data: '([A-Za-z0-9+\/]{24})/, (match, start
     const scope = py.toPy(values);
     try { return JSON.parse(py.runPython(code, {globals: scope})); } finally { scope.destroy(); }
   };
+  // Exact author context follows the same installed browser.call path as ordinary custom checks.
+  const context = inspect('import json\nfrom sympy import Symbol, Rational, Matrix\n'
+    + 'from ctm_checkers.variants import question_context\nx=Symbol("x", positive=True)\n'
+    + 'json.dumps(question_context(["Svar α", "Second field"], {"x": x, "a": Rational(1,3), '
+    + '"pair": [Symbol("x"), x], "matrix": Matrix([[x, Rational(1,3)]])}, '
+    + '{"Svar α": x/3, "Second field": x}, {"n": 1, "id": "stable", "hash": "reviewed"}))');
+  const customCall = async request => {
+    await proxy.globals.set('_ctm_request', JSON.stringify(request));
+    try {
+      return JSON.parse(await proxy.runPythonAsync('import builtins as _ctm_builtins\n'
+        + '_ctm_builtins.__import__("ctm_checkers.browser", fromlist=["call"]).call("math_exercise.check_custom", _ctm_builtins.globals())'));
+    } finally { drop('_ctm_builtins'); }
+  };
+  const contextual = {vars: 'x', question_context: context,
+    response: {kind: 'expressions', raw: ['x/3', 'x'], inputs: {},
+      answers: 'forged', variables: 'forged', teacher: 'forged', variant: 'forged'},
+    checker: 'def check(r,s):\n'
+      + '    assert list(r["answers"]) == ["Svar α", "Second field"]\n'
+      + '    assert r["answers"] == r["teacher"]\n'
+      + '    assert r["expressions"][1] is s["x"] and s["x"] is r["variables"]["x"]\n'
+      + '    assert s["x"].is_positive and r["variables"]["a"] == Rational(1,3)\n'
+      + '    assert r["variables"]["pair"][0] != r["variables"]["pair"][1]\n'
+      + '    assert r["variables"]["matrix"][0,0] is s["x"]\n'
+      + '    assert r["variant"] == {"n":1,"id":"stable","hash":"reviewed"}\n'
+      + '    assert \'"variables":"forged"\' in _math_response_json\n'
+      + '    return True'};
+  assert.equal((await customCall(contextual)).status, 'correct');
+  assert.equal((await customCall({...contextual, question_context: {...context, variant: null},
+    checker: 'def check(r,s): return r["variant"] is None'})).status, 'correct');
+  assert.equal((await customCall({vars:'x', response:{point:9007199254740992},
+    checker:'def check(r,s): return r["point"] == 9007199254740992 and "variables" not in r'})).status, 'correct');
+  assert.equal((await customCall({...contextual, question_context: {...context, version:true}})).status, 'error');
+  assert.equal((await customCall({...contextual, response:{point:0.1}})).status, 'error');
+  assert.deepEqual(names(), before);
+
+
   const WALK = 'import json, pkgutil, ctm_checkers\njson.dumps(sorted(m.name for m in pkgutil.walk_packages(ctm_checkers.__path__, "ctm_checkers.")))';
   // A math page carries ctm-checkers.js alone: no STACK engine (design §13 item 5), also for
   // ctm-libs' load, which walks the package (MathExerciseRuntime.ensureCheckers).

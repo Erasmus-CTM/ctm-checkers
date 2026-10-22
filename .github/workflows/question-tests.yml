@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - src/ctm_checkers/testing.py
+      - src/ctm_checkers/variants.py
+      - src/ctm_checkers/math_exercise/custom.py
       - src/ctm_checkers/math_exercise/authored.py
       - tests/test_question_tests.py
       - .github/workflows/question-tests.yml
@@ -60,3 +62,4 @@ jobs:
           name: canonical-question-tests-payload
           path: _extensions/ctm-checkers
           retention-days: 7
+
