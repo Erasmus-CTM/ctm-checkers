@@ -10,6 +10,7 @@ import re
 
 from sympy import Matrix, Symbol
 
+from ..core.custom import execute_checker
 from ..core.result import normalize_result
 from ..graph import graph_from_response
 from ..matrix import assess_basis
@@ -68,11 +69,7 @@ def check_custom(request):
                 raise ValueError("question context field count does not match expressions")
             response.update(answers=dict(zip(fields, response["expressions"])),
                             variables=variables, teacher=teacher, variant=variant)
-        exec(request["checker"], scope)
-        checker = scope.get("check")
-        if not callable(checker):
-            raise ValueError("Custom checker must define check(expressions, symbols)")
-        return normalize_result(checker(response, checker_symbols))
+        return execute_checker(request["checker"], response, checker_symbols, scope)
     except Exception as _me:
         return {"status": "error", "message": str(_me)}
 
