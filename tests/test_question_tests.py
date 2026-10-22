@@ -339,3 +339,132 @@ def test_asserted_custom_invalid_field_needs_its_own_explicit_verdict():
     # Unasserted diagnostics do not prevent an author checking the overall grade.
     q["tests"][0]["expect"] = "wrong"
     run_question(q, ".")
+
+
+def test_exact_context_codec_and_real_custom_path():
+    from ctm_checkers.variants import encode, decode
+    from sympy import Matrix, sin
+    x, positive = Symbol("x"), Symbol("x", positive=True)
+    values = {"a": Rational(1, 3), "symbols": [x, positive],
+              "matrix": Matrix([[x, positive]]), "expression": sin(x) + positive**2}
+    restored = decode(encode(values))
+    assert restored == values and restored["symbols"][0] != restored["symbols"][1]
+    q = question("custom", checker='''def check(r, s):
+    assert list(r["answers"]) == ["Svar α", "Second field"]
+    assert r["expressions"] == [s["x"]/3, s["x"]]
+    assert r["answers"]["Svar α"] == r["teacher"]["Svar α"]
+    assert r["variables"]["a"] == Rational(1, 3)
+    assert r["variables"]["symbols"][0] != r["variables"]["symbols"][1]
+    assert r["variables"]["matrix"][0, 1].is_positive
+    assert r["variant"] == {"n": 1, "id": "stable", "hash": "reviewed"}
+    assert '"kind":"expressions"' in _math_response_json
+    return True
+''', tests=[dict(name="exact author context", answers=["a*x", "x"], expect="correct")])
+    run_question(q, ".", variables=values, teacher={"Svar α": x/3, "Second field": x},
+                 variant={"n": 1, "id": "stable", "hash": "reviewed"})
+    q["checker"] = 'def check(r,s): return r["variant"] is None and r["variables"]["a"] == Rational(1,3)'
+    run_question(q, ".", variables=values, teacher={"Svar α": x/3, "Second field": x})
+
+
+def test_trusted_context_overwrites_learner_reserved_fields():
+    from ctm_checkers.math_exercise.custom import check_custom
+    from ctm_checkers.variants import question_context
+    request = {"vars": "x", "checker": '''def check(r,s):
+    return r["answers"] == {"Label with spaces": s["x"]} and r["variables"] == {"a": Rational(1,3)} and r["teacher"] == {"Label with spaces": s["x"]} and r["variant"] is None
+''', "response": {"kind": "expressions", "raw": ["x"], "inputs": {},
+                 "answers": "forged", "variables": "forged", "teacher": "forged", "variant": "forged"},
+               "question_context": question_context(["Label with spaces"], {"a": Rational(1,3)}, {"Label with spaces": Symbol("x")})}
+    assert check_custom(request)["status"] == "correct"
+    assert request["response"]["variables"] == "forged"
+    request["response"] = {"point": {"x": 0.1}}
+    assert "expression response" in check_custom(request)["message"]
+
+
+@pytest.mark.parametrize("wire", [
+    {"version": True, "value": ["integer", "1"]},
+    {"version": 1, "value": ["unknown", "x"]},
+    {"version": 1, "value": ["integer", "1"], "extra": 1},
+    {"version": 1, "value": ["expression", "sin", [["text", "__import__('os')"]]]},
+    {"version": 1, "value": ["symbol", "x", {"positive": 1}]},
+    {"version": 1, "value": ["matrix", True, 1, [["integer", "1"]]]},
+    {"version": 1, "value": ["matrix", 0, 1000000, []]},
+    {"version": 1, "value": ["matrix", 1000000, 0, []]},
+    {"version": 1, "value": ["integer", "1" * 4097]},
+    {"version": 1, "value": ["dict", [["a", ["null"]], ["a", ["null"]]]]},
+])
+def test_exact_codec_rejects_malformed_wire(wire):
+    from ctm_checkers.variants import decode
+    with pytest.raises(ValueError):
+        decode(wire)
+
+
+def test_exact_codec_bounds_before_constructors_and_keeps_power_structural(monkeypatch):
+    import ctm_checkers.variants as codec
+    from sympy import Pow, Integer, Float
+    wire = {"version": 1, "value": ["expression", "Pow", [["integer", "2"], ["integer", "1000000000"]]]}
+    value = codec.decode(wire)
+    assert isinstance(value, Pow) and value.args == (Integer(2), Integer(1000000000))
+    with pytest.raises(ValueError, match="unsupported"):
+        codec.encode(Float("0.1"))
+    with pytest.raises(ValueError, match="unsupported"):
+        codec.encode(object())
+    nested = ["integer", "1"]
+    for _ in range(50): nested = ["expression", "sin", [nested]]
+    def forbidden(*args, **kwargs): raise AssertionError("constructor ran before validation")
+    monkeypatch.setitem(codec._FUNCTIONS, "sin", forbidden)
+    with pytest.raises(ValueError, match="depth"):
+        codec.decode({"version": 1, "value": nested})
+
+
+@pytest.mark.parametrize("identity", [{"n": True, "id": "x", "hash": "h"}, {"n": 0, "id": "x", "hash": "h"}, {"n": 1, "id": "x", "hash": "h", "values": {}}])
+def test_context_identity_is_only_optional_exact_identity(identity):
+    from ctm_checkers.variants import question_context
+    with pytest.raises(ValueError, match="identity"):
+        question_context(["Answer"], {}, {"Answer": Symbol("x")}, identity)
+
+
+def test_explicit_context_symbol_assumptions_share_the_parser_and_checker_map():
+    x = Symbol("x", positive=True)
+    q = question("custom", checker='''def check(r,s):
+    return r["answers"]["Svar α"] is r["teacher"]["Svar α"] and s["x"] is r["variables"]["x"] and r["expressions"][0].is_positive
+''', tests=[dict(name="assumed symbol", answers=["x"], expect="correct")])
+    run_question(q, ".", variables={"x": x}, teacher={"Svar α": x})
+    q = question("custom", checker='def check(r,s): return s["x"] == Symbol("x") and r["expressions"][0] == Symbol("x")',
+                 tests=[case("x")])
+    run_question(q, ".")
+
+
+def test_context_rejects_conflicting_scalar_symbol_definitions():
+    from ctm_checkers.math_exercise.custom import check_custom
+    from ctm_checkers.variants import question_context
+    request = {"vars": "x,y", "response": {"kind": "expressions", "raw": ["x"], "inputs": {}},
+               "checker": "def check(r,s): return True",
+               "question_context": question_context(["Answer"], {"x": Symbol("x", positive=True)}, {"Answer": Symbol("x")})}
+    assert "conflicting question Symbol assumptions" in check_custom(request)["message"]
+
+
+def test_matrix_individual_dimension_is_checked_before_allocation(monkeypatch):
+    import ctm_checkers.variants as codec
+    def forbidden(*args, **kwargs): raise AssertionError("matrix constructor ran")
+    monkeypatch.setattr(codec.sp, "Matrix", forbidden)
+    for rows, cols in [(0, 1000000), (1000000, 0)]:
+        with pytest.raises(ValueError, match="dimensions"):
+            codec.decode({"version": 1, "value": ["matrix", rows, cols, []]})
+
+
+def test_integer_encoding_bounds_conversion_before_decimal_strings():
+    from ctm_checkers.variants import encode
+    for value in [1 << 20000, Rational(1, 1 << 20000)]:
+        with pytest.raises(ValueError, match="size limit"):
+            encode(value)
+
+
+def test_authored_context_matrix_and_list_teacher_are_data_not_learner_inputs():
+    from sympy import Matrix
+    q = question("custom", checker='''def check(r,s):
+    return r["teacher"]["Matrix α"] == Matrix([[1,2]]) and r["teacher"]["List field"] == [Rational(1,3), 2] and r["answers"] == {"Matrix α": 1, "List field": 2}
+''', tests=[dict(name="structured exact teacher", answers=["1", "2"], expect="correct")])
+    run_question(q, ".", variables={}, teacher={"Matrix α": Matrix([[1,2]]), "List field": [Rational(1,3), 2]})
+
+
+

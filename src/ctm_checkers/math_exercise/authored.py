@@ -132,7 +132,7 @@ def _teacher_fields(question):
     return keys
 
 
-def run_question(options, base, *, variables=None, teacher=None):
+def run_question(options, base, *, variables=None, teacher=None, variant=None):
     """Declarative cases use real grading; legacy assertions stay unchanged.
 
     variables/teacher are resolved question data from the variants adapter.
@@ -166,7 +166,13 @@ def run_question(options, base, *, variables=None, teacher=None):
         fields = labels or [str(n) for n in range(1, len(keys) + 1)]
     if len(fields) != len(keys) or any(not field for field in fields) or len(set(fields)) != len(fields):
         raise ValueError("field-labels must give one unique label per answer field")
-    teacher_text = [str(value) if isinstance(value, str) else input_text(value) for value in keys]
+    context = None
+    if mode == "custom" and ((variables is not None and isinstance(teacher, dict)) or variant is not None):
+        from ..variants import question_context
+        if variables is None or teacher is None or not isinstance(teacher, dict):
+            raise ValueError("question context requires resolved variables and named teacher values")
+        context = question_context(fields, variables, teacher, variant)
+    teacher_text = [] if context is not None else [str(value) if isinstance(value, str) else input_text(value) for value in keys]
     defaults = {key: str(options.get(key, "")) for key in (
         "vars", "reject", "tolerance", "decplaces", "sigfigs", "form")}
     partial = options.get("partial-credit", False) in (True, "true")
@@ -202,6 +208,8 @@ def run_question(options, base, *, variables=None, teacher=None):
                     return int(number) if number.is_integer() else number
                 return value
             request = {"vars": defaults["vars"], "response": literal(response), "checker": options["checker"]}
+            if context is not None:
+                request["question_context"] = context
             try:
                 admit(request)
                 result = check_custom(request)

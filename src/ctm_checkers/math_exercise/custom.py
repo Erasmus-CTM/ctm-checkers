@@ -26,6 +26,20 @@ def check_custom(request):
         if not request["checker"].strip():
             raise ValueError("mode custom requires a checker")
         _local = build_locals(request["vars"])
+        context = None
+        if "question_context" in request:
+            from ..variants import decode_context
+            context = decode_context(request["question_context"])
+            for name, value in context[1].items():
+                if isinstance(value, Symbol) and name == value.name:
+                    _local[name] = value
+            # Nested data may intentionally retain same-name distinct Symbols.
+            bindings = {name: value for name, value in context[1].items()
+                        if isinstance(value, Symbol) and name == value.name}
+            for value in list(context[1].values()) + list(context[2].values()):
+                for symbol in getattr(value, "free_symbols", ()):
+                    if symbol.name in bindings and symbol != bindings[symbol.name]:
+                        raise ValueError("conflicting question Symbol assumptions: " + symbol.name)
         response = copy.deepcopy(request["response"])
         if isinstance(response, dict) and response.get("kind") == "expressions":
             raw_values = response.get("raw", [])
@@ -44,6 +58,16 @@ def check_custom(request):
                 item["matrix"] = Matrix(rows, cols, matrix_expressions)
         checker_symbols = {k: v for k, v in _local.items() if isinstance(v, Symbol)}
         scope = namespace(request)
+        if context is not None:
+            fields, variables, teacher, variant = context
+            if not isinstance(response, dict) or response.get("kind") != "expressions":
+                raise ValueError("question context requires an expression response")
+            if response.get("inputs"):
+                raise ValueError("question context with named matrix inputs is not supported yet")
+            if len(response["expressions"]) != len(fields):
+                raise ValueError("question context field count does not match expressions")
+            response.update(answers=dict(zip(fields, response["expressions"])),
+                            variables=variables, teacher=teacher, variant=variant)
         exec(request["checker"], scope)
         checker = scope.get("check")
         if not callable(checker):
