@@ -10,7 +10,8 @@ label="<question>", variable_timeout=5, variant_timeout=30)` runs one selected
 execution. Pass an exact symbol mapping through `variables`. It returns exact
 `variables`, the ordered exact `choices` tape, and a canonical value-based
 `locator`. Replaying that tape validates each choice against the current domain
-and exclusions; removed values or surplus choices fail, and a failed
+and exclusions using structural exact-value codec equality (booleans stay
+distinct from integers); removed values or surplus choices fail, and a failed
 `require(...)` raises `Rejected`. Nothing silently resamples. The current
 locator represents the tape only; it is not yet an approved candidate identity
 or a manifest entry. Domain duplicates can yield the same tape and need
@@ -30,8 +31,10 @@ Finite choices support `pick(list, exclude=[])`,
 without replacement, and `shuffle(list)`. These three calls occupy a whole
 assignment right-hand side. The native STACK-name aliases follow the
 [documented random-object semantics](https://docs.stack-assessment.org/en/CAS/Random/):
-`rand(n)` excludes n; `rand(list)` chooses an element; `rand_with_step` and
-`rand_range` include the upper bound only when it lies on the step;
+`rand(n)` excludes n; `rand(list)` chooses an element (an empty list yields
+an empty list); `rand_with_step` and `rand_range` support exact rational bounds
+and positive or negative steps and include the upper bound only when it lies on
+the step;
 `rand_with_prohib` excludes listed values; `rand_selection` selects ordered
 distinct positions (duplicate input values may remain); and
 `rand_selection_with_replacement` permits repeated positions. Arithmetic around
@@ -69,3 +72,9 @@ No browser wheels or generated payloads change here.
 Run `python tests/test_variants_generation.py`. The dedicated workflow pins
 SymPy 1.13.3 on Python 3.9, 3.12 and 3.13. Native runs on other versions are
 supplemental evidence only.
+
+A supplemental Windows measurement before the final import-isolation change took
+4.582 seconds for five executions with 20 simple variables each (~0.916 seconds
+per execution). Serially extrapolating to 25 executions is roughly 23 seconds;
+this is not a full-batch performance acceptance result. Batch execution and its
+performance/deadline orchestration remain future work.

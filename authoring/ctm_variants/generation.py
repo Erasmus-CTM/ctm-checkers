@@ -5,6 +5,7 @@ Not yet candidate enumeration, proposals, placeholders or component wiring.
 Author code has Quarto's trust level; subprocess deadlines prevent stalled builds.
 """
 import ast
+from collections import Counter
 import hashlib
 from fractions import Fraction
 import io
@@ -95,8 +96,13 @@ def _items(value):
     return list(value)
 
 
-def _same(left, right):
-    return left == right
+def _key(value):
+    from ctm_checkers.variants import encode
+    return json.dumps(encode(value), sort_keys=True, ensure_ascii=True, separators=(",", ":"))
+
+
+def _keys(values):
+    return {_key(value) for value in values}
 
 
 class _Domain:
@@ -108,7 +114,8 @@ class _Domain:
 
 def _list_domain(values):
     values = _items(values)
-    return _Domain(len(values), values.__getitem__, lambda value: value in values)
+    allowed = _keys(values)
+    return _Domain(len(values), values.__getitem__, lambda value: _key(value) in allowed)
 
 
 def _range_domain(low, high, step, exclude):
@@ -118,12 +125,26 @@ def _range_domain(low, high, step, exclude):
     size = (high - low) // step + 1
     if size > MAX_DOMAIN:
         raise GenerationError("random range exceeds {}".format(MAX_DOMAIN))
+    prohibited = _keys(exclude)
     return _list_domain_unbounded([low + step*i for i in range(size)
-                                  if low + step*i not in exclude])
+                                  if _key(low + step*i) not in prohibited])
 
 
 def _list_domain_unbounded(values):
     return _Domain(len(values), values.__getitem__, lambda value: value in values)
+
+
+def _stepped_domain(low, high, step):
+    import sympy as sp
+    if any(isinstance(value, bool) or not isinstance(value, (int, sp.Rational))
+           for value in (low, high, step)):
+        raise GenerationError("rand_with_step needs exact rational bounds and step")
+    if step == 0:
+        raise GenerationError("rand_with_step needs a nonzero step")
+    size = int(sp.floor((sp.Rational(high)-low)/step)) + 1
+    if not 0 < size <= MAX_DOMAIN:
+        raise GenerationError("stepped random domain is empty or exceeds {}".format(MAX_DOMAIN))
+    return _list_domain_unbounded([low + step*i for i in range(size)])
 
 
 def _selection(values, count, replacement=False):
@@ -147,16 +168,13 @@ def _selection(values, count, replacement=False):
             if not replacement:
                 pool.pop(position)
         return result
+    available = Counter(_key(item) for item in values)
     def contains(value):
         if not isinstance(value, list) or len(value) != count:
             return False
-        pool = list(values)
-        for item in value:
-            if item not in pool:
-                return False
-            if not replacement:
-                pool.remove(item)
-        return True
+        wanted = Counter(_key(item) for item in value)
+        return all(key in available and (replacement or amount <= available[key])
+                   for key, amount in wanted.items())
     return _Domain(size, at, contains)
 
 
@@ -166,17 +184,20 @@ def _domain(name, args, kwargs):
             raise GenerationError("unknown pick option")
         exclude = _items(kwargs.get("exclude", []))
         if len(args) == 1 and "step" not in kwargs:
-            return _list_domain([v for v in _items(args[0]) if v not in exclude])
+            prohibited = _keys(exclude)
+            return _list_domain([v for v in _items(args[0]) if _key(v) not in prohibited])
         if len(args) == 2:
             return _range_domain(*args, kwargs.get("step", 1), exclude)
     elif kwargs:
         raise GenerationError("random aliases do not accept keyword options")
     elif name == "rand" and len(args) == 1:
         if isinstance(args[0], (list, tuple)):
+            if not args[0]:
+                return _Domain(1, lambda index: [], lambda value: isinstance(value, list) and not value)
             return _list_domain(args[0])
         return _range_domain(0, _integer(args[0])-1, 1, [])
     elif name in ("rand_with_step", "rand_range") and len(args) == 3:
-        return _range_domain(*args, [])
+        return _stepped_domain(*args)
     elif name == "rand_with_prohib" and len(args) == 3:
         return _range_domain(args[0], args[1], 1, _items(args[2]))
     elif name in ("sample", "rand_selection", "rand_selection_with_replacement") and len(args) == 2:
@@ -366,7 +387,7 @@ def execute(source, *, variables=None, seed="", replay=None, file="<variables>",
                 if not isinstance(message, dict):
                     raise GenerationError("worker exited without a result")
                 if set(message) == {"statement", "line"}:
-                    if expected >= len(tree.body) or type(message["statement"]) is not int or message["statement"] != expected or message["line"] != tree.body[expected].lineno:
+                    if expected >= len(tree.body) or type(message["statement"]) is not int or message["statement"] != expected or type(message["line"]) is not int or message["line"] != tree.body[expected].lineno:
                         raise GenerationError("unexpected worker statement boundary")
                     line, expected = message["line"], expected+1
                     # First boundary includes initialization in the first variable's budget.
@@ -374,16 +395,24 @@ def execute(source, *, variables=None, seed="", replay=None, file="<variables>",
                         variable_started = time.monotonic()
                 elif set(message) == {"result"} and expected == len(tree.body):
                     result = decode(message["result"])
+                    if not isinstance(result, dict) or set(result) != {"variables", "choices"} or not isinstance(result["variables"], dict) or not isinstance(result["choices"], list):
+                        raise GenerationError("invalid worker result shape")
                     result["locator"] = json.dumps(encode(result["choices"]), sort_keys=True,
                                                     ensure_ascii=True, separators=(",", ":"))
                     return result
                 elif set(message) == {"error", "rejected"}:
+                    if not isinstance(message["error"], str) or type(message["rejected"]) is not bool:
+                        raise GenerationError("invalid worker error shape")
                     error = Rejected if message["rejected"] else GenerationError
                     raise error(message["error"])
                 else:
                     raise GenerationError(message.get("protocol_error", "unexpected worker protocol"))
-        except GenerationError as error:
-            raise type(error)(where + str(error)) from error
+        except Exception as error:
+            kind = Rejected if isinstance(error, Rejected) else GenerationError
+            detail = str(error)
+            if not detail.startswith("line "):
+                detail = "line {}: {}".format(line, detail)
+            raise kind(where + detail) from error
         finally:
             stopped.set()
             if process.poll() is None:

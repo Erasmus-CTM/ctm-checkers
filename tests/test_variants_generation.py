@@ -38,6 +38,17 @@ class LanguageTests(unittest.TestCase):
         with self.assertRaisesRegex(GenerationError, "unused"):
             execute("a=1", replay=[2])
 
+    def test_replay_and_exclusions_use_exact_structural_values(self):
+        for source, replay in [
+            ("a=pick([1])", [True]), ("a=pick([True])", [1]),
+            ("a=sample([1,2],1)", [[True]]), ("a=sample([True,2],1)", [[1]]),
+            ("a=pick([[1]])", [[True]])]:
+            with self.subTest(source=source), self.assertRaisesRegex(GenerationError,"absent"):
+                execute(source,replay=replay)
+        self.assertEqual(execute("a=pick([1],exclude=[True])",replay=[1])["variables"]["a"],1)
+        self.assertIs(execute("a=pick([True],exclude=[1])",replay=[True])["variables"]["a"],True)
+        self.assertEqual(execute("a=pick(1,1,exclude=[True])",replay=[sp.Integer(1)])["variables"]["a"],1)
+
     def test_require_rejects_without_resampling_and_names_source(self):
         with self.assertRaisesRegex(Rejected, "course.qmd: tangent: line 2"):
             execute("a=rand(5)\nrequire(a!=0)", replay=[0], file="course.qmd", label="tangent")
@@ -62,6 +73,10 @@ class LanguageTests(unittest.TestCase):
             return [domain.at(i) for i in range(domain.size)]
         self.assertEqual(values("rand",[3]), [0,1,2])
         self.assertEqual(values("rand",[[4,7]]), [4,7])
+        self.assertEqual(values("rand",[[]]), [[]])
+        self.assertEqual(values("rand_with_step",[5,-5,-2]),[5,3,1,-1,-3,-5])
+        self.assertEqual(values("rand_with_step",[sp.Rational(1,2),sp.Rational(3,2),sp.Rational(1,3)]),
+                         [sp.Rational(1,2),sp.Rational(5,6),sp.Rational(7,6),sp.Rational(3,2)])
         self.assertEqual(values("rand_with_step",[-5,3,3]), [-5,-2,1])
         self.assertEqual(values("rand_range",[-5,3,3]), [-5,-2,1])
         self.assertEqual(values("rand_with_prohib",[-2,2,[0,sp.sqrt(2)]]),[-2,-1,1,2])
@@ -159,6 +174,21 @@ class SupervisorTests(unittest.TestCase):
                   'print(\'{"statement":1,"line":2}\',flush=True); time.sleep(10)')
         with self.assertRaisesRegex(GenerationError, "time budget"):
             self._worker_script(script, "a=1\nb=2", variable_timeout=1, variant_timeout=.5)
+
+    def test_malformed_worker_protocol_is_contextual_and_cleans_up(self):
+        import json
+        from ctm_checkers.variants import encode
+        for message, expected in [
+            ({"result":{"version":1,"value":["unknown"]}}, "unknown"),
+            ({"result":encode([])}, "result shape"),
+            ({"result":encode({"variables":[],"choices":[]})}, "result shape"),
+            ({"error":1,"rejected":False}, "error shape")]:
+            script = "import time; print(" + repr(json.dumps({"statement":0,"line":1})) + ",flush=True); print(" + repr(json.dumps(message)) + ",flush=True); time.sleep(10)"
+            with self.subTest(message=message), self.assertRaisesRegex(GenerationError,"<variables>: <question>: line 1:.*"+expected):
+                self._worker_script(script,"a=1")
+        script = "import time; print(" + repr(json.dumps({"statement":0,"line":True})) + ",flush=True); time.sleep(10)"
+        with self.assertRaisesRegex(GenerationError,"line 1: unexpected worker statement boundary"):
+            self._worker_script(script,"a=1")
 
     def test_blocked_reader_queue_is_cancellable(self):
         import io
