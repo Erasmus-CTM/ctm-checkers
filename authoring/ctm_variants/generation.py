@@ -310,9 +310,11 @@ def _run(source, variables, seed, replay, progress):
                 left = right
             return True
         value = resolve(node)
-        if value not in (True, False):
-            raise GenerationError("require needs a decidable Boolean condition")
-        return bool(value)
+        if value is True or value is sp.true:
+            return True
+        if value is False or value is sp.false:
+            return False
+        raise GenerationError("require needs a decidable Boolean condition")
     for index, node in enumerate(tree.body):
         progress(index, node.lineno)
         try:

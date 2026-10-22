@@ -62,6 +62,14 @@ class LanguageTests(unittest.TestCase):
         with self.assertRaisesRegex(GenerationError, "course.qmd: tangent"):
             execute("import os", file="course.qmd", label="tangent")
 
+    def test_require_needs_a_boolean_not_integer_zero_or_one(self):
+        for value in ("0","1","2"):
+            with self.subTest(value=value), self.assertRaisesRegex(GenerationError,"decidable Boolean"):
+                execute("require("+value+")")
+        self.assertEqual(execute("require(True)")["choices"],[])
+        with self.assertRaises(Rejected):
+            execute("require(False)")
+
     def test_unsupported_source_and_dangerous_strings_fail_closed(self):
         for source in ["a=__import__('os')", "a=subs('bad',x,1)", "a=x.__class__",
                        "a=raw('x')", "for x in [1]: pass", "a=1\na=2",
