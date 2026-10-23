@@ -102,7 +102,9 @@ class EnumerationTests(unittest.TestCase):
         import ctm_variants.enumeration as enumeration
         real=enumeration.subprocess.Popen
         children=[]
-        script="import time; " + "; ".join("print("+repr(json.dumps(message))+",flush=True)" for message in messages) + "; time.sleep(10)"
+        script="import time; " + "; ".join(
+            "time.sleep("+repr(message)+")" if isinstance(message,float)
+            else "print("+repr(json.dumps(message))+",flush=True)" for message in messages) + "; time.sleep(10)"
         def launch(*args,**kwargs):
             process=real([sys.executable,"-c",script],**kwargs)
             children.append(process)
@@ -129,6 +131,19 @@ class EnumerationTests(unittest.TestCase):
             ([{"attempt":0},{"statement":0,"line":1},{"end":"accepted","result":{}}],"path end")]:
             with self.subTest(expected=expected), self.assertRaisesRegex(GenerationError,expected):
                 self._fake_worker(messages)
+
+    def test_absolute_budget_survives_valid_attempt_and_statement_progress(self):
+        attempts=[{"attempt":0},{"statement":0,"line":1},{"end":"branch","size":2},
+                  0.3,{"attempt":1},{"statement":0,"line":1},0.3,{"done":0}]
+        with self.assertRaisesRegex(GenerationError,"time budget"):
+            self._fake_worker(attempts,exercise_timeout=0.5)
+        statements=[{"attempt":0},{"statement":0,"line":1},0.3,
+                    {"statement":1,"line":2},0.3,{"done":0}]
+        with self.assertRaisesRegex(GenerationError,"time budget"):
+            self._fake_worker(statements,variant_timeout=0.5)
+        # Only the per-variable timer resets at a valid next statement.
+        with self.assertRaisesRegex(GenerationError,"invalid worker completion"):
+            self._fake_worker(statements,variable_timeout=0.5)
 
 
 if __name__ == "__main__":
