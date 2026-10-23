@@ -73,9 +73,23 @@ class LanguageTests(unittest.TestCase):
     def test_unsupported_source_and_dangerous_strings_fail_closed(self):
         for source in ["a=__import__('os')", "a=subs('bad',x,1)", "a=x.__class__",
                        "a=raw('x')", "for x in [1]: pass", "a=1\na=2",
-                       "a=pick([1,2])+1", "sqrt=1", "a=rand(1.5)", "a=dispdp(1,2)", "a=round(1.005,2)", "a=sigfig(1,2)"]:
+                       "a=pick([1,2])+1", "sqrt=1", "a=rand(1.5)", "a=dispdp(1,2)"]:
             with self.subTest(source=source), self.assertRaises(GenerationError):
                 execute(source)
+
+    def test_exact_rounding_catalogue_replay_and_reserved_names(self):
+        source = "r1=pick([pi/7])\na=round(1.005,2)\nb=sigfig(sin(r1),2)\nc=round(-2.5)\nd=sigfig(0.00125,2)\ne=round(1250,-2)"
+        result = execute(source)
+        self.assertEqual(result["variables"], {"r1":sp.pi/7, "a":sp.Rational(101,100),
+            "b":sp.Rational(43,100), "c":-3, "d":sp.Rational(13,10000), "e":1300})
+        self.assertEqual(execute(source, replay=result["choices"]), result)
+        for source in ("round=1", "sigfig=1", "a=round(True,2)",
+                       "a=round(1,True)", "a=sigfig(1,0)", "a=round(x,2)"):
+            with self.subTest(source=source), self.assertRaises(GenerationError):
+                execute(source)
+        for name in ("round", "sigfig"):
+            with self.assertRaisesRegex(GenerationError, "collide"):
+                execute("a=1", variables={name:sp.Integer(1)})
         for source in ["a=1e9999999999", "a=" + "1"*257, "a=" + "1+"*1000 + "1"]:
             with self.assertRaises(GenerationError):
                 execute(source)

@@ -137,6 +137,18 @@ const DAMAGE = text => text.replace(/data: '([A-Za-z0-9+\/]{24})/, (match, start
     const scope = py.toPy(values);
     try { return JSON.parse(py.runPython(code, {globals: scope})); } finally { scope.destroy(); }
   };
+  // Exact rounding contracts execute from the wheel installed by the real page script.
+  assert.deepEqual(inspect('import json\nfrom sympy import Rational, sin, pi\n'
+    + 'from ctm_checkers.math_exercise.numeric import round_exact, sigfig_exact, round_places\n'
+    + 'values=[round_exact(Rational("1.005"),2), round_exact(Rational("-1.005"),2), '
+    + 'round_exact(Rational("1.00499999999999999999999999999"),2), '
+    + 'sigfig_exact(sin(Rational(1,7)),2), sigfig_exact(sin(pi/7),2), '
+    + 'sigfig_exact(Rational("0.00125"),2), sigfig_exact(10**100-1,3)]\n'
+    + 'assert all(isinstance(v,Rational) for v in values)\n'
+    + 'assert round_places(5.395,2)==5.4\n'
+    + 'json.dumps([str(v) for v in values])'),
+    ['101/100', '-101/100', '1', '7/50', '43/100', '13/10000', '1' + '0'.repeat(100)]);
+  assert.deepEqual(names(), before);
   // Exact author context follows the same installed browser.call path as ordinary custom checks.
   const context = inspect('import json\nfrom sympy import Symbol, Rational, Matrix\n'
     + 'from ctm_checkers.variants import question_context\nx=Symbol("x", positive=True)\n'

@@ -239,9 +239,11 @@ def _domain(name, args, kwargs):
 
 def _helpers():
     import sympy as sp
+    from ctm_checkers.math_exercise.numeric import round_exact, sigfig_exact
     return {"subs": lambda value, symbol, replacement: value.subs(symbol, replacement),
             "det": lambda value: value.det(), "inv": lambda value: value.inv(),
             "transpose": lambda value: value.T, "min": sp.Min, "max": sp.Max,
+            "round": round_exact, "sigfig": sigfig_exact,
             }
 
 
