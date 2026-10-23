@@ -28,15 +28,17 @@ replacement pipeline; it reads authored source from the PR. Variables and custom
 checkers retain the approved Quarto author-code trust model and run unprivileged.
 This work introduces no new OS sandbox policy.
 
-The adapter accepts only a completed exact-head `pull_request` run of
-`.github/workflows/variants.yml`, with the matching repository/PR and a successful
+The adapter accepts a completed exact-head `pull_request` run of
+`.github/workflows/variants.yml` with matching repository/PR, or its explicit
+`workflow_dispatch` successor with matching repository, head repository and PR
+branch. Dispatch runs need not have a GitHub `pull_requests` link. Both require a successful
 `variants-records` job. The overall run may fail the zero-approved publication
 gate. It requires one nonexpired `ctm-variants-records` artifact, verifies the
 GitHub archive SHA256 digest and reads one bounded `variants-records.json` member
 without extracting paths. Its envelope is:
 
 ```json
-{"version":1,"headSha":"<PR head>","producerSha":"<trusted producer SHA>","runId":123,"repositoryId":456,"pullRequest":7,"questions":[{"label":"q","path":"_variants/q.yml","commentId":789,"baseHash":"<current manifest digest or null>","manifest":{},"records":[]}]}
+{"version":1,"headSha":"<PR head>","producerSha":"<trusted producer SHA>","event":"pull_request or workflow_dispatch","expectedHead":"<PR head>","runId":123,"repositoryId":456,"pullRequest":7,"questions":[{"label":"q","path":"_variants/q.yml","commentId":789,"baseHash":"<current manifest digest or null>","manifest":{},"records":[]}]}
 ```
 
 Only canonical `_variants/<label>.yml` paths are writable. The native format is
@@ -51,6 +53,10 @@ are rechecked beforehand, and the resulting head is checked again before the
 explicit `variants.yml` dispatch, whose inputs include `expected_head` and the PR
 number. The receiving workflow must declare these inputs and fail if its observed
 head differs. Dispatch creation alone is not proof of check-status attachment.
+The receiving trusted records producer must verify dispatch inputs against the
+actual PR/head before succeeding, and bind the event and expected head into its
+artifact. This permits repeated approvals after bot-token commits that do not
+trigger an ordinary pull-request run; wrong-branch/event/head artifacts fail.
 The current comment identity, body and update timestamp are reread immediately
 before the CAS; changed intent fails without recording. GitHub provides no joint
 atomic operation for a comment edit and branch commit, so a later comment edit

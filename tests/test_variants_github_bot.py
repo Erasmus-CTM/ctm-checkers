@@ -27,12 +27,13 @@ class FakeGitHub:
         self.head, self.fork, self.permission, self.author = HEAD, False, "write", "ctm[bot]"
         self.stale_at, self.head_reads, self.race_at_cas = None, 0, False
         self.producer_changed, self.run_event, self.job, self.digest_bad = None, "pull_request", "success", False
+        self.run_branch = 'feature/variants'
         self.comment_reads, self.change_comment = 0, False
         row = candidate("value:$(never-execute)", snapshot(["2"], {"answer": "2"}, {}), tests={"passed": True})
         self.old = history.empty("q")
         self.value = history.append_proposals(self.old, [{"record": row, "tape": []}])
         self.body = "- [x] answer " + token("q", row["id"], row["hash"])
-        self.envelope = {"version": 1, "headSha": HEAD, "producerSha": BASE, "runId": 20, "repositoryId": 1,
+        self.envelope = {"version": 1, "headSha": HEAD, "producerSha": BASE, "event": "pull_request", "expectedHead": HEAD, "runId": 20, "repositoryId": 1,
                          "pullRequest": 7, "questions": [{"label": "q", "path": "_variants/q.yml", "commentId": 11,
                              "baseHash": digest(self.old), "manifest": self.value, "records": [row]}]}
 
@@ -80,7 +81,7 @@ class FakeGitHub:
             self.comment_reads += 1
             return {"id": 11, "updated_at": "2026-10-23T00:00:00Z", "user": {"login": self.author}, "body": self.body if not self.change_comment or self.comment_reads == 1 else self.body.replace('[x]', '[ ]'), "issue_url": "https://api.github.com/repos/org/course/issues/7"}
         if suffix.startswith("/actions/workflows/variants.yml/runs?"):
-            return {"workflow_runs": [{"id": 20, "head_sha": HEAD, "event": self.run_event, "status": "completed", "path": ".github/workflows/variants.yml", "repository": {"id": 1}, "pull_requests": [{"number": 7}]}]}
+            return {"workflow_runs": [{"id": 20, "head_sha": HEAD, "head_branch": self.run_branch, "head_repository": {"id": 1}, "event": self.run_event, "status": "completed", "path": ".github/workflows/variants.yml", "repository": {"id": 1}, "pull_requests": [{"number": 7}] if self.run_event == 'pull_request' else []}]}
         if suffix == "/actions/runs/20/jobs?per_page=100":return {"jobs": [{"name": "variants-records", "conclusion": self.job}]}
         if suffix == "/actions/runs/20/artifacts?per_page=100":
             return {"artifacts": [{"id": 30, "name": "ctm-variants-records", "expired": False, "size_in_bytes": len(self.archive()), "digest": "wrong" if self.digest_bad else "sha256:" + hashlib.sha256(self.archive()).hexdigest()}]}
@@ -122,7 +123,8 @@ class GitHubBotTests(unittest.TestCase):
 
     def test_artifact_provenance_paths_and_leases_fail_closed(self):
         for mutate in [lambda x:x.update(headSha=NEXT), lambda x:x.update(producerSha=NEXT), lambda x:x.update(repositoryId=9),
-                       lambda x:x.update(runId=21), lambda x:x["questions"][0].update(path=".github/workflows/attack.yml"),
+                       lambda x:x.update(runId=21), lambda x:x.update(expectedHead=NEXT), lambda x:x.update(event='workflow_dispatch'),
+                       lambda x:x["questions"][0].update(path=".github/workflows/attack.yml"),
                        lambda x:x["questions"][0].update(baseHash="stale")]:
             api = FakeGitHub();mutate(api.envelope)
             with self.assertRaises(VariantError):self.run_bot(api)
@@ -131,6 +133,17 @@ class GitHubBotTests(unittest.TestCase):
         api.envelope["questions"][0]["manifest"] = history.decision(api.value, api.envelope["questions"][0]["records"], "value:$(never-execute)", "approved")
         with self.assertRaisesRegex(VariantError, "history"):self.run_bot(api)
         self.assertEqual(api.mutations, [])
+
+    def test_explicit_dispatch_artifact_can_feed_next_approval_without_pr_run_link(self):
+        api=FakeGitHub();api.run_event='workflow_dispatch';api.envelope['event']='workflow_dispatch'
+        self.assertTrue(self.run_bot(api)['changed'])
+        for changed in ['branch','event','expectedHead']:
+            api=FakeGitHub();api.run_event='workflow_dispatch';api.envelope['event']='workflow_dispatch'
+            if changed=='branch':api.run_branch='other-branch'
+            elif changed=='event':api.envelope['event']='pull_request'
+            else:api.envelope['expectedHead']=NEXT
+            with self.subTest(changed=changed),self.assertRaises(VariantError):self.run_bot(api)
+            self.assertEqual(api.mutations,[])
 
     def test_head_changes_before_record_or_inside_atomic_cas_never_overwrite(self):
         for before, inside in [(2, False), (None, True)]:

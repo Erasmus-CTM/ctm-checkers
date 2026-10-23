@@ -109,11 +109,13 @@ class Recorder:
 
     def _records(self, pull, number, trusted_base):
         head = pull["head"]["sha"]
-        runs = self.get("/actions/workflows/variants.yml/runs?head_sha=" + head + "&event=pull_request&per_page=100")["workflow_runs"]
+        runs = self.get("/actions/workflows/variants.yml/runs?head_sha=" + head + "&per_page=100")["workflow_runs"]
         runs = [run for run in runs if run.get("head_sha") == head and run.get("status") == "completed"
-                and run.get("event") == "pull_request" and run.get("path") == ".github/workflows/variants.yml"
+                and run.get("path") == ".github/workflows/variants.yml"
                 and run.get("repository", {}).get("id") == pull["base"]["repo"]["id"]
-                and any(pr.get("number") == number for pr in run.get("pull_requests", []))]
+                and ((run.get("event") == "pull_request" and any(pr.get("number") == number for pr in run.get("pull_requests", [])))
+                     or (run.get("event") == "workflow_dispatch" and run.get("head_branch") == pull["head"]["ref"]
+                         and run.get("head_repository", {}).get("id") == pull["head"]["repo"]["id"]))]
         if not runs:
             raise VariantError("no exact-head variants check artifact run")
         run = max(runs, key=lambda item: _positive(item["id"], "workflow run"))
@@ -132,9 +134,10 @@ class Recorder:
         if artifact.get("digest") != "sha256:" + hashlib.sha256(data).hexdigest():
             raise VariantError("artifact archive digest differs or is unavailable")
         value = _artifact_bytes(data)
-        if (type(value) is not dict or set(value) != {"version", "headSha", "producerSha", "runId", "repositoryId", "pullRequest", "questions"}
+        if (type(value) is not dict or set(value) != {"version", "headSha", "producerSha", "event", "expectedHead", "runId", "repositoryId", "pullRequest", "questions"}
                 or type(value["version"]) is not int or value["version"] != 1 or value["headSha"] != head
-                or value["producerSha"] != trusted_base or value["runId"] != run_id or value["repositoryId"] != pull["base"]["repo"]["id"]
+                or value["producerSha"] != trusted_base or value["event"] != run["event"] or value["expectedHead"] != head
+                or value["runId"] != run_id or value["repositoryId"] != pull["base"]["repo"]["id"]
                 or value["pullRequest"] != number or type(value["questions"]) is not list):
             raise VariantError("artifact provenance does not match GitHub run/head/PR")
         return value
