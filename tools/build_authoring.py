@@ -37,12 +37,31 @@ def produce(destination, *, check=False, root=ROOT):
     return report
 
 
+def install(extension, *, check=False, root=ROOT):
+    """Install the native seam beside an already materialized checker payload.
+
+    This is a separate producer from the committed six-file browser extension.
+    The umbrella invokes it against its installed extension at an exact source
+    ref; no browser wheel, script or checker manifest is regenerated here.
+    """
+    extension = Path(extension)
+    if not (extension / "checkers.json").is_file() or not (extension / "_extension.yml").is_file():
+        raise ValueError("native install requires an installed ctm-checkers extension")
+    return produce(extension / "native-authoring", check=check, root=root)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", required=True, type=Path)
+    destination = parser.add_mutually_exclusive_group(required=True)
+    destination.add_argument("--output", type=Path)
+    destination.add_argument("--install-extension", type=Path,
+                             help="install native-authoring beside a materialized ctm-checkers payload")
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
-    produce(args.output, check=args.check)
+    if args.install_extension is not None:
+        install(args.install_extension, check=args.check)
+    else:
+        produce(args.output, check=args.check)
 
 
 if __name__ == "__main__":

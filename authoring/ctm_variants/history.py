@@ -66,7 +66,12 @@ def append_proposals(value, proposals):
 def decision(value, candidates, locator, status, **metadata):
     result = copy.deepcopy(validate(value))
     selected = next((item for item in candidates if item.get("id") == locator), None)
-    if selected is None or not any(p["record"] == selected for p in result["proposals"]):
+    def retained(proposal):
+        record = proposal["record"]
+        return (record["id"] == selected["id"] and record["hash"] == selected["hash"]
+                and all(record["snapshot"][key] == selected["snapshot"][key]
+                        for key in ("math", "teacher", "grading")))
+    if selected is None or not any(retained(p) for p in result["proposals"]):
         raise VariantError("a decision requires its retained proposal and replay tape")
     updated = decide(result["decisions"], candidates, locator, status, **metadata)
     if updated != result["decisions"]:

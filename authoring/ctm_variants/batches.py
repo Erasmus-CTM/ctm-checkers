@@ -39,7 +39,7 @@ def _record(value):
 
 def collect_tested_batch(source, *, retained=(), max_source_records,
                          candidate_timeout=30.0, elapsed_limit=30.0,
-                         file="<question>", label="<exercise>"):
+                         file="<question>", label="<exercise>", reserved_notes=()):
     """Append up to 25 new note-distinct, real-grader-tested records.
 
     source is a trusted caller-owned iterator of already-resolved records whose
@@ -98,6 +98,10 @@ def collect_tested_batch(source, *, retained=(), max_source_records,
             raise BatchError("invalid validation worker startup")
 
     try:
+        for note in reserved_notes:
+            if not isinstance(note, str):
+                raise BatchError("reserved notes must be strings")
+            notes.add(note)
         for value in retained:
             row = _record(value)
             if row["id"] in by_id:

@@ -14,6 +14,23 @@ spec.loader.exec_module(producer)
 
 
 class DistributionTests(unittest.TestCase):
+    def test_install_hook_adds_only_native_seam_to_installed_extension(self):
+        with tempfile.TemporaryDirectory() as folder:
+            extension = Path(folder) / "ctm-checkers"
+            extension.mkdir()
+            with self.assertRaisesRegex(ValueError, "installed"):
+                producer.install(extension)
+            original = {"checkers.json": b'{"wheel":"unchanged.whl"}\n',
+                        "_extension.yml": b"title: ctm-checkers\n", "unchanged.whl": b"original wheel bytes"}
+            for name, data in original.items():
+                (extension / name).write_bytes(data)
+            completed = subprocess.run([sys.executable, str(ROOT / "tools" / "build_authoring.py"),
+                                        "--install-extension", str(extension)], capture_output=True, text=True)
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertEqual(producer.install(extension, check=True)["kind"], "native-authoring")
+            self.assertEqual({name: (extension / name).read_bytes() for name in original}, original)
+            self.assertTrue((extension / "native-authoring" / "ctm_variants" / "orchestration.py").is_file())
+
     def test_produced_directory_executes_real_supervised_authoring(self):
         import sympy
         import mpmath
