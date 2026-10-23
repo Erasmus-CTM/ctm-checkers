@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import PACKAGE
+from tests.conftest import PACKAGE
 
 LESSON = '''# A lesson
 

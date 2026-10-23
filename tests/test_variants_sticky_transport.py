@@ -7,7 +7,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'authoring'))
 from ctm_variants.github_bot import Recorder
 from ctm_variants.checklist import question_marker
 from ctm_variants.model import VariantError
-from test_variants_github_bot import FakeGitHub,PATHS,HEAD
+from tests.test_variants_github_bot import FakeGitHub,PATHS,HEAD
 
 
 class PreviewAPI(FakeGitHub):

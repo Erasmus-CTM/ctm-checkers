@@ -5,7 +5,7 @@ import os
 import subprocess
 import sys
 
-from conftest import PACKAGE, PACKAGES, ROOT
+from tests.conftest import PACKAGE, PACKAGES, ROOT
 
 SRC = ROOT / 'src' / 'ctm_checkers'
 
