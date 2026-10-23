@@ -247,7 +247,7 @@ def _helpers():
             }
 
 
-def _run(source, variables, seed, replay, progress):
+def _run(source, variables, seed, replay, progress, choose=None):
     from ctm_checkers.testing import expression
     import sympy as sp
     source, tree = _source(source)
@@ -276,7 +276,9 @@ def _run(source, variables, seed, replay, progress):
                         raise GenerationError("duplicate random options")
                     domain = _domain(call.func.id, args, kwargs)
                     index = len(tape)
-                    if replay is None:
+                    if choose is not None:
+                        value = choose(index, domain)
+                    elif replay is None:
                         digest = hashlib.sha256((seed + ":" + str(index)).encode("utf-8")).digest()
                         value = domain.at(int.from_bytes(digest, "big") % domain.size)
                     else:
