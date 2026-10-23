@@ -53,7 +53,7 @@ def _enumerate(source, variables, limit, emit):
                 raise GenerationError("raw choice space exceeds {}; sampling is unsupported".format(limit))
             for index in range(branch.domain.size-1, -1, -1):
                 pending.append(prefix + [branch.domain.at(index)])
-            emit({"end": "branch"})
+            emit({"end": "branch", "size": branch.domain.size})
         except Rejected:
             finished += 1
             emit({"end": "rejected"})
@@ -112,7 +112,7 @@ def enumerate_exhaustive(source, *, variables=None, raw_path_limit=MAX_DOMAIN,
         reader = threading.Thread(target=_read_lines, args=(process.stdout, messages, stopped),
             name="ctm-enumeration-reader", daemon=True)
         reader.start()
-        attempt, statement, active, line = 0, 0, False, 1
+        attempt, statement, active, line, pending = 0, 0, False, 1, 1
         try:
             while True:
                 deadline = min(started+exercise_timeout, variant_started+variant_timeout,
@@ -132,11 +132,12 @@ def enumerate_exhaustive(source, *, variables=None, raw_path_limit=MAX_DOMAIN,
                 if total_bytes > MAX_OUTPUT:
                     raise GenerationError("enumeration output exceeds byte limit")
                 if set(message) == {"attempt"}:
-                    if active or type(message["attempt"]) is not int or message["attempt"] != attempt:
+                    if active or not pending or type(message["attempt"]) is not int or message["attempt"] != attempt:
                         raise GenerationError("unexpected worker attempt boundary")
                     if attempt:
                         variant_started = variable_started = time.monotonic()
                     attempt, statement, active = attempt+1, 0, True
+                    pending -= 1
                 elif set(message) == {"statement", "line"}:
                     if (not active or statement >= len(tree.body)
                             or type(message["statement"]) is not int or message["statement"] != statement
@@ -148,12 +149,19 @@ def enumerate_exhaustive(source, *, variables=None, raw_path_limit=MAX_DOMAIN,
                     statement += 1
                 elif message.get("end") in ("branch", "rejected", "accepted"):
                     accepted = message["end"] == "accepted"
-                    if (not active or set(message) != ({"end", "result"} if accepted else {"end"})
+                    branching = message["end"] == "branch"
+                    expected = {"end", "result"} if accepted else ({"end", "size"} if branching else {"end"})
+                    if (not active or set(message) != expected
                             or (accepted and statement != len(tree.body))
                             or (not accepted and not statement)):
                         raise GenerationError("unexpected worker path end")
                     active = False
-                    if message["end"] == "rejected":
+                    if branching:
+                        size = message["size"]
+                        if type(size) is not int or not 1 <= size <= MAX_DOMAIN:
+                            raise GenerationError("invalid worker branch size")
+                        pending += size
+                    elif message["end"] == "rejected":
                         rejected += 1
                         completed += 1
                     elif accepted:
@@ -169,10 +177,10 @@ def enumerate_exhaustive(source, *, variables=None, raw_path_limit=MAX_DOMAIN,
                             seen.add(locator)
                             result["locator"] = locator
                             records.append(result)
-                    if completed > limit:
+                    if completed + pending > limit:
                         raise GenerationError("raw choice space exceeds limit")
                 elif set(message) == {"done"}:
-                    if active or not attempt or type(message["done"]) is not int or message["done"] != completed:
+                    if active or pending or not attempt or type(message["done"]) is not int or message["done"] != completed:
                         raise GenerationError("invalid worker completion")
                     return {"candidates":records, "raw_paths":completed,
                             "rejected":rejected, "duplicates":duplicates}

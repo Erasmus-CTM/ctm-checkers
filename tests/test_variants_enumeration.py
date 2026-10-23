@@ -59,6 +59,13 @@ class EnumerationTests(unittest.TestCase):
         self.assertEqual(result["candidates"],[execute("a=round(1.005,2)")])
         self.assertEqual(enumerate_exhaustive("")["candidates"],[execute("")])
 
+    def test_multiple_random_calls_keep_distinct_tapes_with_equal_results(self):
+        result=enumerate_exhaustive("a=rand(2)+rand(2)")
+        self.assertEqual(result["raw_paths"],4)
+        self.assertEqual(result["duplicates"],0)
+        self.assertEqual([row["choices"] for row in result["candidates"]],[[0,0],[0,1],[1,0],[1,1]])
+        self.assertEqual([row["variables"]["a"] for row in result["candidates"]],[0,1,1,2])
+
     def test_errors_are_contextual_and_never_return_partial_candidates(self):
         for source in ("a=pick([1,0])\nb=1/a", "a=pick([1,2])\nb=missing", "import os"):
             with self.subTest(source=source), self.assertRaisesRegex(GenerationError,"course.qmd: dependent: line "):
@@ -89,6 +96,39 @@ class EnumerationTests(unittest.TestCase):
         with self.assertRaisesRegex(GenerationError,"raw choice space exceeds"):
             _enumerate("a=pick([1,2])\nb=pick(1,20000)",{},20000,events.append)
         self.assertFalse(any(event.get("end")=="accepted" for event in events))
+
+    def _fake_worker(self,messages,**options):
+        import json
+        import ctm_variants.enumeration as enumeration
+        real=enumeration.subprocess.Popen
+        children=[]
+        script="import time; " + "; ".join("print("+repr(json.dumps(message))+",flush=True)" for message in messages) + "; time.sleep(10)"
+        def launch(*args,**kwargs):
+            process=real([sys.executable,"-c",script],**kwargs)
+            children.append(process)
+            return process
+        try:
+            with patch.object(enumeration.subprocess,"Popen",launch):
+                return enumerate_exhaustive("a=pick([1,2])\nb=1",**options)
+        finally:
+            self.assertTrue(children and all(child.poll() is not None for child in children))
+            self.assertFalse(any(t.name=="ctm-enumeration-reader" for t in threading.enumerate()))
+
+    def test_deadlines_after_real_progress_kill_and_join_worker(self):
+        progress=[{"attempt":0},{"statement":0,"line":1}]
+        for option in ("variable_timeout","variant_timeout","exercise_timeout"):
+            with self.subTest(option=option), self.assertRaisesRegex(GenerationError,"time budget"):
+                self._fake_worker(progress,**{option:0.5})
+
+    def test_protocol_rejects_repeated_boundaries_and_incomplete_frontier(self):
+        for messages,expected in [
+            ([{"attempt":0},{"attempt":0}],"attempt boundary"),
+            ([{"attempt":0},{"statement":0,"line":1},{"statement":0,"line":1}],"statement boundary"),
+            ([{"attempt":0},{"statement":0,"line":1},{"end":"branch","size":True}],"branch size"),
+            ([{"attempt":0},{"statement":0,"line":1},{"end":"branch","size":2},{"done":0}],"completion"),
+            ([{"attempt":0},{"statement":0,"line":1},{"end":"accepted","result":{}}],"path end")]:
+            with self.subTest(expected=expected), self.assertRaisesRegex(GenerationError,expected):
+                self._fake_worker(messages)
 
 
 if __name__ == "__main__":
