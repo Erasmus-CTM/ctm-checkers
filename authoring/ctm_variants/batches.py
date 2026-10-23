@@ -115,6 +115,8 @@ def collect_tested_batch(source, *, retained=(), max_source_records,
             try:
                 value = next(iterator)
             except StopIteration:
+                if time.monotonic() - started >= elapsed_limit:
+                    raise BatchError("batch boundary time budget exceeded")
                 exhausted = True
                 break
             scanned += 1

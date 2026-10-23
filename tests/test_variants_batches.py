@@ -141,6 +141,12 @@ class BatchTests(unittest.TestCase):
             yield record(1)
         with self.assertRaisesRegex(BatchError, "boundary time budget"):
             collect_tested_batch(source(), max_source_records=2, elapsed_limit=0.01)
+        def exhausted_source():
+            time.sleep(0.03)
+            return
+            yield
+        with self.assertRaisesRegex(BatchError, "boundary time budget"):
+            collect_tested_batch(exhausted_source(), max_source_records=2, elapsed_limit=0.01)
 
     def test_hanging_grader_is_killed_and_author_output_does_not_reset_deadline(self):
         import ctm_variants.batches as batches
