@@ -5,16 +5,15 @@ name: Pyodide
 # umbrella's harness modules, tools/pins.json; authored rows with its
 # authored_record.py): the page script's install code (through globals.set
 # and runPythonAsync only), then the golden tables with the wheel it
-# installed and with the legacy code. Runs on every pull request
-# and push to main (no path filter, so the checks can be required), weekly
-# and on demand; npm packages and the verified wheels are cached.
+# installed and with the legacy code. Runs only as an explicitly authorized
+# manual broad campaign; npm packages and verified wheels remain cached.
 on:
-  push:
-    branches: [main]
-  pull_request:
-  schedule:
-    - cron: '41 4 * * 1'
   workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'AC authorization: enter broad testing campaign'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -24,7 +23,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  authorize:
+    name: Authorize broad testing campaign
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require explicit campaign confirmation
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: test "$CONFIRMATION" = 'broad testing campaign'
   goldens:
+    needs: authorize
     name: Pyodide ${{ matrix.pyodide }}
     runs-on: ubuntu-latest
     timeout-minutes: 30

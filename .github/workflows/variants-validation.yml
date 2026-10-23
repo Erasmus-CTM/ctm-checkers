@@ -1,11 +1,25 @@
 name: Resolved native candidate validation
 on:
-  pull_request:
-    paths: ['authoring/ctm_variants/**', 'tests/test_variants_validation.py', '.github/workflows/variants-validation.yml']
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'AC authorization: enter broad testing campaign'
+        required: true
+        type: string
+
 permissions:
   contents: read
 jobs:
+  authorize:
+    name: Authorize broad testing campaign
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require explicit campaign confirmation
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: test "$CONFIRMATION" = 'broad testing campaign'
   validation:
+    needs: authorize
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
