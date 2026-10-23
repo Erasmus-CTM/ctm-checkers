@@ -20,10 +20,18 @@ deduplication when candidate enumeration is implemented.
 The language accepts one assignment or `require(condition, ...)` per statement,
 comments, exact decimal and rational arithmetic, and `^` as power. Deterministic
 expressions use the existing `ctm_checkers.testing.expression` evaluator, with
-native helpers for `subs`, `det`, `inv`, `transpose`, `min`, and `max`.
+native helpers for `subs`, `det`, `inv`, `transpose`, `min`, `max`, `round`, and `sigfig`.
 Strings, attributes, imports, loops, definitions and fixture `raw()` fail explicitly.
-`round`/`sigfig` remain unsupported until the shared numeric home can provide
-exact authoring arithmetic while preserving legacy grading. Display-only
+`round(value, places=0)` and `sigfig(value, figures)` bind the shared
+`math_exercise.numeric.round_exact` and `sigfig_exact` helpers. Both return exact
+SymPy integers/rationals with ties rounded half away from zero; decimal literals
+stay exact before rounding. Negative decimal places are supported, while
+significant figures must be positive integers. Exact finite real expressions
+such as `sigfig(sin(r1), 2)` work directly. Floats, strings, unresolved symbols,
+non-real/nonfinite values and noninteger precisions fail explicitly. An exact
+boundary or decimal magnitude that SymPy cannot determine also fails explicitly.
+These helpers do not change the legacy float `round_places`, `sigfigs_round`,
+`parse_tolerance`, or any grading call site. Display-only
 `dispdp`/`dispsf` are also not added by this kernel.
 
 Finite choices support `pick(list, exclude=[])`,
@@ -72,7 +80,8 @@ placeholder/display evaluation; automatic teacher-answer and authored-test
 invocation through `run_question`; conversion into neutral model snapshots;
 proposals/default-25 selection; manifests, approvals and component wiring.
 Those layers must reuse this bounded execution and existing grading APIs.
-No browser wheels or generated payloads change here.
+Only the exact numeric helpers enter the browser wheel; authoring execution
+remains native. Generated payloads come from `tools/build.py`.
 
 Run `python tests/test_variants_generation.py`. The dedicated workflow pins
 SymPy 1.13.3 on Python 3.9, 3.12 and 3.13. Native runs on other versions are
