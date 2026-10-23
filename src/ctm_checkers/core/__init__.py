@@ -1,1 +1,1 @@
-"""Parts shared by every engine: the custom-checker result contract."""
+"""Parts shared by engines: custom-checker execution and result normalization."""

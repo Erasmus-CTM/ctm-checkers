@@ -8,6 +8,9 @@ diff (docs/goldens.md).
 
 ## Unreleased (0.6.1.dev0)
 
+- Custom-checker execution lives in the engine-neutral core. Math retains its
+  response preparation, namespace, output, errors and result contract unchanged.
+  This is the shared H1 foundation; no STACK adapter or new syntax is added.
 - Shared declarative authored question tests use the real math-exercise
   graders in every mode, with named/positional fields, exact expressions,
   raw student strings, per-field or overall expectations and scores.
