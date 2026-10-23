@@ -131,3 +131,13 @@ this action never changes a source manifest. G1 review pages link to GitHub's
 native Actions form and show/copy the exact branch, PR, head and label inputs.
 They contain no browser generator, credentials or custom dispatch form. Source
 and fake-resolution/UI checks do not prove a live dispatch or status attachment.
+
+Resolved teacher-answer rendering is optional presentation metadata. A question
+may carry `teacherDisplays` keyed by current candidate identity and exact teacher
+field name; legacy artifacts omit it. The producer captures only component
+response projections, and the privileged adapter validates every mapping and the
+shared bounded MathML/LaTeX sanitizer before any write. Neutral six-field
+candidates, authored options, hashes and history remain unchanged. The canonical
+teacher input is always retained beside the display; an omitted or unsupported
+component display uses that input, while malformed supplied artifact metadata is
+rejected. No privileged authored-code execution is introduced.

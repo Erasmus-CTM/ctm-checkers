@@ -25,7 +25,7 @@ class RetirementTests(unittest.TestCase):
         self.assertEqual(self.value['decisions'][0]['status'],'approved')
 
     def test_absent_approval_stale_hash_or_missing_reason_refused(self):
-        for update in ({'status':'approved'},{'hash':'stale'},{'reason':''}):
+        for update in ({'status':'approved'},{'hash':'stale'},{'reason':''},{'reason':42}):
             with self.subTest(update=update),self.assertRaises(VariantError):
                 apply_decisions(self.value,[],[dict(self.selection,**update)])
 

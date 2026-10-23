@@ -46,6 +46,26 @@ def _artifact_bytes(data):
         raise VariantError("invalid neutral records artifact") from error
 
 
+def teacher_displays(question):
+    """Validate optional presentation metadata without changing candidate data."""
+    supplied = question.get("teacherDisplays", {})
+    if type(supplied) is not dict:
+        raise VariantError("teacher displays require a candidate mapping")
+    current = {item["id"]: dict(item["snapshot"]["teacher"]) for item in question["records"]}
+    result = {}
+    for locator, fields in supplied.items():
+        if locator not in current or type(fields) is not dict or not set(fields).issubset(current[locator]):
+            raise VariantError("teacher display fields differ from current candidate inputs")
+        from ctm_variants.review import teacher_display
+        result[locator] = {}
+        for field, projection in fields.items():
+            safe = teacher_display(projection)
+            if safe is None:
+                raise VariantError("invalid teacher display projection")
+            result[locator][field] = safe
+    return result
+
+
 class Recorder:
     def __init__(self, transport, *, repository, bot_login, producer_paths, workflow="variants.yml"):
         if not isinstance(repository, str) or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
@@ -152,7 +172,8 @@ class Recorder:
     def _questions(self, artifact):
         labels, paths = set(), set()
         for question in artifact["questions"]:
-            if type(question) is not dict or set(question) != {"label", "path", "baseHash", "manifest", "records", "cards"}:
+            if (type(question) is not dict or not {"label", "path", "baseHash", "manifest", "records", "cards"}.issubset(question)
+                    or set(question) - {"label", "path", "baseHash", "manifest", "records", "cards", "teacherDisplays"}):
                 raise VariantError("invalid question artifact schema")
             label, path = question["label"], question["path"]
             if (not isinstance(label, str) or not LABEL.fullmatch(label) or ".." in label
@@ -164,6 +185,7 @@ class Recorder:
                 raise VariantError("question artifact manifest label differs")
             canonical(question["records"])
             classify(value["decisions"], question["records"])
+            teacher_displays(question)
             if type(question["cards"]) is not dict or set(question["cards"]) != {item["id"] for item in question["records"]}:
                 raise VariantError("preview cards differ from resolved identities")
             for locator, url in question["cards"].items():
@@ -372,6 +394,12 @@ class Recorder:
         # question cannot cause a partially refreshed report to look complete.
         values = {question["label"]: self._value(question, head) for question in questions}
         comments = self._own_comments(number)
+        from ctm_variants.project_report import sync_comments
+        project = sync_comments(self, number=number, questions=questions, comments=comments,
+            head=head, trusted=trusted, pull=pull, run_id=run_id)
+        if project["large"]:
+            return {"head": head, "runId": run_id, "questions": {}, "project": project,
+                    "statusAttachment": "unverified: observe actual exact-head required check"}
         result = {}
         for question in questions:
             label = question["label"]
@@ -381,7 +409,7 @@ class Recorder:
                 raise VariantError("duplicate own sticky comments for one question")
             previous = self._comment(number, _positive(existing[0]["id"], "sticky comment id")) if existing else None
             rendered = render_checklist(label=label, records=question["records"], decisions=values[label]["decisions"],
-                cards=question["cards"], previous_body=previous["body"] if previous else None,
+                cards=question["cards"], teacher_displays=teacher_displays(question), previous_body=previous["body"] if previous else None,
                 comment_author=self.bot if previous else None, bot_login=self.bot if previous else None)
             body = rendered["body"] + "\n\nEvidence: head `" + head + "`; records run " + str(run_id) + "."
             self._head(number, head)
@@ -391,7 +419,7 @@ class Recorder:
                 latest = self._comment(number, previous["id"])
                 if any(latest.get(key) != previous.get(key) for key in ("body", "updated_at")):
                     rendered = render_checklist(label=label, records=question["records"], decisions=values[label]["decisions"],
-                        cards=question["cards"], previous_body=latest["body"], comment_author=self.bot, bot_login=self.bot)
+                        cards=question["cards"], teacher_displays=teacher_displays(question), previous_body=latest["body"], comment_author=self.bot, bot_login=self.bot)
                     body = rendered["body"] + "\n\nEvidence: head `" + head + "`; records run " + str(run_id) + "."
                 if latest["body"] != body:
                     saved = self.api.request("PATCH", self.prefix + "/issues/comments/" + str(previous["id"]), {"body": body})
@@ -404,7 +432,7 @@ class Recorder:
                 raise VariantError("sticky response does not confirm the configured bot body")
             result[label] = {"commentId": _positive(saved["id"], "saved sticky comment"),
                              "preserved": len(rendered["preserved"]), "notCarried": rendered["notCarried"]}
-        return {"head": head, "runId": run_id, "questions": result,
+        return {"head": head, "runId": run_id, "questions": result, "project": project,
                 "statusAttachment": "unverified: observe actual exact-head required check"}
 
 

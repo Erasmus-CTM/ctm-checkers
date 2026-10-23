@@ -124,7 +124,7 @@ def reconcile(previous_body, *, label, records, decisions, comment_author, bot_l
     return {"preserved": preserved, "notCarried": not_carried}
 
 
-def render(*, label, records, decisions, cards, previous_body=None, comment_author=None, bot_login=None):
+def render(*, label, records, decisions, cards, previous_body=None, comment_author=None, bot_login=None, teacher_displays=None):
     """Return one sticky body and reconciliation report, without posting it.
 
     cards maps each pending id to the producer's actual preview-card URL.
@@ -157,12 +157,25 @@ def render(*, label, records, decisions, cards, previous_body=None, comment_auth
         if variables or (before and before["variables"]):
             facts.append("variables " + _values(variables, before["variables"] if before else None))
         facts.append("teacher " + _values(dict(record["snapshot"]["teacher"]), dict(before["teacher"]) if before else None))
+        if teacher_displays and record["id"] in teacher_displays:
+            from ctm_variants.review import teacher_display
+            supplied = teacher_displays[record["id"]]
+            answers = dict(record["snapshot"]["teacher"])
+            if type(supplied) is not dict or not set(supplied).issubset(answers):
+                raise VariantError("rendered teacher fields differ from the snapshot")
+            displayed = {field: teacher_display(value) for field, value in supplied.items()}
+            if any(value is None for value in displayed.values()):
+                raise VariantError("invalid rendered teacher projection")
+            maths = [_inline(field) + "=" + _math(value["latex"])
+                + " (input " + _inline(answers[field]) + ")" for field, value in displayed.items() if value["latex"]]
+            if maths:
+                facts.append("rendered teacher " + "; ".join(maths))
         facts += [verdict, "[Preview card](" + _url(cards.get(record["id"])) + ")"]
         lines.append("- [{}] {} {}".format("x" if record["id"] in checked else " ", " · ".join(facts),
                       token(label, record["id"], record["hash"], item["n"])))
     if carried["notCarried"]:
         lines += ["", "Not carried forward: " + "; ".join(_inline(item["id"]) + " (" + item["reason"] + ")" for item in carried["notCarried"]) + "."]
-    lines += ["", "Ticks are pending decisions until recorded. Reject on the review page; rejection commands are not wired here."]
+    lines += ["", "Ticks are pending decisions until recorded. Reject on this question checklist with `/variants reject 7 12 \"reason\"` or `/variants reject id:\"candidate id\" \"reason\"`, or use the review page."]
     body = "\n".join(lines)
     if len(body.encode()) > 60000:
         raise VariantError("question checklist exceeds comment budget; use the review page")

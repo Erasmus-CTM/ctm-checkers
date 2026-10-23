@@ -87,7 +87,8 @@ def retire(value, candidates, locator, content_hash, **metadata):
     rows = classify(value["decisions"], candidates)["entries"]
     row = next((row for row in rows if row["entry"]["id"] == locator), None)
     if (row is None or row["state"] != "gone" or row["entry"]["hash"] != content_hash
-            or row["entry"]["status"] != "approved" or not metadata.get("reason", "").strip()):
+            or row["entry"]["status"] != "approved" or not isinstance(metadata.get("reason"), str)
+            or not metadata["reason"].strip()):
         raise VariantError("retirement requires a gone approved entry, exact hash and reason")
     entry = row["entry"]
     retained = next((p["record"] for p in value["proposals"]

@@ -15,7 +15,7 @@ import sys
 from ctm_variants import history
 from ctm_variants.batches import _record
 from ctm_variants.checklist import _url
-from ctm_variants.github_bot import LABEL, SHA, MAX_ARTIFACT, GitHubTransport
+from ctm_variants.github_bot import LABEL, SHA, MAX_ARTIFACT, GitHubTransport, teacher_displays
 from ctm_variants.model import VariantError, digest, classify
 from ctm_variants.review import card_id, document
 
@@ -156,11 +156,15 @@ def produce(project, context, config, *, definitions, resolve, github_context=No
                 raise VariantError("resolved candidate lacks retained proposal/tape")
         cards = {record["id"]: preview.rstrip("/") + "/" + label + ".html#" + card_id(record["id"]) for record in records}
         question = {"label": label, "path": path, "baseHash": lease, "manifest": value, "records": records, "cards": cards}
+        supplied_displays = {item["id"]: item["teacherDisplay"] for item in response["records"]
+                             if "teacherDisplay" in item}
+        if supplied_displays:
+            question["teacherDisplays"] = teacher_displays({**question, "teacherDisplays": supplied_displays})
         encoded = json.dumps(question, ensure_ascii=False, indent=2, allow_nan=False).encode()
         artifact_bytes += len(encoded) + encoded.count(b"\n") * 4 + 6
         if artifact_bytes > ARTIFACT_BUDGET:
             raise VariantError("aggregate neutral records artifact budget exceeded")
-        page = document({**response, "records": records},
+        page = document({**response, "records": records}, teacher_displays=question.get("teacherDisplays", {}),
                         github_context={**github_context, "path": path} if github_context else None,
                         workflow_context={"pullRequest": context["pullRequest"], "label": label} if github_context and workflow_enabled else None)
         review_bytes += len(page.encode())
@@ -249,6 +253,8 @@ def main(argv=None):
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args(argv)
+    from ctm_variants.project_report import write_step_summary
+    summary_written = False
     try:
         project, trusted = args.project.resolve(), args.trusted.resolve()
         if project.is_relative_to(trusted) or trusted.is_relative_to(project):
@@ -266,7 +272,15 @@ def main(argv=None):
             value = json.loads(artifact.read_text(encoding="utf-8"))
             if any(value.get(key) != item for key, item in context.items()):
                 raise VariantError("required check artifact context differs from current run/head")
-            print(json.dumps({"passed": True, "warnings": check(value)}))
+            try:
+                warnings = check(value)
+            except Exception:
+                write_step_summary(value, state="Approval check failed; review changed, gone or unapproved variants")
+                summary_written = True
+                raise
+            write_step_summary(value, state="Approval check passed")
+            summary_written = True
+            print(json.dumps({"passed": True, "warnings": warnings}))
             return 0
         config = json.loads(inside(trusted, args.config).read_text(encoding="utf-8"))
         if type(config) is not dict or set(config) != {"version", "sourceGlobs", "wrapper", "previewBase"} or config["version"] != 1:
@@ -289,8 +303,15 @@ def main(argv=None):
         artifact.write_text(json.dumps(envelope, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8")
         for name, content in pages.items():
             path = args.output / name;path.parent.mkdir(parents=True, exist_ok=True);path.write_text(content, encoding="utf-8")
+        write_step_summary(envelope)
+        summary_written = True
         print(json.dumps({"questions": len(envelope["questions"]), "head": context["headSha"], "recordsArtifact": str(artifact)}))
         return 0
     except Exception as error:
+        if not summary_written:
+            try:
+                write_step_summary(state="Records producer or approval check failed; see the job log")
+            except (OSError, ValueError):
+                pass  # Keep the original failure when the runner summary is unavailable.
         print("variant records producer failed: " + str(error), file=sys.stderr)
         return 1

@@ -1,11 +1,82 @@
 """Review existing native proposals through the same leased manifest writer."""
 import html
 import json
+import re
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from ctm_variants import history
 from ctm_variants.model import VariantError, classify, digest
 from ctm_variants.rejection_hint import rejection_hint
+
+
+def teacher_display(value):
+    """Validate a component's optional presentation, never its answer value.
+
+    The exact teacher/input stays in the canonical snapshot. This accepts only
+    a small MathML presentation vocabulary; printer output is not trusted HTML.
+    """
+    if (type(value) is not dict or set(value) != {"mathml", "latex"}
+            or not all(isinstance(value[key], str) for key in value)
+            or not 0 < len(value["mathml"]) <= 65536 or len(value["latex"]) > 65536):
+        return None
+    source = value["mathml"]
+    if "<!" in source or "<?" in source:
+        return None
+    # SymPy uses named HTML entities such as &pi;. XML must see numeric
+    # references, without unescaping < or & into executable markup.
+    def entity(match):
+        name = match[1] + ";"
+        if name not in html.entities.html5:
+            raise ValueError("unknown MathML entity")
+        return "".join("&#{};".format(ord(char)) for char in html.entities.html5[name])
+    try:
+        source = re.sub(r"&([A-Za-z][A-Za-z0-9]+);", entity, source)
+        root = ET.fromstring(source)
+    except (ET.ParseError, ValueError):
+        return None
+    namespace = "http://www.w3.org/1998/Math/MathML"
+    tags = set("math mrow mi mn mo mtext ms mfrac msqrt mroot msup msub msubsup munder mover munderover mtable mtr mtd mstyle mspace mfenced".split())
+    attributes = set("display mathvariant stretchy fence separator linethickness columnalign rowalign rowspacing columnspacing width height depth accent accentunder open close separators".split())
+    pending, count = [(root, 0)], 0
+    while pending:
+        node, depth = pending.pop()
+        count += 1
+        if not isinstance(node.tag, str) or depth > 64 or count > 1024:
+            return None
+        if node.tag.startswith("{"):
+            uri, tag = node.tag[1:].split("}", 1)
+            if uri != namespace:
+                return None
+        else:
+            tag = node.tag
+        if tag not in tags or any(key not in attributes or len(raw) > 64 for key, raw in node.attrib.items()):
+            return None
+        if tag == "mfenced":
+            # Chromium implements MathML Core, which uses explicit operators.
+            children = list(node)
+            opening, closing = node.get("open", "("), node.get("close", ")")
+            separators = node.get("separators", ",").replace(" ", "")
+            node.clear()
+            start = ET.SubElement(node, "mo"); start.text = opening
+            for index, child in enumerate(children):
+                if index and separators:
+                    separator = ET.SubElement(node, "mo")
+                    separator.text = separators[min(index - 1, len(separators) - 1)]
+                node.append(child)
+            end = ET.SubElement(node, "mo"); end.text = closing
+            tag = "mrow"
+        node.tag = "{" + namespace + "}" + tag
+        pending.extend((child, depth + 1) for child in node)
+    if root.tag != "{" + namespace + "}math":
+        return None
+    latex = value["latex"]
+    if (any(ord(char) < 32 or char in "<>$`" for char in latex)
+            or re.search(r"\\(?:href|url|html[A-Za-z]*|class|style|cssId|includegraphics|input|include|write|openout|read|csname|catcode|def|gdef|edef|newcommand|renewcommand|require)\b", latex)):
+        # The native MathML can remain useful when Markdown math is unsuitable.
+        latex = ""
+    ET.register_namespace("", namespace)
+    return {"mathml": ET.tostring(root, encoding="unicode", short_empty_elements=False), "latex": latex}
 
 
 def card_id(locator):
@@ -84,7 +155,7 @@ def request(payload):
             "classification": classify(value["decisions"], records), "records": records}
 
 
-def document(response, *, connected_endpoint=None, student_previews=None, github_context=None, workflow_context=None, language="en"):
+def document(response, *, connected_endpoint=None, student_previews=None, teacher_displays=None, github_context=None, workflow_context=None, language="en"):
     """Overview with disconnected export or an explicit local connected endpoint.
 
     Component-resolved Markdown is shown as text. Full filter-rendered cards and
@@ -118,6 +189,9 @@ def document(response, *, connected_endpoint=None, student_previews=None, github
                 or not re.fullmatch(r"[0-9a-f]{40}", github_context.get("head", ""))):
             raise VariantError("GitHub editor requires explicit repository, branch, manifest path and source head")
     student_previews = {} if student_previews is None else student_previews
+    teacher_displays = {} if teacher_displays is None else teacher_displays
+    if type(teacher_displays) is not dict:
+        raise VariantError("teacher displays must be a candidate mapping")
     if type(student_previews) is not dict:
         raise VariantError("student previews must be a candidate mapping")
     import re
@@ -137,6 +211,17 @@ def document(response, *, connected_endpoint=None, student_previews=None, github
 
     def text(value):
         return html.escape(str(value), quote=True)
+
+    def answers(snapshot, displays):
+        displays = displays if type(displays) is dict else {}
+        label = {"en": "Input", "de": "Eingabe", "nb": "Inndata"}[language]
+        rows = []
+        for field, answer in snapshot["teacher"]:
+            display = teacher_display(displays.get(field))
+            rendered = ('<span class="teacher-math">' + display["mathml"] + '</span>') if display else ''
+            rows.append('<dt>{}</dt><dd>{}<span class="teacher-input">{}: <code>{}</code></span></dd>'.format(
+                text(field), rendered, text(label), text(answer)))
+        return '<dl>' + ''.join(rows) + '</dl>'
 
     def changes(before, after):
         rows = []
@@ -179,7 +264,7 @@ def document(response, *, connected_endpoint=None, student_previews=None, github
                         '<iframe data-src="{url}" title="{title}" loading="lazy" '
                         'style="width:100%;height:32rem;border:1px solid #aaa"></iframe></details>').format(
                             title=text(title), url=text(student["url"]))
-        teacher = '<dl>' + ''.join('<dt>{}</dt><dd><code>{}</code></dd>'.format(text(key), text(answer)) for key, answer in item["snapshot"]["teacher"]) + '</dl>'
+        teacher = answers(item["snapshot"], teacher_displays.get(item["id"], item.get("teacherDisplay", {})))
         rows.append('<tr id="{anchor}" data-index="{i}" data-needs="{needs}"><th scope="row">{number}</th><td>{state}; {status}<span class="pending"></span></td><td><code>{note}</code>{preview}</td><td>{teacher}</td><td>{verdict}</td><td><button type="button" data-index="{i}" data-status="approved" {disabled}>Approve {number}</button> <button type="button" data-index="{i}" data-status="rejected">Reject {number}</button><label>Reason for {number}<input data-reason="{i}"></label></td></tr>'.format(
             anchor=card_id(item["id"]), i=index, needs=str(status == "undecided").lower(), number=text(number), state=text(state), status=text(status),
             note=text(item["note"]), preview=preview, teacher=teacher, verdict=verdict, disabled="" if passed else "disabled"))
@@ -225,7 +310,7 @@ def document(response, *, connected_endpoint=None, student_previews=None, github
                        "workflow": workflow_context,
                        "items": items}, ensure_ascii=True).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
     page = '''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Variant review</title>
-<style>body{font:1rem system-ui;line-height:1.5;margin:1.5rem;max-width:90rem}table{border-collapse:collapse;width:100%}th,td{border:1px solid #aaa;padding:.5rem;text-align:left;vertical-align:top}button,input{font:inherit;margin:.2rem}pre{white-space:pre-wrap;overflow-wrap:anywhere}label{display:block}.unchanged{color:#666}.pending{font-weight:bold}button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid #146bb5}dl{margin:0}dd{margin-left:0}code{overflow-wrap:anywhere}details table{width:auto}</style>
+<style>body{font:1rem system-ui;line-height:1.5;margin:1.5rem;max-width:90rem}table{border-collapse:collapse;width:100%}th,td{border:1px solid #aaa;padding:.5rem;text-align:left;vertical-align:top}button,input{font:inherit;margin:.2rem}pre{white-space:pre-wrap;overflow-wrap:anywhere}label{display:block}.unchanged{color:#666}.pending{font-weight:bold}button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid #146bb5}dl{margin:0}dd{margin-left:0}.teacher-math{display:block;font-size:1.2em;margin:.2rem 0}.teacher-input{display:block}code{overflow-wrap:anywhere}details table{width:auto}</style>
 <h1>Variant review: ''' + text(value["question"]) + '''</h1><p>Disconnected review: stage choices, download one decision request, then apply it with the native CLI. Nothing is saved by this page. Reloading discards choices that have not been applied.</p>
 <p id="overview">''' + text(' · '.join('{} {}'.format(count, state) for state, count in counts.items())) + '''</p>''' + hint_html + '''
 <p><label>Project root <input id="root" required></label> <label>Manifest path <input id="path" required></label></p>
