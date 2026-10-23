@@ -1,0 +1,44 @@
+name: Variants record decisions
+on:
+  issue_comment:
+    types: [created, edited]
+  workflow_dispatch:
+    inputs:
+      pull_request:
+        description: Same-repository pull request number
+        required: true
+        type: string
+      comment_id:
+        description: Existing own bot checklist comment ID
+        required: true
+        type: string
+permissions: {}
+concurrency:
+  group: variants-decide-${{ github.repository }}-${{ github.event.issue.number || inputs.pull_request }}
+  cancel-in-progress: false
+jobs:
+  decide:
+    if: (github.event_name == 'issue_comment' && github.event.issue.pull_request) || (github.event_name == 'workflow_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      # This file must be installed/reviewed on the protected default branch.
+      # Never replace this ref with an event's PR branch or checkout PR code.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4, verified 2026-10-23
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - name: Record exact-head neutral artifact decisions
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+        # A course installs the reviewed native-only closure at this path.
+        # No event text is interpolated into a shell command.
+        run: python -I _extensions/ctm-checkers/native-authoring/ctm-variants-bot.py --producer-manifest .github/ctm-variants-producer.json

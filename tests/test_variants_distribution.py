@@ -30,6 +30,8 @@ class DistributionTests(unittest.TestCase):
             self.assertEqual(producer.install(extension, check=True)["kind"], "native-authoring")
             self.assertEqual({name: (extension / name).read_bytes() for name in original}, original)
             self.assertTrue((extension / "native-authoring" / "ctm_variants" / "orchestration.py").is_file())
+            self.assertTrue((extension / "native-authoring" / "ctm-variants-bot.py").is_file())
+            self.assertIn("ctm-variants-bot.py", producer.install(extension, check=True)["files"])
 
     def test_produced_directory_executes_real_supervised_authoring(self):
         import sympy
