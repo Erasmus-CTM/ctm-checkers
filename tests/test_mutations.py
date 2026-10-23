@@ -69,9 +69,9 @@ MUTATIONS = {
     'stack-numrelative-strict': ('stack/assessment.py',
                                  'correct = difference <= abs(teacher_number * tolerance * (1 + sp.Rational(1, 10**9)))',
                                  'correct = difference < abs(teacher_number * tolerance)', 1, (STACK,)),
-    'stack-numabsolute-irrational-no-guard': ('stack/assessment.py', 'correct = difference < abs(tol) + Decimal("1e-9")',
+    'stack-numabsolute-irrational-no-guard': ('stack/assessment.py', 'correct = difference < threshold',
                                               'correct = difference < abs(tol)', 1, (STACK,)),
-    'stack-numrelative-irrational-strict': ('stack/assessment.py', 'correct = difference <= abs(ta * tol * (1 + Decimal("1e-9")))',
+    'stack-numrelative-irrational-strict': ('stack/assessment.py', 'correct = difference <= threshold',
                                             'correct = difference < abs(ta * tol)', 1, (STACK,)),
     'stack-decimal-places-half-up': ('stack/assessment.py', 'teacher_decimal.quantize(quantum, rounding=ROUND_HALF_EVEN)',
                                      'teacher_decimal.quantize(quantum, rounding="ROUND_HALF_UP")', 1, (STACK,)),
@@ -170,8 +170,8 @@ MUTATIONS = {
     'stack-s05-absolute-note': ('stack/assessment.py', '    "NumAbsolute": ("ATNumerical_SA_not_number",', '    "NumAbsolute": ("ATNumerical_SA_not_a_number",', 1, (STACK,)),
     'stack-s05-relative-note': ('stack/assessment.py', '    "NumRelative": ("ATNumerical_SA_not_number",', '    "NumRelative": ("ATNumerical_SA_not_a_number",', 1, (STACK,)),
     'stack-s05-decplaces-note': ('stack/assessment.py', '"NumDecPlaces": ("ATNumDecPlaces_SA_Not_num",', '"NumDecPlaces": ("ATNumDecPlaces_SA_Not_a_num",', 1, (STACK,)),
-    'stack-s05-decplaces-integer': ('stack/assessment.py', '        return _not_applicable(_NOT_A_NUMBER[name])\n    try:\n        teacher_decimal',
-                                    '        return _result(False, False, "invalid", "")\n    try:\n        teacher_decimal', 1, (STACK,)),
+    'stack-s05-decplaces-integer': ('stack/assessment.py', '        return _not_applicable(_NOT_A_NUMBER[name])\n    if teacher_error is not None:',
+                                    '        return _result(False, False, "invalid", "")\n    if teacher_error is not None:', 1, (STACK,)),
     # S-10 (0.9.0): checkanswertype refuses an answer of another type than the teacher's (examples/stack/supplement/checkanswertype.xml
     # has an input for each type of teacher's answer; examples/stack/probes/eqtype.xml).
     'stack-s10-check-removed': ('stack/engine.py', '            if mismatch:\n                raise InvalidAnswer(mismatch)\n', '            pass\n', 1, (STACK,)),
