@@ -204,6 +204,11 @@ and stops with one message below Python 3.9.
 
 ### The checker namespace
 
+The engine-neutral `core.custom.execute_checker` owns execution and the existing
+custom-result normalization. Math prepares the response, trusted context and
+namespace, and keeps its existing error handling. This extraction adds no
+STACK adapter, author syntax or scoring behavior.
+
 A `#| checker:` runs in a fresh dict per call (`namespace(request)`), with
 the names math-exercise 0.10.0's checkers saw in its checker module (the
 golden probe `math_exercise/namespace` freezes them and their origins):
