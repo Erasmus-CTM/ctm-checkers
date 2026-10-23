@@ -5,7 +5,7 @@ installed bot. No live comments, decision commits or workflow dispatches were
 sent to test it. Trusted records/sticky workflow glue now exists as source and
 inactive templates, tested using fake resolvers and transports. Day-one bot
 completion still needs course configuration/installation and an actual observed
-run, preview hosting, rejection commands, and observation that the explicitly
+run, public preview hosting, and observation that the explicitly
 dispatched check attaches to its new commit.
 
 The privileged native launcher is `ctm-variants-bot.py`, included by the canonical
@@ -24,9 +24,9 @@ trusted default-branch SHA, and that comparison is repeated before recording.
 
 The reviewed inventory must enumerate the complete producer closure: workflow,
 records entrypoint, native manifests, installers/bootstrap, scripts and imported
-helpers, build configuration, locks and pins. The future unprivileged records
-workflow must execute its producer from an exact trusted base SHA, not a PR's
-replacement pipeline; it reads authored source from the PR. Variables and custom
+helpers, build configuration, locks and pins. The inactive unprivileged records
+workflow executes its producer from the API-verified exact trusted default SHA,
+separately from authored source read from the PR. Variables and custom
 checkers retain the approved Quarto author-code trust model and run unprivileged.
 This work introduces no new OS sandbox policy.
 
@@ -74,8 +74,9 @@ cannot retroactively cancel a successful recording.
 kept outside `.github/workflows`; they do not activate automation. The records
 workflow runs only trusted native tooling against a separate authored checkout
 with read permissions. A separate default-branch `workflow_run` job reads neutral
-JSON and can write sticky comments; it never executes the triggering course or
-extracts its HTML. The decide workflow retains per-PR serialization, pinned
+JSON and can write sticky comments. Its optional preview export validates the
+bounded HTML archive digest and expected file inventory before writing only
+those pages; it never executes the triggering course or downloaded HTML. The decide workflow retains per-PR serialization, pinned
 actions and event-file parsing. Install only after configuring/reviewing the
 complete producer inventory and actual preview destination. See
 [producer/workflow installation boundaries](variants-producer.md).

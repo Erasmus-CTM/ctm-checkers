@@ -88,12 +88,18 @@ and publishes only `previews/variants-<PR>/review/` using a commit-pinned Pages
 action with `keep_files: true`. The preview workflow serializes its own Pages updates repository-wide. Before
 activation, the main site publisher must use the same global concurrency group
 and preserve `previews/`; this template cannot prevent a separate publisher
-from racing or deleting preview subtrees. Native cards remain
-resolved Markdown text, not a real component-rendered Try it view. No public URL
-or live preview route was proven by these tests.
+from racing or deleting preview subtrees. GitHub artifact/Pages cards show
+resolved student/solution Markdown as text and validated teacher-answer MathML;
+they do not contain a real component-rendered student view or Try it. The
+producer does not pass `student_previews`, and the authenticated Pages exporter
+currently accepts only the expected per-question HTML files, not component
+assets. The separate local connected helper can render actual student views, but
+its token-bound routes are not an artifact/Pages integration. No public URL or
+live preview route was proven by these tests.
 
-Retirement of sticky comments for deleted questions and the
-large-project summary are unfinished. GitHub provides no atomic joint operation
+Deleted-question sticky retirement and the bounded large-project summary are
+implemented and fake-transport tested; see [project reporting](variants-project-report.md).
+GitHub provides no atomic joint operation
 for a human comment edit and a sticky update; current snapshots are reread, and
 the preview workflow serializes its own refreshes repository-wide. Required-check attachment
 must be observed on a real explicitly dispatched PR-head run: merely declaring
