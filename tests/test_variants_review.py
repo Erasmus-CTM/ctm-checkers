@@ -11,10 +11,22 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "authoring"))
 from ctm_variants import history
 from ctm_variants.model import VariantError, candidate, snapshot
-from ctm_variants.review import request, document
+from ctm_variants.review import request, document, apply_decisions
 
 
 class ReviewTests(unittest.TestCase):
+    def test_component_can_decide_reconciled_changed_source_without_intermediate_write(self):
+        first = candidate("a", snapshot(["2"], {"answer": "2"}, {}))
+        value = history.append_proposals(history.empty("q"), [{"record": first, "tape": []}])
+        value = history.decision(value, [first], "a", "approved")
+        changed = candidate("a", snapshot(["3"], {"answer": "3"}, {}))
+        reconciled = history.append_proposals(value, [{"record": changed, "tape": []}])
+        decided = apply_decisions(reconciled, [changed], [{"id": "a", "hash": changed["hash"], "status": "approved"}])
+        self.assertEqual(decided["decisions"][0]["n"], 1)
+        self.assertEqual(decided["decisions"][0]["hash"], changed["hash"])
+        self.assertEqual(reconciled["decisions"][0]["hash"], first["hash"])
+        self.assertEqual(decided["proposals"], reconciled["proposals"])
+
     def test_bulk_decisions_are_atomic_leased_and_retain_individual_events(self):
         with tempfile.TemporaryDirectory() as folder:
             items = [candidate(str(n), snapshot([str(n)], {"answer": str(n)}, {})) for n in (2, 3)]

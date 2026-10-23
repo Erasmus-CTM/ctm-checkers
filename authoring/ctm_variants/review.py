@@ -17,6 +17,33 @@ def _path(root, name):
     return path
 
 
+def apply_decisions(value, records, selections):
+    """Apply explicit current selections in memory; caller owns the one lease.
+
+    Shared by the recording CLI and component wrappers after source
+    reconciliation, so a changed source version need not be saved separately
+    merely to approve it. No file access or source execution occurs here.
+    """
+    if len({item["id"] for item in records}) != len(records):
+        raise VariantError("component must select one current version per proposal id")
+    if type(selections) is not list or not selections:
+        raise VariantError("bulk decisions require a nonempty list")
+    seen = set()
+    for selected in selections:
+        if (type(selected) is not dict or not {"id", "hash", "status"}.issubset(selected)
+                or set(selected) - {"id", "hash", "status", "by", "date", "reason"}):
+            raise VariantError("invalid decision request")
+        if not isinstance(selected["id"], str) or selected["id"] in seen:
+            raise VariantError("decision locators must be distinct strings")
+        seen.add(selected["id"])
+        item = next((item for item in records if item["id"] == selected["id"]), None)
+        if item is None or item["hash"] != selected["hash"]:
+            raise VariantError("decision id/hash differs from current candidate")
+        value = history.decision(value, records, selected["id"], selected["status"],
+            by=selected.get("by", ""), date=selected.get("date", ""), reason=selected.get("reason", ""))
+    return value
+
+
 def request(payload):
     """Read/decide previously generated records; never execute question source."""
     if type(payload) is not dict or payload.get("version") != 1:
@@ -37,21 +64,7 @@ def request(payload):
         if "baseHash" not in payload:
             raise VariantError("deciding requires a baseHash lease")
         selections = [payload.get("decision")] if action == "decide" else payload.get("decisions")
-        if type(selections) is not list or not selections:
-            raise VariantError("bulk decisions require a nonempty list")
-        seen = set()
-        for selected in selections:
-            if (type(selected) is not dict or not {"id", "hash", "status"}.issubset(selected)
-                    or set(selected) - {"id", "hash", "status", "by", "date", "reason"}):
-                raise VariantError("invalid decision request")
-            if not isinstance(selected["id"], str) or selected["id"] in seen:
-                raise VariantError("decision locators must be distinct strings")
-            seen.add(selected["id"])
-            item = next((item for item in records if item["id"] == selected["id"]), None)
-            if item is None or item["hash"] != selected["hash"]:
-                raise VariantError("decision id/hash differs from current candidate")
-            value = history.decision(value, records, selected["id"], selected["status"],
-                by=selected.get("by", ""), date=selected.get("date", ""), reason=selected.get("reason", ""))
+        value = apply_decisions(value, records, selections)
         # The complete batch validates before the one leased atomic write. A
         # bad later selection cannot persist an earlier approval.
         token = history.write(path, value, base_hash=payload["baseHash"])
