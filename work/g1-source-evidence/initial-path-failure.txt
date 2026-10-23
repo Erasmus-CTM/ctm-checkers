@@ -1,0 +1,21 @@
+Captured initial actual-bundle integration tool stdout before the literal-plus path fix.
+Command: python work/g1-source-evidence/consume_component_export.py /workspace/work/g1-export /workspace/work/g1-export/native-roundtrip
+
+Traceback (most recent call last):
+  File "/workspace/ctm-checkers/work/g1-source-evidence/consume_component_export.py", line 27, in <module>
+    envelope,pages=produce(...)
+  File "/workspace/ctm-checkers/authoring/ctm_variants/producer.py", line 185, in produce
+    preview_assets.asset_path(name, label)
+  File "/workspace/ctm-checkers/authoring/ctm_variants/preview_assets.py", line 39, in asset_path
+    raise VariantError('preview asset is outside the generated static question subtree')
+ctm_variants.model.VariantError: preview asset is outside the generated static question subtree
+
+Inspection identified these rejected generated paths:
+students/q/nb/preview_files/libs/quarto-contrib/ctm-checkers-0.6.1.dev0+2c9935c6/ctm-checkers.js
+students/q/default/preview_files/libs/quarto-contrib/ctm-checkers-0.6.1.dev0+2c9935c6/ctm-checkers.js
+
+Correction: allow literal ASCII + inside an otherwise strict static path component.
+All scheme/query/percent/backslash/traversal/private-subtree/suffix/casefold-prefix
+restrictions remain. A versioned-runtime positive regression control passed.
+The same generated component output then matched all 65 inventoried files;
+see bundle-roundtrip.json. No new Quarto render, API write or deployment occurred.

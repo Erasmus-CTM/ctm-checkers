@@ -4,6 +4,7 @@ Authored questions are data until the supervised component resolver is called.
 This module is never invoked by the privileged recording/sticky-write job.
 """
 import copy
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -12,7 +13,7 @@ import runpy
 import subprocess
 import sys
 
-from ctm_variants import history
+from ctm_variants import history, preview_assets
 from ctm_variants.batches import _record
 from ctm_variants.checklist import _url
 from ctm_variants.github_bot import LABEL, SHA, MAX_ARTIFACT, GitHubTransport, teacher_displays
@@ -87,7 +88,7 @@ def discover(project, patterns, parse_source, *, ast=_ast):
     return found
 
 
-def produce(project, context, config, *, definitions, resolve, github_context=None, generate_more=None, workflow_enabled=False):
+def produce(project, context, config, *, definitions, resolve, github_context=None, generate_more=None, workflow_enabled=False, export_previews=None):
     """Resolve through trusted supervised component code, then emit neutral data.
 
     resolve is injectable for source-only tests; the CLI supplies the installed
@@ -109,11 +110,18 @@ def produce(project, context, config, *, definitions, resolve, github_context=No
     questions, pages, seen, pool_checks = [], {}, set(), []
     artifact_bytes = len(json.dumps({**context, "version": 1, "questions": []}, ensure_ascii=False, indent=2).encode())
     review_bytes = 0
+    bundle_bytes = 0
     for definition in definitions:
         label, file = definition["label"], definition["file"]
         if not LABEL.fullmatch(label) or ".." in label or label in seen:
             raise VariantError("producer requires distinct safe question labels")
         seen.add(label)
+        source_path, source_bytes = None, None
+        if export_previews is not None:
+            source_path = inside(project, file)
+            source_bytes = source_path.read_bytes()
+            if len(source_bytes) > 1024 * 1024:
+                raise VariantError("student preview source exceeds 1 MiB")
         if definition["options"].get("pool") in (True, "true") and "variables" not in definition["options"]:
             receipt = resolve(dict(copy.deepcopy(definition), version=1, projectRoot=str(project),
                                    sourceFile=file, action="check-pool"))
@@ -138,6 +146,8 @@ def produce(project, context, config, *, definitions, resolve, github_context=No
         payload = dict(copy.deepcopy(definition), version=1, projectRoot=str(project), sourceFile=file,
                        manifest=path, approval="required", renderMode="review", action="resolve-more" if label == generate_more else "resolve")
         response = resolve(payload)
+        if source_path is not None and source_path.read_bytes() != source_bytes:
+            raise VariantError("source changed during records resolution")
         # Resolution is read-only; never publish a response that changed history
         # under the producer or rewrote existing decisions/proposals in memory.
         if history.load(manifest_path, label) != (old, lease) or response.get("baseHash") != lease:
@@ -160,18 +170,44 @@ def produce(project, context, config, *, definitions, resolve, github_context=No
                              if "teacherDisplay" in item}
         if supplied_displays:
             question["teacherDisplays"] = teacher_displays({**question, "teacherDisplays": supplied_displays})
-        encoded = json.dumps(question, ensure_ascii=False, indent=2, allow_nan=False).encode()
-        artifact_bytes += len(encoded) + encoded.count(b"\n") * 4 + 6
-        if artifact_bytes > ARTIFACT_BUDGET:
-            raise VariantError("aggregate neutral records artifact budget exceeded")
+        generated = {}
+        if export_previews is not None:
+            rendered = export_previews(copy.deepcopy(payload), copy.deepcopy(response))
+            if (type(rendered) is not dict or set(rendered) != {"studentPreviews", "files"}
+                    or type(rendered["files"]) is not dict):
+                raise VariantError("student exporter requires routes and generated files")
+            if history.load(manifest_path, label) != (old, lease) or source_path.read_bytes() != source_bytes:
+                raise VariantError("student export changed source or manifest bytes")
+            question["studentPreviews"] = rendered["studentPreviews"]
+            question["previewSource"] = {"file": file, "sha256": hashlib.sha256(source_bytes).hexdigest()}
+            generated = rendered["files"]
+            for name, content in generated.items():
+                preview_assets.asset_path(name, label)
+                if name == label + ".html" or type(content) is not bytes or len(content) > preview_assets.MAX_FILE_BYTES:
+                    raise VariantError("student exporter must return only bounded generated static assets")
+            if len(generated) > preview_assets.MAX_FILES or sum(map(len, generated.values())) > preview_assets.MAX_BYTES:
+                raise VariantError("generated student assets exceed budget")
         page = document({**response, "records": records}, teacher_displays=question.get("teacherDisplays", {}),
+                        student_previews=question.get("studentPreviews", {}),
                         github_context={**github_context, "path": path} if github_context else None,
                         workflow_context={"pullRequest": context["pullRequest"], "label": label} if github_context and workflow_enabled else None)
         review_bytes += len(page.encode())
         if review_bytes > REVIEW_BUDGET:
             raise VariantError("aggregate review HTML budget exceeded")
+        if export_previews is not None:
+            question["previewFiles"] = {name: preview_assets.receipt(content) for name, content in generated.items()}
+            question["previewFiles"][label + ".html"] = preview_assets.receipt(page.encode())
+            preview_assets.inventory([*questions, question])
+        bundle_bytes += len(page.encode()) + sum(map(len, generated.values()))
+        if bundle_bytes > preview_assets.MAX_BYTES:
+            raise VariantError("aggregate review asset budget exceeded")
+        encoded = json.dumps(question, ensure_ascii=False, indent=2, allow_nan=False).encode()
+        artifact_bytes += len(encoded) + encoded.count(b"\n") * 4 + 6
+        if artifact_bytes > ARTIFACT_BUDGET:
+            raise VariantError("aggregate neutral records artifact budget exceeded")
         questions.append(question)
         pages["review/" + label + ".html"] = page
+        pages.update({"review/" + name: content for name, content in generated.items()})
     envelope = {**context, "version": 1, "questions": questions}
     if len(json.dumps(envelope, ensure_ascii=False, indent=2).encode()) > ARTIFACT_BUDGET:
         raise VariantError("aggregate neutral records artifact budget exceeded")
@@ -179,6 +215,50 @@ def produce(project, context, config, *, definitions, resolve, github_context=No
         pages["pool-checks.json"] = json.dumps({"version": 1, "headSha": context["headSha"], "pools": pool_checks},
                                                ensure_ascii=False, indent=2, allow_nan=False) + "\n"
     return envelope, pages
+
+
+def render_previews(project, trusted, wrapper, payload, response):
+    """Run only the trusted sibling exporter in an isolated unprivileged child."""
+    import tempfile
+    exporter = inside(trusted, str(Path(wrapper).with_name("variants-review.py").relative_to(trusted)))
+    module = runpy.run_path(str(exporter), run_name="ctm_trusted_student_exporter")
+    with tempfile.TemporaryDirectory(prefix="ctm-g1-student-export-") as folder:
+        root = Path(folder)
+        response_path, output = root / "response.json", root / "site"
+        encoded = json.dumps(response, ensure_ascii=True, allow_nan=False).encode()
+        if len(encoded) > MAX_ARTIFACT:
+            raise VariantError("student export response exceeds budget")
+        response_path.write_bytes(encoded)
+        command = [sys.executable, "-I", str(exporter), "--project", str(project),
+                   "--file", payload["file"], "--label", payload["label"],
+                   "--export-student-previews", str(output), "--response-json", str(response_path),
+                   "--url-prefix", "students/" + payload["label"]]
+        raw = module["Review"].render_command(command, trusted, dict(os.environ),
+                timeout=1800, output_limit=MAX_ARTIFACT, return_output=True)
+        result = json.loads(raw)
+        if type(result) is not dict or set(result) != {"studentPreviews"}:
+            raise VariantError("trusted student exporter returned invalid route metadata")
+        if not output.is_dir() or output.is_symlink():
+            raise VariantError("student exporter produced no ordinary generated output")
+        files, total = {}, 0
+        for path in sorted(output.rglob("*")):
+            if path.is_symlink():
+                raise VariantError("student exporter output cannot contain symbolic links")
+            if path.is_dir():
+                continue
+            if not path.is_file():
+                raise VariantError("student exporter output must contain ordinary generated files")
+            name = "students/" + payload["label"] + "/" + path.relative_to(output).as_posix()
+            preview_assets.asset_path(name, payload["label"])
+            if path.stat().st_size > preview_assets.MAX_FILE_BYTES:
+                raise VariantError("generated student file exceeds budget")
+            with path.open("rb") as source:
+                content = source.read(preview_assets.MAX_FILE_BYTES + 1)
+            total += len(content)
+            if len(content) > preview_assets.MAX_FILE_BYTES or total > preview_assets.MAX_BYTES or len(files) >= preview_assets.MAX_FILES:
+                raise VariantError("generated student output exceeds aggregate budget")
+            files[name] = content
+        return {"studentPreviews": result["studentPreviews"], "files": files}
 
 
 def check(envelope):
@@ -295,14 +375,15 @@ def main(argv=None):
             return json.loads(stdout)
         generate_more = event.get("inputs", {}).get("generate_more", "") if context["event"] == "workflow_dispatch" else ""
         envelope, pages = produce(project, context, config, definitions=definitions, resolve=resolve,
-                                  github_context=editor_context, generate_more=generate_more or None, workflow_enabled=bool(workflow_context))
+                                  github_context=editor_context, generate_more=generate_more or None, workflow_enabled=bool(workflow_context),
+                                  export_previews=lambda payload, response: render_previews(project, trusted, wrapper, payload, response))
         if args.output.resolve().is_relative_to(project) or args.output.resolve().is_relative_to(trusted):
             raise VariantError("records output must be outside both source checkouts")
         args.output.mkdir(parents=True, exist_ok=True)
         if any(args.output.iterdir()):raise VariantError("records output must start empty")
         artifact.write_text(json.dumps(envelope, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8")
         for name, content in pages.items():
-            path = args.output / name;path.parent.mkdir(parents=True, exist_ok=True);path.write_text(content, encoding="utf-8")
+            path = args.output / name;path.parent.mkdir(parents=True, exist_ok=True);path.write_bytes(content) if isinstance(content, bytes) else path.write_text(content, encoding="utf-8")
         write_step_summary(envelope)
         summary_written = True
         print(json.dumps({"questions": len(envelope["questions"]), "head": context["headSha"], "recordsArtifact": str(artifact)}))

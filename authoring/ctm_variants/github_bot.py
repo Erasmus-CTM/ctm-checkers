@@ -13,6 +13,7 @@ import zipfile
 from ctm_variants.bot import plan
 from ctm_variants.model import VariantError, canonical, digest, classify
 from ctm_variants import history
+from ctm_variants import preview_assets
 from ctm_variants.review import apply_decisions
 from ctm_variants.checklist import QUESTION, question_marker, render as render_checklist, _url
 from ctm_variants.review import card_id
@@ -173,7 +174,7 @@ class Recorder:
         labels, paths = set(), set()
         for question in artifact["questions"]:
             if (type(question) is not dict or not {"label", "path", "baseHash", "manifest", "records", "cards"}.issubset(question)
-                    or set(question) - {"label", "path", "baseHash", "manifest", "records", "cards", "teacherDisplays"}):
+                    or set(question) - {"label", "path", "baseHash", "manifest", "records", "cards", "teacherDisplays", "studentPreviews", "previewFiles", "previewSource"}):
                 raise VariantError("invalid question artifact schema")
             label, path = question["label"], question["path"]
             if (not isinstance(label, str) or not LABEL.fullmatch(label) or ".." in label
@@ -186,6 +187,7 @@ class Recorder:
             canonical(question["records"])
             classify(value["decisions"], question["records"])
             teacher_displays(question)
+            preview_assets.validate(question)
             if type(question["cards"]) is not dict or set(question["cards"]) != {item["id"] for item in question["records"]}:
                 raise VariantError("preview cards differ from resolved identities")
             for locator, url in question["cards"].items():
@@ -211,6 +213,18 @@ class Recorder:
                 or value["decisions"] != old["decisions"] or value["events"] != old["events"]
                 or value["proposals"][:len(old["proposals"])] != old["proposals"]):
             raise VariantError("artifact manifest lease/history differs from exact head")
+        if preview_assets.FIELDS.intersection(question):
+            from urllib.parse import quote
+            source = question["previewSource"]
+            item = self.get("/contents/" + quote(source["file"], safe="/") + "?ref=" + head)
+            if not item or item.get("type") != "file" or item.get("encoding") != "base64" or not isinstance(item.get("content"), str):
+                raise VariantError("preview source must be an exact-head ordinary file")
+            try:
+                data = base64.b64decode("".join(item["content"].split()), validate=True)
+            except ValueError as error:
+                raise VariantError("invalid preview source encoding") from error
+            if len(data) > 1024 * 1024 or hashlib.sha256(data).hexdigest() != source["sha256"]:
+                raise VariantError("preview source snapshot differs from the exact PR head")
         return value
 
     def _comment(self, number, comment_id):
@@ -308,7 +322,8 @@ class Recorder:
         for question in questions:
             self._value(question, head)
         destination = "previews/variants-" + str(number)
-        expected = {question["label"] + ".html": question for question in questions}
+        outer = {question["label"] + ".html": question for question in questions}
+        expected = preview_assets.inventory(questions)
         if not expected:
             return {"head": head, "pullRequest": number, "destination": destination, "publish": False}
         from urllib.parse import urlsplit
@@ -322,35 +337,42 @@ class Recorder:
         if len(selected) != 1:
             raise VariantError("expected one live review HTML artifact")
         item = selected[0]
-        limit = 32 * 1024 * 1024
+        limit = preview_assets.MAX_BYTES
         if type(item.get("size_in_bytes")) is not int or not 0 < item["size_in_bytes"] <= limit:
             raise VariantError("review archive size exceeds budget")
         data = self.api.download(self.prefix + "/actions/artifacts/" + str(_positive(item["id"], "artifact id")) + "/zip", limit)
         if item.get("digest") != "sha256:" + hashlib.sha256(data).hexdigest():
             raise VariantError("review archive digest differs or is unavailable")
-        pages, total = {}, 0
+        pages, total, html_total = {}, 0, 0
         try:
             with zipfile.ZipFile(io.BytesIO(data)) as archive:
                 members = archive.infolist()
                 if len(members) != len(expected) or {member.filename for member in members} != set(expected):
                     raise VariantError("review archive members differ from exact question pages")
                 for member in members:
-                    if (member.is_dir() or member.flag_bits & 1 or member.file_size > limit
+                    size_limit = preview_assets.MAX_FILE_BYTES if expected[member.filename] is not None else preview_assets.MAX_HTML_BYTES
+                    if (member.is_dir() or member.flag_bits & 1 or member.file_size > size_limit
                             or (member.external_attr >> 16) & 0o170000 not in (0, 0o100000)):
                         raise VariantError("review archive requires ordinary unencrypted HTML files")
                     total += member.file_size
-                    if total > limit:
+                    if member.filename.lower().endswith(".html"):
+                        html_total += member.file_size
+                    if total > limit or html_total > preview_assets.MAX_HTML_BYTES:
                         raise VariantError("aggregate review archive budget exceeded")
                     with archive.open(member) as source:
                         content = source.read(member.file_size + 1)
                     if len(content) != member.file_size:
                         raise VariantError("review archive file length differs")
-                    text = content.decode("utf-8")
-                    for locator in expected[member.filename]["cards"]:
-                        if 'id="' + card_id(locator) + '"' not in text:
-                            raise VariantError("review page omits a verified candidate anchor")
+                    declared = expected[member.filename]
+                    if declared is not None and preview_assets.receipt(content) != declared:
+                        raise VariantError("generated preview file digest or byte count differs")
+                    text = content.decode("utf-8") if member.filename.lower().endswith(".html") else None
+                    if member.filename in outer:
+                        for locator in outer[member.filename]["cards"]:
+                            if 'id="' + card_id(locator) + '"' not in text:
+                                raise VariantError("review page omits a verified candidate anchor")
                     pages[member.filename] = content
-        except (UnicodeError, zipfile.BadZipFile, RuntimeError) as error:
+        except (UnicodeError, zipfile.BadZipFile, RuntimeError, NotImplementedError) as error:
             raise VariantError("invalid review HTML archive") from error
         self._head(number, head)
         if self._producer(pull) != trusted:
@@ -364,7 +386,9 @@ class Recorder:
         review = output / "review"
         review.mkdir()
         for name, content in pages.items():
-            (review / name).write_bytes(content)
+            target = review / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(content)
         return {"head": head, "pullRequest": number, "destination": destination, "publish": True}
 
     def refresh_run(self, run_id):

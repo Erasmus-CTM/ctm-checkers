@@ -61,3 +61,11 @@ changed, regenerate the review instead of replacing newer history with an old
 file. Review/check CI must validate current source after the human commit.
 Informational `by` metadata is not authorization; the actual Git commit records
 who wrote the repository change.
+
+
+The G1 producer can now supply hash-bound relative `student_previews` backed by
+actual component-generated static assets, in addition to this native text-only
+default and the local helper's token routes. These optional frames expose real
+student views/Check and use the validated asset/source contract documented in
+[the producer boundary](variants-producer.md). This does not add a generator or
+authenticated repository-writing form to the browser.

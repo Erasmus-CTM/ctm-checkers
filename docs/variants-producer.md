@@ -88,14 +88,36 @@ and publishes only `previews/variants-<PR>/review/` using a commit-pinned Pages
 action with `keep_files: true`. The preview workflow serializes its own Pages updates repository-wide. Before
 activation, the main site publisher must use the same global concurrency group
 and preserve `previews/`; this template cannot prevent a separate publisher
-from racing or deleting preview subtrees. GitHub artifact/Pages cards show
-resolved student/solution Markdown as text and validated teacher-answer MathML;
-they do not contain a real component-rendered student view or Try it. The
-producer does not pass `student_previews`, and the authenticated Pages exporter
-currently accepts only the expected per-question HTML files, not component
-assets. The separate local connected helper can render actual student views, but
-its token-bound routes are not an artifact/Pages integration. No public URL or
-live preview route was proven by these tests.
+from racing or deleting preview subtrees. The G1 producer now includes actual
+component-rendered student views with ordinary Check/Try it beside the resolved
+text/solution and teacher MathML. One Quarto build per question/language renders
+all tested current rows from a transient manifest, including newly generated
+proposals; original source and manifest bytes remain unchanged. Each relative
+iframe route selects the exact current id/hash through an export-only review
+key. Missing, malformed or unknown selectors fail closed without learner state.
+The separate local helper keeps its existing token-bound routes.
+
+Optional `studentPreviews`, `previewFiles` and `previewSource` metadata bind
+routes, every generated asset and the outer question page to current records and
+the complete source-file SHA256. The privileged exporter verifies that source
+against the exact PR head, then checks the exact ZIP closure, each byte count and
+digest, case-folded/prefix collisions and static-only paths before copying any
+file. Legacy HTML-only artifacts remain accepted. Bounds are 4,096 files, 16 MiB
+per generated file, 64 MiB aggregate assets and the existing 32 MiB HTML bound.
+It never executes authored source or downloaded HTML. The reviewed producer
+inventory must include the trusted sibling `variants-review.py`, its imported
+helpers, the new native `preview_assets.py`, and the component Lua/JavaScript
+review bridge as part of the complete existing closure.
+
+Focused source/fake checks passed, and a real two-row default/Norwegian component
+export produced 64 generated files (2,408,029 bytes). Reusing that output through
+the producer and authenticated fake-transport exporter verified all 65 files,
+including the outer page, byte-for-byte; no second render was needed for this
+roundtrip. The first real closure attempt rejected a literal `+` in a versioned
+runtime directory; the corrected ordinary path-character allowance and a
+regression control passed. See `work/g1-source-evidence/` for the preserved
+failure and final receipts. No public URL, live hosting or required-check status
+attachment was observed; all workflow templates remain inactive.
 
 Deleted-question sticky retirement and the bounded large-project summary are
 implemented and fake-transport tested; see [project reporting](variants-project-report.md).

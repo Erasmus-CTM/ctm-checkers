@@ -1,0 +1,809 @@
+{
+  "headSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "producerSha": "cccccccccccccccccccccccccccccccccccccccc",
+  "event": "pull_request",
+  "expectedHead": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "runId": 20,
+  "repositoryId": 1,
+  "pullRequest": 7,
+  "version": 1,
+  "questions": [
+    {
+      "label": "q",
+      "path": "_variants/q.yml",
+      "baseHash": null,
+      "manifest": {
+        "version": 1,
+        "question": "q",
+        "proposals": [
+          {
+            "record": {
+              "id": "{\"value\":[\"list\",[[\"integer\",\"2\"]]],\"version\":1}",
+              "hash": "28daeb608b439112",
+              "note": "a=2",
+              "snapshot": {
+                "math": [
+                  "[\"raw\",\"1\"]",
+                  "[\"raw\",\"1\"]"
+                ],
+                "teacher": [
+                  [
+                    "Answer",
+                    "1"
+                  ]
+                ],
+                "grading": {
+                  "mode": "equivalent",
+                  "vars": "",
+                  "reject": "",
+                  "tolerance": "",
+                  "decplaces": "",
+                  "sigfigs": "",
+                  "form": "",
+                  "partial-credit": false,
+                  "form-credit": "0.5",
+                  "response": "",
+                  "packages": [],
+                  "checker": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                "variables": {
+                  "a": "2"
+                },
+                "checksum": "417d72018fc6964eb079dccfe8514ea73a473b45b81e12c7103cd52c5a64c16b"
+              },
+              "data": {
+                "options": {
+                  "label": "q",
+                  "note": "a=2",
+                  "field-labels": [
+                    "Answer"
+                  ],
+                  "solution": "Answer 1.",
+                  "translations": {
+                    "nb": {
+                      "question": "Finn _[1].",
+                      "solution": "Svar 1."
+                    }
+                  },
+                  "question": "Find _[1].",
+                  "tests": []
+                },
+                "context": {
+                  "version": 1,
+                  "fields": [
+                    "Answer"
+                  ],
+                  "variables": {
+                    "version": 1,
+                    "value": [
+                      "dict",
+                      [
+                        [
+                          "a",
+                          [
+                            "integer",
+                            "2"
+                          ]
+                        ]
+                      ]
+                    ]
+                  },
+                  "teacher": {
+                    "version": 1,
+                    "value": [
+                      "dict",
+                      [
+                        [
+                          "Answer",
+                          [
+                            "integer",
+                            "1"
+                          ]
+                        ]
+                      ]
+                    ]
+                  },
+                  "variant": null
+                },
+                "teacher_inputs": {
+                  "Answer": "1"
+                }
+              },
+              "tests": {
+                "passed": true,
+                "teacher": {
+                  "name": "teacher answers",
+                  "actual": {
+                    "status": "correct",
+                    "score": 1.0,
+                    "fields": {
+                      "Answer": {
+                        "status": "correct",
+                        "score": 1.0
+                      }
+                    }
+                  },
+                  "passed": true
+                },
+                "tests": []
+              }
+            },
+            "tape": {
+              "version": 1,
+              "value": [
+                "list",
+                [
+                  [
+                    "integer",
+                    "2"
+                  ]
+                ]
+              ]
+            }
+          },
+          {
+            "record": {
+              "id": "{\"value\":[\"list\",[[\"integer\",\"4\"]]],\"version\":1}",
+              "hash": "fd6fe5fa9d47efa7",
+              "note": "a=4",
+              "snapshot": {
+                "math": [
+                  "[\"raw\",\"2\"]",
+                  "[\"raw\",\"2\"]"
+                ],
+                "teacher": [
+                  [
+                    "Answer",
+                    "2"
+                  ]
+                ],
+                "grading": {
+                  "mode": "equivalent",
+                  "vars": "",
+                  "reject": "",
+                  "tolerance": "",
+                  "decplaces": "",
+                  "sigfigs": "",
+                  "form": "",
+                  "partial-credit": false,
+                  "form-credit": "0.5",
+                  "response": "",
+                  "packages": [],
+                  "checker": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                "variables": {
+                  "a": "4"
+                },
+                "checksum": "0bd274910d67e24298987a7673599e4e688a2f339f8182a99f62d71a2754caf9"
+              },
+              "data": {
+                "options": {
+                  "label": "q",
+                  "note": "a=4",
+                  "field-labels": [
+                    "Answer"
+                  ],
+                  "solution": "Answer 2.",
+                  "translations": {
+                    "nb": {
+                      "question": "Finn _[2].",
+                      "solution": "Svar 2."
+                    }
+                  },
+                  "question": "Find _[2].",
+                  "tests": []
+                },
+                "context": {
+                  "version": 1,
+                  "fields": [
+                    "Answer"
+                  ],
+                  "variables": {
+                    "version": 1,
+                    "value": [
+                      "dict",
+                      [
+                        [
+                          "a",
+                          [
+                            "integer",
+                            "4"
+                          ]
+                        ]
+                      ]
+                    ]
+                  },
+                  "teacher": {
+                    "version": 1,
+                    "value": [
+                      "dict",
+                      [
+                        [
+                          "Answer",
+                          [
+                            "integer",
+                            "2"
+                          ]
+                        ]
+                      ]
+                    ]
+                  },
+                  "variant": null
+                },
+                "teacher_inputs": {
+                  "Answer": "2"
+                }
+              },
+              "tests": {
+                "passed": true,
+                "teacher": {
+                  "name": "teacher answers",
+                  "actual": {
+                    "status": "correct",
+                    "score": 1.0,
+                    "fields": {
+                      "Answer": {
+                        "status": "correct",
+                        "score": 1.0
+                      }
+                    }
+                  },
+                  "passed": true
+                },
+                "tests": []
+              }
+            },
+            "tape": {
+              "version": 1,
+              "value": [
+                "list",
+                [
+                  [
+                    "integer",
+                    "4"
+                  ]
+                ]
+              ]
+            }
+          }
+        ],
+        "decisions": [],
+        "events": []
+      },
+      "records": [
+        {
+          "id": "{\"value\":[\"list\",[[\"integer\",\"2\"]]],\"version\":1}",
+          "hash": "28daeb608b439112",
+          "note": "a=2",
+          "snapshot": {
+            "math": [
+              "[\"raw\",\"1\"]",
+              "[\"raw\",\"1\"]"
+            ],
+            "teacher": [
+              [
+                "Answer",
+                "1"
+              ]
+            ],
+            "grading": {
+              "mode": "equivalent",
+              "vars": "",
+              "reject": "",
+              "tolerance": "",
+              "decplaces": "",
+              "sigfigs": "",
+              "form": "",
+              "partial-credit": false,
+              "form-credit": "0.5",
+              "response": "",
+              "packages": [],
+              "checker": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "variables": {
+              "a": "2"
+            },
+            "checksum": "417d72018fc6964eb079dccfe8514ea73a473b45b81e12c7103cd52c5a64c16b"
+          },
+          "data": {
+            "options": {
+              "label": "q",
+              "note": "a=2",
+              "field-labels": [
+                "Answer"
+              ],
+              "solution": "Answer 1.",
+              "translations": {
+                "nb": {
+                  "question": "Finn _[1].",
+                  "solution": "Svar 1."
+                }
+              },
+              "question": "Find _[1].",
+              "tests": []
+            },
+            "context": {
+              "version": 1,
+              "fields": [
+                "Answer"
+              ],
+              "variables": {
+                "version": 1,
+                "value": [
+                  "dict",
+                  [
+                    [
+                      "a",
+                      [
+                        "integer",
+                        "2"
+                      ]
+                    ]
+                  ]
+                ]
+              },
+              "teacher": {
+                "version": 1,
+                "value": [
+                  "dict",
+                  [
+                    [
+                      "Answer",
+                      [
+                        "integer",
+                        "1"
+                      ]
+                    ]
+                  ]
+                ]
+              },
+              "variant": null
+            },
+            "teacher_inputs": {
+              "Answer": "1"
+            }
+          },
+          "tests": {
+            "passed": true,
+            "teacher": {
+              "name": "teacher answers",
+              "actual": {
+                "status": "correct",
+                "score": 1.0,
+                "fields": {
+                  "Answer": {
+                    "status": "correct",
+                    "score": 1.0
+                  }
+                }
+              },
+              "passed": true
+            },
+            "tests": []
+          }
+        },
+        {
+          "id": "{\"value\":[\"list\",[[\"integer\",\"4\"]]],\"version\":1}",
+          "hash": "fd6fe5fa9d47efa7",
+          "note": "a=4",
+          "snapshot": {
+            "math": [
+              "[\"raw\",\"2\"]",
+              "[\"raw\",\"2\"]"
+            ],
+            "teacher": [
+              [
+                "Answer",
+                "2"
+              ]
+            ],
+            "grading": {
+              "mode": "equivalent",
+              "vars": "",
+              "reject": "",
+              "tolerance": "",
+              "decplaces": "",
+              "sigfigs": "",
+              "form": "",
+              "partial-credit": false,
+              "form-credit": "0.5",
+              "response": "",
+              "packages": [],
+              "checker": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "variables": {
+              "a": "4"
+            },
+            "checksum": "0bd274910d67e24298987a7673599e4e688a2f339f8182a99f62d71a2754caf9"
+          },
+          "data": {
+            "options": {
+              "label": "q",
+              "note": "a=4",
+              "field-labels": [
+                "Answer"
+              ],
+              "solution": "Answer 2.",
+              "translations": {
+                "nb": {
+                  "question": "Finn _[2].",
+                  "solution": "Svar 2."
+                }
+              },
+              "question": "Find _[2].",
+              "tests": []
+            },
+            "context": {
+              "version": 1,
+              "fields": [
+                "Answer"
+              ],
+              "variables": {
+                "version": 1,
+                "value": [
+                  "dict",
+                  [
+                    [
+                      "a",
+                      [
+                        "integer",
+                        "4"
+                      ]
+                    ]
+                  ]
+                ]
+              },
+              "teacher": {
+                "version": 1,
+                "value": [
+                  "dict",
+                  [
+                    [
+                      "Answer",
+                      [
+                        "integer",
+                        "2"
+                      ]
+                    ]
+                  ]
+                ]
+              },
+              "variant": null
+            },
+            "teacher_inputs": {
+              "Answer": "2"
+            }
+          },
+          "tests": {
+            "passed": true,
+            "teacher": {
+              "name": "teacher answers",
+              "actual": {
+                "status": "correct",
+                "score": 1.0,
+                "fields": {
+                  "Answer": {
+                    "status": "correct",
+                    "score": 1.0
+                  }
+                }
+              },
+              "passed": true
+            },
+            "tests": []
+          }
+        }
+      ],
+      "cards": {
+        "{\"value\":[\"list\",[[\"integer\",\"2\"]]],\"version\":1}": "https://org.github.io/course/previews/variants-7/review/q.html#variant-e75e9d22e322d6d6c1d230ac9a46ac649d53a77ba0e42298666b0b49ed4047ba",
+        "{\"value\":[\"list\",[[\"integer\",\"4\"]]],\"version\":1}": "https://org.github.io/course/previews/variants-7/review/q.html#variant-0ac315115786fcef558a3609e2cad21e63a525d683158a5cc619082a7aba9176"
+      },
+      "teacherDisplays": {
+        "{\"value\":[\"list\",[[\"integer\",\"2\"]]],\"version\":1}": {
+          "Answer": {
+            "mathml": "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mn>1</mn></math>",
+            "latex": "1"
+          }
+        },
+        "{\"value\":[\"list\",[[\"integer\",\"4\"]]],\"version\":1}": {
+          "Answer": {
+            "mathml": "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mn>2</mn></math>",
+            "latex": "2"
+          }
+        }
+      },
+      "studentPreviews": {
+        "{\"value\":[\"list\",[[\"integer\",\"2\"]]],\"version\":1}": [
+          {
+            "language": "default",
+            "hash": "28daeb608b439112",
+            "url": "students/q/default/index.html?ctm-review=e286c87bb4ed10cca88198eb9429c978632315286be184debd0c429b7c7fd075"
+          },
+          {
+            "language": "nb",
+            "hash": "28daeb608b439112",
+            "url": "students/q/nb/index.html?ctm-review=e286c87bb4ed10cca88198eb9429c978632315286be184debd0c429b7c7fd075"
+          }
+        ],
+        "{\"value\":[\"list\",[[\"integer\",\"4\"]]],\"version\":1}": [
+          {
+            "language": "default",
+            "hash": "fd6fe5fa9d47efa7",
+            "url": "students/q/default/index.html?ctm-review=90614a20dd24a556dc2be20d78aa3b60ad50f4082d8ecac48db14800fdfc3fb3"
+          },
+          {
+            "language": "nb",
+            "hash": "fd6fe5fa9d47efa7",
+            "url": "students/q/nb/index.html?ctm-review=90614a20dd24a556dc2be20d78aa3b60ad50f4082d8ecac48db14800fdfc3fb3"
+          }
+        ]
+      },
+      "previewSource": {
+        "file": "lesson.qmd",
+        "sha256": "8c15b952ee3a70003513b7bbde6726b92adb54a9b06309af83a76412323704e4"
+      },
+      "previewFiles": {
+        "students/q/nb/index.html": {
+          "bytes": 26681,
+          "sha256": "192ac9297ac51e7ccb043b7dcb1d69cd23f72fc5a4bf0991d66038b91f5a60aa"
+        },
+        "students/q/default/index.html": {
+          "bytes": 26616,
+          "sha256": "287728bfa99996cbfbd594b62ff83b856fa005cf1f6fbe9f93886f680916c061"
+        },
+        "students/q/nb/preview_files/libs/quarto-html/anchor.min.js": {
+          "bytes": 5888,
+          "sha256": "69098e105d990f834cff1b7886d873444228ff63c590e5ff834d568f1115ed8b"
+        },
+        "students/q/nb/preview_files/libs/quarto-html/quarto-syntax-highlighting-ed96de9b727972fe78a7b5d16c58bf87.css": {
+          "bytes": 3678,
+          "sha256": "a01804bd34b17e2a6ad8fc0eb3dd716168341e7817acd6e7408c9263ae9031a6"
+        },
+        "students/q/nb/preview_files/libs/quarto-html/tippy.css": {
+          "bytes": 1409,
+          "sha256": "5969f497d9158d7682f8219c6f13fa67269cdf5bf50a3931d95327151dee5678"
+        },
+        "students/q/nb/preview_files/libs/quarto-html/quarto.js": {
+          "bytes": 26885,
+          "sha256": "14589dacd0cf625c4e6891269681a0a8e20aaa5390864ca6a69f2fff1514719a"
+        },
+        "students/q/nb/preview_files/libs/quarto-html/popper.min.js": {
+          "bytes": 20084,
+          "sha256": "4d50586b184724d39ddfe0f6582861664eddd5e806e5a79e0dbaa832361414d0"
+        },
+        "students/q/nb/preview_files/libs/quarto-html/tippy.umd.min.js": {
+          "bytes": 24033,
+          "sha256": "41181eeec6d7ba64cb9165f0e95563e34e026bde79e7c13aeec83270429b6fae"
+        },
+        "students/q/nb/preview_files/libs/bootstrap/bootstrap.min.js": {
+          "bytes": 80668,
+          "sha256": "d2ea6c1e0cabca20d18e924b25a1cd0187c38ba7c33f60ab06e1b0402b9bcdb5"
+        },
+        "students/q/nb/preview_files/libs/bootstrap/bootstrap-icons.css": {
+          "bytes": 99464,
+          "sha256": "01253947f506e030589e4f33fc7ec7ccdfb9505e2e596dedf16445f12e243c0a"
+        },
+        "students/q/nb/preview_files/libs/bootstrap/bootstrap-9e3ffae467580fdb927a41352e75a2e0.min.css": {
+          "bytes": 430683,
+          "sha256": "a8c56bcaf70bdaaab9e3fe9fa2e26c74c5f4740fff023f6387c9ccfa191883eb"
+        },
+        "students/q/nb/preview_files/libs/bootstrap/bootstrap-icons.woff": {
+          "bytes": 180288,
+          "sha256": "f55513b7b591cb84a3b87ff0e34ea24d4831d6fedc22e54b911ca64b5b544a15"
+        },
+        "students/q/nb/preview_files/libs/clipboard/clipboard.min.js": {
+          "bytes": 9160,
+          "sha256": "e17a1d816e13c0826e0ed7febfabc3277f45571234bde0bf9120829a7169edc9"
+        },
+        "students/q/nb/preview_files/libs/quarto-html/tabsets/tabsets.js": {
+          "bytes": 2882,
+          "sha256": "a9c226bf70e82eaf5476f619cecfb70b4446b87ce4d1634d6404b0b2ba006d15"
+        },
+        "students/q/nb/preview_files/libs/quarto-html/axe/axe-check.js": {
+          "bytes": 4884,
+          "sha256": "88e2922e397018186991fa708947be84f96f85578e3c7601d29a5e58e367211d"
+        },
+        "students/q/nb/preview_files/libs/quarto-contrib/ctm-ui-0.9.0/ctm-ui.css": {
+          "bytes": 6121,
+          "sha256": "25e6fc73cd6696212e62816f8d4a089c9e2df612f8278a466fa76a45fc58fb3e"
+        },
+        "students/q/nb/preview_files/libs/quarto-contrib/ctm-export-0.9.0/ctm-export.js": {
+          "bytes": 6747,
+          "sha256": "ea122314df376f16b4bccf97075fb8c2a62c2e553a3f44ab04abebdb8e043b81"
+        },
+        "students/q/nb/preview_files/libs/quarto-contrib/ctm-variants-0.9.0/variants.js": {
+          "bytes": 5529,
+          "sha256": "d7fef66fc048e6c706b517db4dd2e4e97ab0989804ba93ae7053699601ce9921"
+        },
+        "students/q/nb/preview_files/libs/quarto-contrib/ctm-assets-0.9.0/assets.js": {
+          "bytes": 1063,
+          "sha256": "c3696f2a24426e320c78bee5df9f2f32717beb166d72163fb30e9558f51d3b79"
+        },
+        "students/q/nb/preview_files/libs/quarto-contrib/ctm-runtime-0.9.0/pyodide-runtime.js": {
+          "bytes": 23954,
+          "sha256": "0fec0d36af639284fb7a8d25b7eaa25486d5e3a978dfef4d2c5c2cc0aab8dbe1"
+        },
+        "students/q/nb/preview_files/libs/quarto-contrib/ctm-locale-0.9.0/ctm-locale.js": {
+          "bytes": 5414,
+          "sha256": "5b2ee62f190946d985ac8e5e33f0b8ee0540a10989370830538e9b9eb09e9361"
+        },
+        "students/q/nb/preview_files/libs/quarto-contrib/ctm-locale-0.9.0/common.js": {
+          "bytes": 1116,
+          "sha256": "2a5d0e4ccb009622fc0abff76d6b6e5682cf13103d260e2a5f5ef48619530212"
+        },
+        "students/q/nb/preview_files/libs/quarto-contrib/ctm-layout-0.9.0/ctm-layout.js": {
+          "bytes": 4489,
+          "sha256": "25af51724621b92159c47422ac62f9f971df6f7aada89effc4879fb1e334c888"
+        },
+        "students/q/nb/preview_files/libs/quarto-contrib/ctm-locale-ui-0.9.0/ui.js": {
+          "bytes": 12034,
+          "sha256": "55be4181ae5327b347695bcf10cb66cd6e8ca8bc88e4a93d980d601c93eef6ed"
+        },
+        "students/q/nb/preview_files/libs/quarto-contrib/ctm-store-0.9.0/ctm-store.js": {
+          "bytes": 26531,
+          "sha256": "8ba4077e1516e7f30689e90b8cf5b75b4152f0c45bdbc7f2b985eb2af81e2a66"
+        },
+        "students/q/nb/preview_files/libs/quarto-contrib/ctm-copy-0.9.0/ctm-copy.js": {
+          "bytes": 3141,
+          "sha256": "bc1cd11f4dd78857fb500bc95c10e3f2630493d3265541a3f461d56ad37dfe17"
+        },
+        "students/q/nb/preview_files/libs/quarto-contrib/ctm-checkers-0.6.1.dev0+2c9935c6/ctm-checkers.js": {
+          "bytes": 55710,
+          "sha256": "993c6fead208f3898e9b7491fbd3d07b78edcc59dc06f852c8612a97bd383a6b"
+        },
+        "students/q/nb/preview_files/libs/quarto-contrib/math-exercise-0.11.0/matrix-input.js": {
+          "bytes": 13748,
+          "sha256": "dff9b175a5f34aae3de37994892fcb7705e079effd5de89fd5f0272d800f370e"
+        },
+        "students/q/nb/preview_files/libs/quarto-contrib/math-exercise-0.11.0/math-exercise.js": {
+          "bytes": 87918,
+          "sha256": "430321101fbf22eaf3ac21d0546dc712ca531de3d192d1aa0a60134e4687d5be"
+        },
+        "students/q/nb/preview_files/libs/quarto-contrib/math-exercise-0.11.0/matrix-input.css": {
+          "bytes": 4224,
+          "sha256": "c993df3dad24323fe73159c326c447ec03442bc1579a84a3920e8a3838bfdd95"
+        },
+        "students/q/nb/preview_files/libs/quarto-contrib/math-exercise-0.11.0/math-exercise.css": {
+          "bytes": 6901,
+          "sha256": "c66787ee5287255af8f6ddf8a74b82787b5c68a0f09ff3e656fde4a89efc56e3"
+        },
+        "students/q/nb/preview_files/libs/quarto-contrib/math-exercise-0.11.0/math-store.js": {
+          "bytes": 9470,
+          "sha256": "a58972d483e86bac4102fd93868acc0de46c27882c0354267be136c89fc72737"
+        },
+        "students/q/nb/preview_files/libs/quarto-contrib/ctm-locale-math-exercise-0.9.0/math-exercise.js": {
+          "bytes": 13250,
+          "sha256": "50437381d5d7e492874910ac607e65edc12583744249f61ae00aea3313290fa9"
+        },
+        "students/q/default/preview_files/libs/quarto-html/anchor.min.js": {
+          "bytes": 5888,
+          "sha256": "69098e105d990f834cff1b7886d873444228ff63c590e5ff834d568f1115ed8b"
+        },
+        "students/q/default/preview_files/libs/quarto-html/quarto-syntax-highlighting-ed96de9b727972fe78a7b5d16c58bf87.css": {
+          "bytes": 3678,
+          "sha256": "a01804bd34b17e2a6ad8fc0eb3dd716168341e7817acd6e7408c9263ae9031a6"
+        },
+        "students/q/default/preview_files/libs/quarto-html/tippy.css": {
+          "bytes": 1409,
+          "sha256": "5969f497d9158d7682f8219c6f13fa67269cdf5bf50a3931d95327151dee5678"
+        },
+        "students/q/default/preview_files/libs/quarto-html/quarto.js": {
+          "bytes": 26885,
+          "sha256": "14589dacd0cf625c4e6891269681a0a8e20aaa5390864ca6a69f2fff1514719a"
+        },
+        "students/q/default/preview_files/libs/quarto-html/popper.min.js": {
+          "bytes": 20084,
+          "sha256": "4d50586b184724d39ddfe0f6582861664eddd5e806e5a79e0dbaa832361414d0"
+        },
+        "students/q/default/preview_files/libs/quarto-html/tippy.umd.min.js": {
+          "bytes": 24033,
+          "sha256": "41181eeec6d7ba64cb9165f0e95563e34e026bde79e7c13aeec83270429b6fae"
+        },
+        "students/q/default/preview_files/libs/bootstrap/bootstrap.min.js": {
+          "bytes": 80668,
+          "sha256": "d2ea6c1e0cabca20d18e924b25a1cd0187c38ba7c33f60ab06e1b0402b9bcdb5"
+        },
+        "students/q/default/preview_files/libs/bootstrap/bootstrap-icons.css": {
+          "bytes": 99464,
+          "sha256": "01253947f506e030589e4f33fc7ec7ccdfb9505e2e596dedf16445f12e243c0a"
+        },
+        "students/q/default/preview_files/libs/bootstrap/bootstrap-9e3ffae467580fdb927a41352e75a2e0.min.css": {
+          "bytes": 430683,
+          "sha256": "a8c56bcaf70bdaaab9e3fe9fa2e26c74c5f4740fff023f6387c9ccfa191883eb"
+        },
+        "students/q/default/preview_files/libs/bootstrap/bootstrap-icons.woff": {
+          "bytes": 180288,
+          "sha256": "f55513b7b591cb84a3b87ff0e34ea24d4831d6fedc22e54b911ca64b5b544a15"
+        },
+        "students/q/default/preview_files/libs/clipboard/clipboard.min.js": {
+          "bytes": 9160,
+          "sha256": "e17a1d816e13c0826e0ed7febfabc3277f45571234bde0bf9120829a7169edc9"
+        },
+        "students/q/default/preview_files/libs/quarto-html/tabsets/tabsets.js": {
+          "bytes": 2882,
+          "sha256": "a9c226bf70e82eaf5476f619cecfb70b4446b87ce4d1634d6404b0b2ba006d15"
+        },
+        "students/q/default/preview_files/libs/quarto-html/axe/axe-check.js": {
+          "bytes": 4884,
+          "sha256": "88e2922e397018186991fa708947be84f96f85578e3c7601d29a5e58e367211d"
+        },
+        "students/q/default/preview_files/libs/quarto-contrib/ctm-ui-0.9.0/ctm-ui.css": {
+          "bytes": 6121,
+          "sha256": "25e6fc73cd6696212e62816f8d4a089c9e2df612f8278a466fa76a45fc58fb3e"
+        },
+        "students/q/default/preview_files/libs/quarto-contrib/ctm-export-0.9.0/ctm-export.js": {
+          "bytes": 6747,
+          "sha256": "ea122314df376f16b4bccf97075fb8c2a62c2e553a3f44ab04abebdb8e043b81"
+        },
+        "students/q/default/preview_files/libs/quarto-contrib/ctm-variants-0.9.0/variants.js": {
+          "bytes": 5529,
+          "sha256": "d7fef66fc048e6c706b517db4dd2e4e97ab0989804ba93ae7053699601ce9921"
+        },
+        "students/q/default/preview_files/libs/quarto-contrib/ctm-assets-0.9.0/assets.js": {
+          "bytes": 1063,
+          "sha256": "c3696f2a24426e320c78bee5df9f2f32717beb166d72163fb30e9558f51d3b79"
+        },
+        "students/q/default/preview_files/libs/quarto-contrib/ctm-runtime-0.9.0/pyodide-runtime.js": {
+          "bytes": 23954,
+          "sha256": "0fec0d36af639284fb7a8d25b7eaa25486d5e3a978dfef4d2c5c2cc0aab8dbe1"
+        },
+        "students/q/default/preview_files/libs/quarto-contrib/ctm-locale-0.9.0/ctm-locale.js": {
+          "bytes": 5414,
+          "sha256": "5b2ee62f190946d985ac8e5e33f0b8ee0540a10989370830538e9b9eb09e9361"
+        },
+        "students/q/default/preview_files/libs/quarto-contrib/ctm-locale-0.9.0/common.js": {
+          "bytes": 1116,
+          "sha256": "2a5d0e4ccb009622fc0abff76d6b6e5682cf13103d260e2a5f5ef48619530212"
+        },
+        "students/q/default/preview_files/libs/quarto-contrib/ctm-layout-0.9.0/ctm-layout.js": {
+          "bytes": 4489,
+          "sha256": "25af51724621b92159c47422ac62f9f971df6f7aada89effc4879fb1e334c888"
+        },
+        "students/q/default/preview_files/libs/quarto-contrib/ctm-locale-ui-0.9.0/ui.js": {
+          "bytes": 12034,
+          "sha256": "55be4181ae5327b347695bcf10cb66cd6e8ca8bc88e4a93d980d601c93eef6ed"
+        },
+        "students/q/default/preview_files/libs/quarto-contrib/ctm-store-0.9.0/ctm-store.js": {
+          "bytes": 26531,
+          "sha256": "8ba4077e1516e7f30689e90b8cf5b75b4152f0c45bdbc7f2b985eb2af81e2a66"
+        },
+        "students/q/default/preview_files/libs/quarto-contrib/ctm-copy-0.9.0/ctm-copy.js": {
+          "bytes": 3141,
+          "sha256": "bc1cd11f4dd78857fb500bc95c10e3f2630493d3265541a3f461d56ad37dfe17"
+        },
+        "students/q/default/preview_files/libs/quarto-contrib/ctm-checkers-0.6.1.dev0+2c9935c6/ctm-checkers.js": {
+          "bytes": 55710,
+          "sha256": "993c6fead208f3898e9b7491fbd3d07b78edcc59dc06f852c8612a97bd383a6b"
+        },
+        "students/q/default/preview_files/libs/quarto-contrib/math-exercise-0.11.0/matrix-input.js": {
+          "bytes": 13748,
+          "sha256": "dff9b175a5f34aae3de37994892fcb7705e079effd5de89fd5f0272d800f370e"
+        },
+        "students/q/default/preview_files/libs/quarto-contrib/math-exercise-0.11.0/math-exercise.js": {
+          "bytes": 87918,
+          "sha256": "430321101fbf22eaf3ac21d0546dc712ca531de3d192d1aa0a60134e4687d5be"
+        },
+        "students/q/default/preview_files/libs/quarto-contrib/math-exercise-0.11.0/matrix-input.css": {
+          "bytes": 4224,
+          "sha256": "c993df3dad24323fe73159c326c447ec03442bc1579a84a3920e8a3838bfdd95"
+        },
+        "students/q/default/preview_files/libs/quarto-contrib/math-exercise-0.11.0/math-exercise.css": {
+          "bytes": 6901,
+          "sha256": "c66787ee5287255af8f6ddf8a74b82787b5c68a0f09ff3e656fde4a89efc56e3"
+        },
+        "students/q/default/preview_files/libs/quarto-contrib/math-exercise-0.11.0/math-store.js": {
+          "bytes": 9470,
+          "sha256": "a58972d483e86bac4102fd93868acc0de46c27882c0354267be136c89fc72737"
+        },
+        "students/q/default/preview_files/libs/quarto-contrib/ctm-locale-math-exercise-0.9.0/math-exercise.js": {
+          "bytes": 13250,
+          "sha256": "50437381d5d7e492874910ac607e65edc12583744249f61ae00aea3313290fa9"
+        },
+        "q.html": {
+          "bytes": 20422,
+          "sha256": "cdde47c2370df0b77998fe026035b396b613fdd6f1ffb93e849481d146ba0e5a"
+        }
+      }
+    }
+  ]
+}

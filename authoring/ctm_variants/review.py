@@ -199,6 +199,13 @@ def document(response, *, connected_endpoint=None, student_previews=None, teache
         if not isinstance(candidate_id, str) or type(previews) is not list:
             raise VariantError("student previews need a candidate id and language list")
         for preview in previews:
+            if type(preview) is dict and set(preview) == {"language", "url", "hash"}:
+                from ctm_variants.preview_assets import route_path
+                current = next((item for item in response["records"] if item["id"] == candidate_id), None)
+                if current is None:
+                    raise VariantError("student preview requires a current candidate")
+                route_path(candidate_id, preview, response["manifest"]["question"], current["hash"])
+                continue
             if (type(preview) is not dict or set(preview) != {"language", "url"}
                     or preview.get("language") not in ("en", "de", "nb", "default")
                     or not isinstance(preview.get("url"), str)
