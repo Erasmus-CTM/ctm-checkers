@@ -137,6 +137,60 @@ const DAMAGE = text => text.replace(/data: '([A-Za-z0-9+\/]{24})/, (match, start
     const scope = py.toPy(values);
     try { return JSON.parse(py.runPython(code, {globals: scope})); } finally { scope.destroy(); }
   };
+  // Exact rounding contracts execute from the wheel installed by the real page script.
+  assert.deepEqual(inspect('import json\nfrom sympy import Rational, sin, pi\n'
+    + 'from ctm_checkers.math_exercise.numeric import round_exact, sigfig_exact, round_places\n'
+    + 'values=[round_exact(Rational("1.005"),2), round_exact(Rational("-1.005"),2), '
+    + 'round_exact(Rational("1.00499999999999999999999999999"),2), '
+    + 'sigfig_exact(sin(Rational(1,7)),2), sigfig_exact(sin(pi/7),2), '
+    + 'sigfig_exact(Rational("0.00125"),2), sigfig_exact(10**100-1,3)]\n'
+    + 'assert all(isinstance(v,Rational) for v in values)\n'
+    + 'assert round_places(5.395,2)==5.4\n'
+    + 'json.dumps([str(v) for v in values])'),
+    ['101/100', '-101/100', '1', '7/50', '43/100', '13/10000', '1' + '0'.repeat(100)]);
+  assert.deepEqual(names(), before);
+  // Exact author context follows the same installed browser.call path as ordinary custom checks.
+  const context = inspect('import json\nfrom sympy import Symbol, Rational, Matrix\n'
+    + 'from ctm_checkers.variants import question_context\nx=Symbol("x", positive=True)\n'
+    + 'json.dumps(question_context(["Svar α", "Second field"], {"x": x, "a": Rational(1,3), '
+    + '"pair": [Symbol("x"), x], "matrix": Matrix([[x, Rational(1,3)]])}, '
+    + '{"Svar α": x/3, "Second field": x}, {"n": 1, "id": "stable", "hash": "reviewed"}))');
+  const customCall = async request => {
+    await proxy.globals.set('_ctm_request', JSON.stringify(request));
+    try {
+      return JSON.parse(await proxy.runPythonAsync('import builtins as _ctm_builtins\n'
+        + '_ctm_builtins.__import__("ctm_checkers.browser", fromlist=["call"]).call("math_exercise.check_custom", _ctm_builtins.globals())'));
+    } finally { drop('_ctm_builtins'); }
+  };
+  const contextual = {vars: 'x', question_context: context,
+    response: {kind: 'expressions', raw: ['x/3', 'x'], inputs: {},
+      answers: 'forged', variables: 'forged', teacher: 'forged', variant: 'forged'},
+    checker: 'def check(r,s):\n'
+      + '    assert list(r["answers"]) == ["Svar α", "Second field"]\n'
+      + '    assert r["answers"] == r["teacher"]\n'
+      + '    assert r["expressions"][1] is s["x"] and s["x"] is r["variables"]["x"]\n'
+      + '    assert s["x"].is_positive and r["variables"]["a"] == Rational(1,3)\n'
+      + '    assert r["variables"]["pair"][0] != r["variables"]["pair"][1]\n'
+      + '    assert r["variables"]["matrix"][0,0] is s["x"]\n'
+      + '    assert r["variant"] == {"n":1,"id":"stable","hash":"reviewed"}\n'
+      + '    assert \'"variables":"forged"\' in _math_response_json\n'
+      + '    return True'};
+  assert.equal((await customCall(contextual)).status, 'correct');
+  assert.equal((await customCall({...contextual, question_context: {...context, variant: null},
+    checker: 'def check(r,s): return r["variant"] is None'})).status, 'correct');
+  assert.equal((await customCall({vars:'x', response:{point:9007199254740992},
+    checker:'def check(r,s): return r["point"] == 9007199254740992 and "variables" not in r'})).status, 'correct');
+  assert.equal((await customCall({...contextual, question_context: {...context, version:true}})).status, 'error');
+  assert.equal((await customCall({...contextual, response:{point:0.1}})).status, 'error');
+  const structuredTeacher = inspect('import json\nfrom sympy import Matrix, Rational\n'
+    + 'from ctm_checkers.variants import question_context\n'
+    + 'json.dumps(question_context(["Matrix α", "List field"], {}, {"Matrix α": Matrix([[1,2]]), "List field": [Rational(1,3),2]}))');
+  assert.equal((await customCall({vars:'x', question_context:structuredTeacher,
+    response:{kind:'expressions', raw:['1','2'], inputs:{}},
+    checker:'def check(r,s): return r["teacher"]["Matrix α"] == Matrix([[1,2]]) and r["teacher"]["List field"] == [Rational(1,3),2] and r["answers"] == {"Matrix α":1,"List field":2}'})).status, 'correct');
+  assert.deepEqual(names(), before);
+
+
   const WALK = 'import json, pkgutil, ctm_checkers\njson.dumps(sorted(m.name for m in pkgutil.walk_packages(ctm_checkers.__path__, "ctm_checkers.")))';
   // A math page carries ctm-checkers.js alone: no STACK engine (design §13 item 5), also for
   // ctm-libs' load, which walks the package (MathExerciseRuntime.ensureCheckers).

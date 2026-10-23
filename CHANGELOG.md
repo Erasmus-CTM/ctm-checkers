@@ -6,6 +6,28 @@ release. Every grading change is listed under "Grading changes" with the
 finding or decision it implements, its test and the summary of its golden
 diff (docs/goldens.md).
 
+## 0.7.1 (Unreleased)
+
+Reconcile S-07 with the shared checker and native authoring foundations.
+The recorded 0.7.0 release hashes remain unchanged; the combined payload
+uses development version 0.7.1.dev0.
+
+### Grading changes
+
+S-07 is unchanged from 0.7.0 below: unsupported question options stop
+the build; the approved presentation options remain accepted. The
+same options.xml import and 28 removed rows are documented there.
+
+Removed row IDs: `00b89a4d9c5de703`, `041f95019c53c82b`, `0ab645d9ed430a14`, `1bc88e949573f3c0`, `1ed4457307e9d688`, `30b35293ba813fc2`, `327601d53c9c18f7`, `32f406e85cd07c12`, `3dd2f1b592447208`, `42c0a3bffabb3f58`, `45efc312f1eb7310`, `46a93e77698d2859`, `5637f3fb40713734`, `56f7fc3d18493e7e`, `6371aea80d980bd5`, `68312522e2fcfd1e`, `68c5111183c15449`, `69b5c9c03a498a54`, `79c787795ae55bc9`, `7a29e8439fe1622f`, `7ed364c40fdc7709`, `8cb6c21a5aaf1498`, `8fc77c34ab08473d`, `959d5ed9f805ad56`, `be2f74d80bc70f1f`, `cbf4feed0850110d`, `d9c002449277573b`, `f8b0d389e8863f40`, `14f2d3ad4ac8d581`, `36390a37664587ff`, `92f8385572a53c93`, `050ba53f680ce59e`, `4e71a326b3e06f72`, `53d744a9d65e6e45`, `5e4e7516bbd0a644`, `692fd246817edfc0`, `7dae19be97bc25d3`, `8ee6cb6ae290a136`, `99c14c7573f31a4e`, `9b11a94694b72fa3`, `c49d744dc2a79af0`, `c6336b0451a7d363`, `cd7fcbc23844c51f`, `d1e8bf2caf6991a5`, `d9e714a332e95974`, `00d769b134f50e34`, `0bcea440e57bfe06`, `1ee8935d85b575bb`, `20e4ae7a8beae768`, `238238804237bb85`, `2ba8193d62fc62f1`, `3f7d165681ba47cf`, `42b964a621bb50a5`, `4e974eb94a09631e`, `53dc73f028976551`, `56eecf40c84de7c6`, `5edf4c66266a4a13`, `61f296029afddc3e`, `62261255b0d5696a`, `747f50145806d931`, `751bcb56560fcf0b`, `7da47c0df9c45a41`, `89a79858d43d10a3`, `8f1eb4aecda78ff9`, `a7200147f979efbc`, `a80b05095d453277`, `b41b363e2f1eb831`, `c0c8c57136e60bbb`, `d816a5290fe77926`, `e58c237563333898`, `f4ac380fe9772913`, `f5b937299d5b45ec`, `fa1c85838dd83ff2`.
+
+- Custom-checker execution lives in the engine-neutral core. Math retains its
+  response preparation, namespace, output, errors and result contract unchanged.
+  This is the shared H1 foundation; no STACK adapter or new syntax is added.
+- Shared declarative authored question tests use the real math-exercise
+  graders in every mode, with named/positional fields, exact expressions,
+  raw student strings, per-field or overall expectations and scores.
+  Legacy custom assertions remain supported. No grading/golden changes.
+
 ## 0.7.0 (21 October 2026)
 
 STACK: a question that sets a question option the engine does not read
