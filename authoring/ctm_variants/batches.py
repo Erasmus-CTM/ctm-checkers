@@ -127,6 +127,9 @@ def collect_tested_batch(source, *, retained=(), max_source_records,
                     raise BatchError("existing candidate locator has changed content; classify it before generating more")
                 duplicate_ids += 1
                 continue
+            # A note-duplicate path was still encountered. Reserve its locator
+            # too, so another occurrence cannot present it as a fresh candidate.
+            by_id[row["id"]] = row
             if row["note"] in notes:
                 duplicate_notes += 1
                 continue

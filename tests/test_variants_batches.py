@@ -87,6 +87,16 @@ class BatchTests(unittest.TestCase):
         self.assertEqual(empty["added"], [])
         self.assertTrue(empty["exhausted"])
 
+    def test_note_duplicate_also_reserves_its_encountered_locator(self):
+        retained = [record(100, note="reserved")]
+        result = collect_tested_batch([record(1, note="reserved"),
+            record(1, note="a later occurrence"), record(2)],
+            retained=retained, max_source_records=5)
+        self.assertEqual(result["tested"], 1)
+        self.assertEqual(result["duplicate_notes"], 1)
+        self.assertEqual(result["duplicate_ids"], 1)
+        self.assertEqual(result["added"][0]["id"], "choice-2")
+
     def test_grader_failure_is_error_without_silent_resampling_or_history_mutation(self):
         retained = [record(100)]
         before, consumed = copy.deepcopy(retained), []
