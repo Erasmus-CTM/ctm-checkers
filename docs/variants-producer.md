@@ -120,3 +120,14 @@ fixed destination subtree. This is inactive source/fake-download proof only: no
 Pages deployment or public URL was attempted, and actual required-check status
 attachment remains unobserved. The checked-in templates remain outside
 `.github/workflows`.
+
+The inactive `variants.yml` dispatch form also accepts optional `generate_more`
+with one discovered native variable-question label. Only an authenticated
+exact-head dispatch can request it; unknown labels and handwritten pools fail.
+The selected question uses supervised `resolve-more`, while other questions use
+ordinary read-only resolution. Generated proposals remain in the artifact and
+review until a human Copy file commit or an explicit bot decision records them;
+this action never changes a source manifest. G1 review pages link to GitHub's
+native Actions form and show/copy the exact branch, PR, head and label inputs.
+They contain no browser generator, credentials or custom dispatch form. Source
+and fake-resolution/UI checks do not prove a live dispatch or status attachment.

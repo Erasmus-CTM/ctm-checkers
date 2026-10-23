@@ -87,7 +87,7 @@ def discover(project, patterns, parse_source, *, ast=_ast):
     return found
 
 
-def produce(project, context, config, *, definitions, resolve, github_context=None):
+def produce(project, context, config, *, definitions, resolve, github_context=None, generate_more=None, workflow_enabled=False):
     """Resolve through trusted supervised component code, then emit neutral data.
 
     resolve is injectable for source-only tests; the CLI supplies the installed
@@ -97,6 +97,11 @@ def produce(project, context, config, *, definitions, resolve, github_context=No
     if github_context is not None and (type(github_context) is not dict or set(github_context) != {"repository", "branch", "head"}
                                        or github_context["head"] != context["headSha"]):
         raise VariantError("producer editor context must name the verified source head")
+    if generate_more is not None:
+        if (context["event"] != "workflow_dispatch" or not isinstance(generate_more, str)
+                or not LABEL.fullmatch(generate_more) or ".." in generate_more
+                or sum(item["label"] == generate_more and "variables" in item["options"] for item in definitions) != 1):
+            raise VariantError("generate_more must name one discovered native variable question in an exact-head dispatch")
     preview = config["previewBase"].replace("{pullRequest}", str(context["pullRequest"])).replace("{headSha}", context["headSha"])
     _url(preview)
     if "{" in preview or "}" in preview:
@@ -131,7 +136,7 @@ def produce(project, context, config, *, definitions, resolve, github_context=No
         manifest_path = inside(project, path)
         old, lease = history.load(manifest_path, label)
         payload = dict(copy.deepcopy(definition), version=1, projectRoot=str(project), sourceFile=file,
-                       manifest=path, approval="required", renderMode="review", action="resolve")
+                       manifest=path, approval="required", renderMode="review", action="resolve-more" if label == generate_more else "resolve")
         response = resolve(payload)
         # Resolution is read-only; never publish a response that changed history
         # under the producer or rewrote existing decisions/proposals in memory.
@@ -156,7 +161,8 @@ def produce(project, context, config, *, definitions, resolve, github_context=No
         if artifact_bytes > ARTIFACT_BUDGET:
             raise VariantError("aggregate neutral records artifact budget exceeded")
         page = document({**response, "records": records},
-                        github_context={**github_context, "path": path} if github_context else None)
+                        github_context={**github_context, "path": path} if github_context else None,
+                        workflow_context={"pullRequest": context["pullRequest"], "label": label} if github_context and workflow_enabled else None)
         review_bytes += len(page.encode())
         if review_bytes > REVIEW_BUDGET:
             raise VariantError("aggregate review HTML budget exceeded")
@@ -194,7 +200,7 @@ def check(envelope):
     return warnings
 
 
-def verify_context(api, *, repository, event_name, event, run_id, source_head, producer_head, editor_out=None):
+def verify_context(api, *, repository, event_name, event, run_id, source_head, producer_head, editor_out=None, workflow_out=None):
     """Authenticate run selectors against GitHub; strings never become commands."""
     if (not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository or "")
             or event.get("repository", {}).get("full_name") != repository
@@ -224,6 +230,12 @@ def verify_context(api, *, repository, event_name, event, run_id, source_head, p
             raise VariantError("GitHub editor metadata requires an observed PR branch")
         editor_out.clear()
         editor_out.update(repository=pull["head"]["repo"]["full_name"], branch=pull["head"]["ref"], head=source_head)
+    if workflow_out is not None:
+        if type(workflow_out) is not dict:
+            raise VariantError("workflow metadata requires a dictionary")
+        workflow_out.clear()
+        if pull["head"]["repo"]["id"] == pull["base"]["repo"]["id"]:
+            workflow_out.update(repository=repository, branch=pull["head"]["ref"])
     return {"headSha": source_head, "producerSha": producer_head, "event": event_name, "expectedHead": expected,
             "runId": run_id, "repositoryId": pull["base"]["repo"]["id"], "pullRequest": number}
 
@@ -245,10 +257,10 @@ def main(argv=None):
             raise VariantError("producer executable must come from the trusted checkout")
         git_head = lambda root: subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, timeout=10).strip()
         event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
-        editor_context = {}
+        editor_context, workflow_context = {}, {}
         context = verify_context(GitHubTransport(os.environ.get("GITHUB_TOKEN")), repository=os.environ.get("GITHUB_REPOSITORY"),
             event_name=os.environ.get("GITHUB_EVENT_NAME"), event=event, run_id=os.environ.get("GITHUB_RUN_ID"),
-            source_head=git_head(project), producer_head=git_head(trusted), editor_out=editor_context)
+            source_head=git_head(project), producer_head=git_head(trusted), editor_out=editor_context, workflow_out=workflow_context)
         artifact = args.output / "variants-records.json"
         if args.check:
             value = json.loads(artifact.read_text(encoding="utf-8"))
@@ -267,7 +279,9 @@ def main(argv=None):
             code, stdout, stderr = module["supervised"](json.dumps(payload, ensure_ascii=True).encode())
             if code:raise VariantError("supervised native records resolution failed: " + stderr.decode(errors="replace")[:4096])
             return json.loads(stdout)
-        envelope, pages = produce(project, context, config, definitions=definitions, resolve=resolve, github_context=editor_context)
+        generate_more = event.get("inputs", {}).get("generate_more", "") if context["event"] == "workflow_dispatch" else ""
+        envelope, pages = produce(project, context, config, definitions=definitions, resolve=resolve,
+                                  github_context=editor_context, generate_more=generate_more or None, workflow_enabled=bool(workflow_context))
         if args.output.resolve().is_relative_to(project) or args.output.resolve().is_relative_to(trusted):
             raise VariantError("records output must be outside both source checkouts")
         args.output.mkdir(parents=True, exist_ok=True)

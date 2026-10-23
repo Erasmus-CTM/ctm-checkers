@@ -11,6 +11,11 @@ on:
         description: Same-repository PR number
         required: true
         type: string
+      generate_more:
+        description: Optional native question label to generate up to 25 more tested proposals without saving
+        required: false
+        default: ''
+        type: string
 permissions:
   contents: read
   actions: read

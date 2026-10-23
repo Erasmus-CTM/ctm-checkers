@@ -84,7 +84,7 @@ def request(payload):
             "classification": classify(value["decisions"], records), "records": records}
 
 
-def document(response, *, connected_endpoint=None, student_previews=None, github_context=None, language="en"):
+def document(response, *, connected_endpoint=None, student_previews=None, github_context=None, workflow_context=None, language="en"):
     """Overview with disconnected export or an explicit local connected endpoint.
 
     Component-resolved Markdown is shown as text. Full filter-rendered cards and
@@ -101,6 +101,11 @@ def document(response, *, connected_endpoint=None, student_previews=None, github
         import re
         if not isinstance(connected_endpoint, str) or not re.fullmatch(r"/[A-Za-z0-9_-]{40,}/", connected_endpoint):
             raise VariantError("connected review requires a token-bound local route")
+    if workflow_context is not None:
+        if (github_context is None or type(workflow_context) is not dict or set(workflow_context) != {"pullRequest", "label"}
+                or type(workflow_context["pullRequest"]) is not int or workflow_context["pullRequest"] < 1
+                or workflow_context["label"] != response["manifest"]["question"]):
+            raise VariantError("workflow generation instructions require a verified PR and question")
     if github_context is not None:
         import re
         if (type(github_context) is not dict or set(github_context) != {"repository", "branch", "path", "head"}
@@ -217,6 +222,7 @@ def document(response, *, connected_endpoint=None, student_previews=None, github
                        "manifestJSON": json.dumps(value, ensure_ascii=False, allow_nan=False),
                        "recordsJSON": json.dumps(response["records"], ensure_ascii=False, allow_nan=False),
                        "github": github_context,
+                       "workflow": workflow_context,
                        "items": items}, ensure_ascii=True).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
     page = '''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Variant review</title>
 <style>body{font:1rem system-ui;line-height:1.5;margin:1.5rem;max-width:90rem}table{border-collapse:collapse;width:100%}th,td{border:1px solid #aaa;padding:.5rem;text-align:left;vertical-align:top}button,input{font:inherit;margin:.2rem}pre{white-space:pre-wrap;overflow-wrap:anywhere}label{display:block}.unchanged{color:#666}.pending{font-weight:bold}button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid #146bb5}dl{margin:0}dd{margin-left:0}code{overflow-wrap:anywhere}details table{width:auto}</style>
@@ -278,6 +284,15 @@ const copyFile=document.createElement('button');copyFile.type='button';copyFile.
 const editor=document.createElement('button');editor.type='button';editor.id='github-editor';editor.textContent='Open in GitHub editor';
 status.before(copyFile,editor);
 const context=document.createElement('p');context.textContent='GitHub review snapshot: '+base.github.repository+' · '+base.github.branch+' · '+base.github.head+'. Compare the branch file before replacing it; source changes require fresh review. The human Git commit records authorship.';copyFile.before(context);
+if(base.workflow){
+ const more=document.createElement('p');more.id='github-generate-more';
+ const link=document.createElement('a');link.textContent='Generate 25 more with GitHub Actions';link.href='https://github.com/'+base.github.repository+'/actions/workflows/variants.yml';link.target='_blank';link.rel='noopener';
+ const inputs=JSON.stringify({pull_request:String(base.workflow.pullRequest),expected_head:base.github.head,generate_more:base.workflow.label},null,2);
+ const instructions=document.createElement('pre');instructions.textContent='Use Run workflow on branch '+base.github.branch+' with inputs:\n'+inputs;
+ const copyInputs=document.createElement('button');copyInputs.type='button';copyInputs.id='copy-workflow-inputs';copyInputs.textContent='Copy workflow inputs';copyInputs.addEventListener('click',async()=>{try{if(!navigator.clipboard?.writeText)throw Error('Clipboard unavailable; copy the visible inputs.');await navigator.clipboard.writeText(inputs);status.textContent='Workflow inputs copied. Open GitHub Actions and select the stated branch; nothing has been dispatched.';}catch(error){status.textContent=error.message;}});
+ const explanation=document.createElement('span');explanation.textContent='This requests supervised tested proposals. It does not save the manifest. Refresh this review after the run, then Copy file or approve proposals to record them. No generation runs in this browser.';
+ more.append(link,instructions,copyInputs,explanation);copyFile.before(more);
+}
 function completeManifest(){
  const content=CTMManifestExport.apply(base.manifestJSON,base.recordsJSON,[...pending.values()]);
  manifestArea.value=content;manifestLabel.hidden=false;return content;

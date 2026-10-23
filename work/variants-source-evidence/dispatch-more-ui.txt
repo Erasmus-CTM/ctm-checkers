@@ -1,0 +1,2 @@
+$ NODE_PATH=/workspace/ctm-libs/node_modules node tests/variants-dispatch-more-ui.cjs /tmp/ctm-dispatch-more-ui.html
+workflow link + exact copied inputs; no form/dispatch; pageErrors=[]
