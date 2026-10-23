@@ -148,6 +148,22 @@ class BatchTests(unittest.TestCase):
         with self.assertRaisesRegex(BatchError, "boundary time budget"):
             collect_tested_batch(exhausted_source(), max_source_records=2, elapsed_limit=0.01)
 
+    def test_final_25th_record_processing_cannot_bypass_elapsed_boundary(self):
+        import ctm_variants.batches as batches
+        real_record, real_clock = batches._record, time.monotonic
+        offset, completed = [0], [0]
+        def checked(value):
+            result = real_record(value)
+            if result["tests"].get("passed") is True:
+                completed[0] += 1
+                if completed[0] == 25:
+                    offset[0] = 100
+            return result
+        with patch.object(batches, "_record", checked), patch.object(batches.time, "monotonic", lambda: real_clock() + offset[0]):
+            with self.assertRaisesRegex(BatchError, "boundary time budget"):
+                collect_tested_batch((record(n) for n in range(25)), max_source_records=30)
+        self.assertEqual(completed[0], 25)
+
     def test_hanging_grader_is_killed_and_author_output_does_not_reset_deadline(self):
         import ctm_variants.batches as batches
         real, children = batches.subprocess.Popen, []

@@ -167,6 +167,8 @@ def collect_tested_batch(source, *, retained=(), max_source_records,
             added.append(row)
             by_id[row["id"]] = row
             notes.add(row["note"])
+        if time.monotonic() - started >= elapsed_limit:
+            raise BatchError("batch boundary time budget exceeded")
         return {"candidates": records, "added": added, "tested": len(added),
                 "source_records": scanned, "duplicate_ids": duplicate_ids,
                 "duplicate_notes": duplicate_notes, "exhausted": exhausted}
