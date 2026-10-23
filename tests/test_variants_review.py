@@ -15,6 +15,30 @@ from ctm_variants.review import request, document
 
 
 class ReviewTests(unittest.TestCase):
+    def test_bulk_decisions_are_atomic_leased_and_retain_individual_events(self):
+        with tempfile.TemporaryDirectory() as folder:
+            items = [candidate(str(n), snapshot([str(n)], {"answer": str(n)}, {})) for n in (2, 3)]
+            value = history.append_proposals(history.empty("q"), [{"record": item, "tape": []} for item in items])
+            path = Path(folder) / "q.yml"
+            token = history.write(path, value, base_hash=None)
+            payload = {"version": 1, "action": "decide-many", "projectRoot": folder,
+                       "manifest": "q.yml", "label": "q", "records": items, "baseHash": token,
+                       "decisions": [{"id": item["id"], "hash": item["hash"], "status": "approved"} for item in items]}
+            payload["decisions"][1]["hash"] = "stale"
+            with self.assertRaisesRegex(VariantError, "id/hash"):
+                request(payload)
+            self.assertEqual(history.load(path, "q"), (value, token))
+            payload["decisions"][1]["hash"] = items[1]["hash"]
+            response = request(payload)
+            self.assertEqual([row["n"] for row in response["manifest"]["decisions"]], [1, 2])
+            self.assertEqual(len(response["manifest"]["events"]), 2)
+            with self.assertRaisesRegex(VariantError, "changed"):
+                request(payload)
+            payload.update(baseHash=response["baseHash"], decisions=[payload["decisions"][0]] * 2)
+            with self.assertRaisesRegex(VariantError, "distinct"):
+                request(payload)
+            self.assertEqual(history.load(path, "q")[1], response["baseHash"])
+
     def test_recorded_decision_safe_cli_and_html_escape(self):
         with tempfile.TemporaryDirectory(prefix="lesson with spaces ") as folder:
             root = Path(folder)

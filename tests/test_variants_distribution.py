@@ -45,6 +45,18 @@ assert result["passed"]
             output = Path(folder) / "native"
             report = producer.produce(output)
             self.assertEqual(producer.produce(output, check=True), report)
+            self.assertIn("ctm-variants.py", report["files"])
+            # Exercise the shipped launcher itself, from an untrusted lesson
+            # directory, rather than importing only its sibling modules.
+            (Path(folder) / "json.py").write_text("raise RuntimeError('lesson import')", encoding="utf-8")
+            request = {"version": 1, "action": "resolve", "projectRoot": folder,
+                       "manifest": "q.yml", "label": "q", "records": []}
+            result = subprocess.run([sys.executable, str(output / "ctm-variants.py"), "--stdin"],
+                                    input=json.dumps(request), text=True, capture_output=True,
+                                    cwd=folder, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(result.stdout)["manifest"]["question"], "q")
+            self.assertEqual(producer.produce(output, check=True), report)
             self.assertTrue((output / "ctm_variants" / "history.py").is_file())
             self.assertFalse(any(name.endswith((".whl", ".js")) for name in report["files"]))
             copied = output / "ctm_variants" / "history.py"
