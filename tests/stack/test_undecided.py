@@ -138,3 +138,41 @@ def test_a_number_too_large_in_an_answer_is_refused_not_raised(monkeypatch):
     q = question("numabs-branch.xml")
     result = engine._input_validation(q["inputs"][0], "x", {}, {}, q)[0]
     assert result == {"valid": False, "latex": "", "feedback": "This number is too large"}
+
+
+@pytest.mark.parametrize("test, student, teacher, options", [
+    ("NumAbsolute", "1", "exp(exp(exp(exp(10))))", "0.01"),
+    ("NumRelative", "1", "exp(exp(100))", "0.01"),
+    ("NumDecPlaces", "0.50", "exp(exp(exp(exp(10))))", "2"),
+    ("NumDecPlaces", "0.50", "exp(exp(100))", "2"),
+    ("NumAbsolute", "1", "pi/4", "exp(exp(exp(exp(10))))"),
+    ("NumAbsolute", "x", "1", "exp(exp(exp(exp(10))))"),
+    ("NumRelative", "1", "pi/4", "exp(exp(100))"),
+    ("NumAbsolute", "exp(exp(exp(exp(10))))", "exp(exp(exp(exp(10))))", "0.01"),
+])
+def test_numerical_author_overflow_is_an_error_not_student_undecided(test, student, teacher, options):
+    with pytest.raises(Unsupported, match="supported bounds"):
+        answer_test(test, student, teacher, options, raw=student)
+
+
+def test_large_exact_rational_comparison_does_not_gain_decimal_bounds():
+    import sympy as sp
+    result = answer_test("NumAbsolute", "huge", "huge", "1", env={"huge": sp.Integer(10)**1000})
+    assert result["valid"] and result["correct"]
+
+
+@pytest.mark.parametrize("student", ["0.50", "0.5", "1"])
+def test_decimal_teacher_bound_is_checked_before_student_format(student):
+    import sympy as sp
+    with pytest.raises(Unsupported, match="Numerical teacher answer exceeds supported bounds"):
+        answer_test("NumDecPlaces", student, "huge", "2", raw=student,
+                    env={"huge": sp.Integer(10)**1000})
+
+
+@pytest.mark.parametrize("student, valid, note", [
+    ("1", True, "ATNumDecPlaces_SA_Not_num"),
+    ("0.50", False, "invalid"),
+])
+def test_nonnumeric_decimal_teacher_preserves_student_format_precedence(student, valid, note):
+    result = answer_test("NumDecPlaces", student, "x", "2", raw=student)
+    assert result["valid"] is valid and not result["correct"] and result["note"] == note

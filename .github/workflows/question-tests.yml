@@ -1,0 +1,68 @@
+name: Question tests and generated payload
+on:
+  pull_request:
+    paths:
+      - src/ctm_checkers/core/custom.py
+      - src/ctm_checkers/testing.py
+      - src/ctm_checkers/variants.py
+      - src/ctm_checkers/math_exercise/custom.py
+      - src/ctm_checkers/math_exercise/authored.py
+      - tests/test_question_tests.py
+      - tests/test_custom_core.py
+      - tests/test_layers.py
+      - .github/workflows/question-tests.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: question-tests-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.9', '3.12', '3.13']
+    env:
+      CTM_LEGACY_MATH_EXERCISE: _ci/math-exercise
+    steps:
+      - uses: actions/checkout@v7
+      - name: Existing legacy source pin
+        id: pins
+        run: jq -r '."math-exercise" | "math=\(.commit)"' tools/pins.json >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7
+        with:
+          repository: Erasmus-CTM/math-exercise
+          ref: ${{ steps.pins.outputs.math }}
+          path: _ci/math-exercise
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install -r ci/requirements.txt
+      - run: python tools/build.py
+      - run: python tools/build.py --check
+      - run: pytest -q tests/test_question_tests.py tests/test_authored.py tests/test_custom_core.py tests/test_layers.py
+      - name: Same authored tests from the actual built wheel
+        run: |
+          folder="$PWD/_extensions/ctm-checkers"
+          CTM_CHECKERS_WHEEL="$folder/$(python -c 'import json; print(json.load(open("_extensions/ctm-checkers/checkers.json"))["wheel"])'):$folder/$(python -c 'import json; print(json.load(open("_extensions/ctm-checkers/checkers.json"))["parts"]["stack"]["wheel"])')" pytest -q tests/test_question_tests.py tests/test_authored.py tests/test_custom_core.py tests/test_layers.py
+      - name: Checksummed canonical binary and UTF-8 output
+        if: matrix.python == '3.12'
+        run: |
+          python - <<'PY'
+          import base64, hashlib, json
+          from pathlib import Path
+          for path in sorted(Path('_extensions/ctm-checkers').iterdir()):
+              data = path.read_bytes()
+              print('CTM_GENERATED ' + json.dumps({'path':path.as_posix(),'sha256':hashlib.sha256(data).hexdigest(),'base64':base64.b64encode(data).decode()}))
+          PY
+      - uses: actions/upload-artifact@v7
+        if: matrix.python == '3.12'
+        with:
+          name: canonical-question-tests-payload
+          path: _extensions/ctm-checkers
+          retention-days: 7
+

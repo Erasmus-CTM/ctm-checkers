@@ -6,6 +6,127 @@ release. Every grading change is listed under "Grading changes" with the
 finding or decision it implements, its test and the summary of its golden
 diff (docs/goldens.md).
 
+## 0.10.1 (Unreleased)
+
+STACK: a valid answer that an answer test does not compare or cannot decide
+is not an error of the question: the test is false and the response tree
+takes its false branch (S-11; step-2 design §9, order 7). A MINOR release
+(verdicts change); math-exercise's tables do not change (H2).
+
+### Grading changes
+
+- **Authored numerical overflow remains an author error.** Oversized teacher
+  values and tolerances raise `Unsupported` rather than taking the student's
+  undecided false branch. Non-rational tolerance validation precedes student
+  applicability; exact Rational comparisons retain their existing path.
+  Regressions: `test_numerical_author_overflow_is_an_error_not_student_undecided`
+  and `test_large_exact_rational_comparison_does_not_gain_decimal_bounds`.
+  The existing golden corpus is unchanged.
+
+- **S-11: valid answers that stopped the grading.** Before, the answer
+  `x=1` or `a and b` for a SameType node, `x=1` for an EqualComAss, FacForm
+  or SingleFrac node, a hyperbolic answer that exceeds the equivalence's
+  expansion bound (`cosh(x)^20-((exp(x)+exp(-x))/2)^20+x+1`), a FacForm
+  answer outside its domain (`x/x`, `x^2-1+0*x^(-1)`) and a list or a matrix
+  for FacForm, SingleFrac or LowestTerms raised `Unsupported`; the engine
+  raised `UnsupportedQuestion` and the page showed "Could not check this
+  answer: crash: prt[prt1]/node[0]: SameType supports scalar expressions
+  and collections". A number too large to evaluate
+  (`exp(exp(exp(exp(10))))` in NumAbsolute) raised `OverflowError` (or, for
+  `exp(exp(100))`, `decimal.InvalidOperation`), uncaught, and the page showed
+  a Python traceback. Now `answer_test` returns a result for them, `valid`
+  true, `correct` false and `cas_valid` false, and the response tree takes
+  its false branch (`assessment.answer_test`, `expressions.Undecided`):
+  - **SameType** is STACK's rule (the types of S-10's validation,
+    `collections.type_mismatch`): an equation or a logical expression is
+    decided: `x=1`, `x=1 or x=2`, `a and b`, `[1,2]` are not the type of
+    `x+1`; `true` and `a and b`, `x=1` and `y=2` are of one type.
+  - **EqualComAss, FacForm and SingleFrac** with an answer that is not an
+    expression (an equation, a logical expression, a list, a set, a matrix)
+    and an expression as the teacher's answer: note
+    `ATAlgEquiv_TA_not_equation` (an equation, EqualComAss) or
+    `ATAlgEquiv_SA_not_expression`, `ATFacForm_SA_not_expression`,
+    `ATSingleFrac_SA_not_expression`, with STACK's message.
+  - **Everything else the engine cannot decide**: note `<test>_undecided`
+    (`FacForm_undecided`) and the message "This answer could not be checked
+    automatically.": an answer outside a bound (FacForm's domain, the
+    equivalence's expansion and rewrite bounds, the logic's bounds), a type
+    of answer a test does not compare (LowestTerms on a list, an equation
+    or a matrix), a number too large (`OverflowError`, `decimal`'s errors).
+  - **Errors of the author stay errors** (`Unsupported`): a test the engine
+    does not have, an option (the tolerance or places of a numerical test, the
+    variable of FacForm), a teacher's answer that the test does not compare
+    (a collection with NumAbsolute; an equation with EqualComAss) or that is
+    outside its bounds (`The teacher's answer: …`).
+  - An answer with a number too large for the engine's input rules is still
+    refused as input (`Exponent too large`); a number that passes them but
+    overflows while the input is evaluated is refused with "This number is
+    too large" (before, a traceback).
+
+  Tests: `tests/stack/test_undecided.py` (SameType, the notes of the three
+  tests, what is undecided, the numbers, the errors of the author, the audit's
+  `crash.xml` and `numabs-branch.xml` probes through `grade`, the refusal
+  of a number too large) and `tests/stack/test_assessment.py` (FacForm's
+  domain); mutations (docs/goldens.md): `Undecided` not caught (13 rows),
+  `OverflowError` (3) and `decimal`'s errors (2) not caught, SameType true
+  (29), the three notes (7, 1, 3), and four more that only the tests catch
+  (the teacher's answer of the logic and of FacForm, a collection as the
+  teacher's answer, the refusal in the input).
+  - **Native STACK** (STACK `10d3233` = 4.13.1 and 4.14.0 `3338304`, PHP and
+    Maxima 5.46): both versions give the same results.
+    `crash.xml` with 9 answers: for `x=1`, `a and b`, `x=1 or x=2`, `[1,2]`,
+    `{1}`, `matrix([1,2])` and `true` STACK takes the false branch of the
+    first node (score 0, answer notes `prt1-1-F`, "Give an expression."); the
+    engine gives the same score, notes and feedback. `x+1` scores 1 in both.
+    The hyperbolic answer scores 0 in both (SameType true, EqualComAss false,
+    notes `prt1-1-T`, `prt1-2-F`; STACK adds the answer note `ATEqualComAss
+    (AlgEquiv-true).`, the engine the message above). Answer tests, 29
+    cases (`tools/stack_native/dual.py`, 4.13.1): 26 verdicts agree: SameType
+    (7 cases), EqualComAss, FacForm and SingleFrac (15 cases; the notes above
+    are STACK's last notes), AlgEquiv (4, unchanged). Three differ and
+    are not changed to STACK's: LowestTerms of `x=1`, `[1,2]` and `a and
+    b` is true in STACK, false here (`LowestTerms_undecided`). And two
+    results that the cases do not show: AlgEquiv of the hyperbolic answers
+    (`cosh(x)^20` and `((exp(x)+exp(-x))/2)^20`) is true in STACK and false
+    here (`AlgEquiv_undecided`, until S-12 gives the equivalence its budgets),
+    and for `exp(exp(exp(exp(10))))` and its negative STACK has no verdict (its
+    response tree stops with the CAS error `inpart: invalid index 1 of list
+    or matrix`), the engine's tree takes the false branch.
+  - **Golden diff** (`tools/golden.py diff --base 2cfb03e`, with
+    `update --change S-11 --drop-stale`): 11 rows changed and 35 added:
+
+    | Table | Changed | Added | Removed |
+    |---|---|---|---|
+    | `stack/probe-questions.jsonl` | 4 | 6 | 0 |
+    | `stack/probes.jsonl` | 4 | 0 | 0 |
+    | `stack/questions-library.jsonl` | 2 | 0 | 0 |
+    | `stack/supplement.jsonl` | 1 | 29 | 0 |
+
+    - `probe-questions` (4 changed, 6 added): `crash.xml`'s answers `x=1`,
+      `a and b` and the hyperbolic one (raised, now graded 0.0; 6 added
+      answers: `x=1 or x=2`, `[1,2]`, `{1}`, `matrix([1,2])`, `true`) and
+      `numabs-branch.xml`'s `exp(exp(exp(exp(10))))` (raised, now graded
+      0.0; `exp(exp(100))` added).
+    - `probes` (4): SameType of `1` for `x=1` (raised, now false) and of
+      `x=1` for `y=2` (now true), which agree with the rows' native verdicts;
+      NumRelative `exp(exp(exp(exp(10))))` (raised, now false); AlgEquiv
+      `cosh(x)^20` against `((exp(x)+exp(-x))/2)^20` (raised, now false).
+    - `questions-library` (2): `π` in `corpus/AlgMap-10-1.xml` and
+      `AlgMap-13-1-.xml` (seeds 1910622122, 1874421384), raised, now graded
+      0.0 (answers of the generated answer sets).
+    - `supplement` (1 changed, 29 added): AlgEquiv of `sin(x)^20` against
+      `((1-cos(2*x))/2)^10*(1+1/100000)` (raised, now false) and 29 answer-test
+      rows of the cases above.
+    No `stack.card`, `stack.tests`, `stack.instantiate` row, teacher's answer
+    or question test of an example question changes; the math-exercise tables
+    do not change. The rows that differ from the legacy code name S-11.
+
+
+The S-11 behaviour and AC decisions above are preserved while combining
+the current shared checker and native authoring foundations. Recorded
+release hashes remain unchanged; this combined payload is 0.10.1.dev0.
+
+
 ## 0.10.0 (21 October 2026)
 
 STACK: a valid answer that an answer test does not compare or cannot decide
@@ -113,6 +234,98 @@ takes its false branch (S-11; step-2 design §9, order 7). A MINOR release
     or question test of an example question changes; the math-exercise tables
     do not change. The rows that differ from the legacy code name S-11.
 
+
+## 0.9.1 (Unreleased)
+
+STACK: the input option `checkanswertype` refuses an answer of another type
+than the teacher's answer, with STACK's messages (S-10; step-2 design §9,
+order 6). A MINOR release (verdicts change); math-exercise's tables do not
+change (H2).
+
+### Grading changes
+
+- **S-10: `checkanswertype`.** Before, an input with `checkanswertype`
+  refused only a collection of another kind than the teacher's (a list, a
+  set or a matrix for a scalar or for another kind; the message "Use the
+  same collection type as the teacher answer"). The answer `2*x+1` for the
+  teacher's answer `y=2*x+1` was valid and graded 0; `x=1 or x=2` for an
+  expression was valid too. Now the input is invalid, with no score and with the
+  message of the type of the teacher's answer
+  (`collections.type_mismatch`, called by `engine._input_validation`):
+
+  | Teacher's answer | Answer | Message |
+  |---|---|---|
+  | an expression | an equation | "You have entered an equation, but an equation is not expected here. You may have typed something like "y=2*x+1" when you only needed to type "2*x+1"." |
+  | an expression | a list, a set, a matrix, a logical expression | "Your answer should be an expression, not an equation, inequality, list, set or matrix." |
+  | an equation | an expression, a list, a set, a matrix | "Your answer should be an equation, but is not." (an equation or a logical expression is valid) |
+  | a logical expression with equations (`x=1 or x=2`) | an expression, a list, a set, a matrix | "Your answer should be an equation, inequality or a logical combination of many of these, but is not." |
+  | a logical expression (`a and b`) | an expression, a list, a set, a matrix | "Your answer should be an inequality, but is not." |
+  | a logical expression | an equation | the first message of the table |
+  | a list, a set, a matrix | another type | "Your answer should be a list (a set, a matrix), but is not." with the syntax of a list or a set |
+
+  A list of the teacher's length whose entries are not of the teacher's
+  types is refused with the earlier message "Use the same collection type as
+  the teacher answer". An absent or false `checkanswertype` checks nothing,
+  as before. The answer test SameType does not change. Tests:
+  `tests/stack/test_checkanswertype.py` (13 answers in 8 types of teacher's
+  answer with the native verdicts and messages, the audit's `eqtype.xml`,
+  the option off, the question tests of the probe); mutations
+  (docs/goldens.md): the check removed (43 rows), five rules of the table
+  (14, 1, 1, 12 and 15 rows), the list message (19), the entries of a list
+  (2), and six messages that only the tests catch.
+  - **Native STACK** (STACK `10d3233` = 4.13.1 and 4.14.0 `3338304`, PHP and
+    Maxima 5.46): both versions give the same results. Validation, the
+    question `examples/stack/supplement/checkanswertype.xml` (8 inputs with
+    `checkanswertype`, one for each type of teacher's answer) with 13
+    answers in each, 104 pairs: the engine agrees on the verdict of every
+    pair and on the message of 102; the two others are lists whose entries
+    have another type than the teacher's (`[1,2]` for `[1,[2,3]]`, and
+    `[1,[2,3]]` for `[1,2]`), where STACK adds the entries underlined in red
+    and a display of the answer to the message. `eqtype.xml` (the audit's
+    probe), 6 answers: `2*x+1`, `x` and `[1,2]` are invalid with "Your
+    answer should be an equation, but is not." and no score; `y=2*x+1`
+    scores 1; `x=1 or x=2` is valid and scores 0 (answer note
+    `ATEquation_default`); the engine agrees on all; `{y=2*x+1}` (a set of
+    equations) is invalid in both, with another message here (the engine
+    does not support a set of equations).
+  - **Golden diff** (`tools/golden.py diff --base b3f7c5c`, with
+    `update --change S-10 --drop-stale`): 23 rows changed and 143 added:
+
+    | Table | Changed | Added | Removed |
+    |---|---|---|---|
+    | `stack/probe-questions.jsonl` | 2 | 0 | 0 |
+    | `stack/questions-library.jsonl` | 1 | 0 | 0 |
+    | `stack/questions-project.jsonl` | 20 | 0 | 0 |
+    | `stack/supplement.jsonl` | 0 | 143 | 0 |
+
+    - `probe-questions` (2): the answers `2*x+1` (the audit's) and `π` of
+      `eqtype.xml` (graded 0.0, now invalid: "Your answer should be an
+      equation, but is not.").
+    - `questions-project` (20): answers of the generated answer sets only.
+      4 were graded 0.0 and are invalid: `π` in `zero-product.xml` (an
+      equation is the teacher's answer; seeds 1 and 17) and in
+      `boolean-equivalence.xml` (a logical expression: "Your answer should
+      be an inequality, but is not."). 16 were invalid and have STACK's
+      message: `π` in an input with a list or a set as the teacher's answer
+      (`finite-collections.xml`, `finite-author-helpers.xml`,
+      `nested-collections.xml`, seeds 1 and 17).
+    - `questions-library` (1): `π` in `Complex_Convert_1.xml` (seed
+      817828831), invalid, the new message.
+    - `supplement` (143 added): the import, 3 variants, 3 question-test runs
+      and 136 answers of `checkanswertype.xml`; the teacher's answers of
+      its 8 inputs are valid.
+    No `stack.card`, `stack.tests`, `stack.instantiate` row or teacher's
+    answer of an example question changes (the teacher's answers and the
+    question tests of the example questions are valid); the math-exercise
+    tables do not change. The rows that differ from the legacy code name
+    S-10.
+
+
+The S-10 behaviour and AC decisions above are preserved while combining
+the current shared checker and native authoring foundations. Recorded
+release hashes remain unchanged; this combined payload is 0.9.1.dev0.
+
+
 ## 0.9.0 (21 October 2026)
 
 STACK: the input option `checkanswertype` refuses an answer of another type
@@ -197,6 +410,117 @@ change (H2).
     question tests of the example questions are valid); the math-exercise
     tables do not change. The rows that differ from the legacy code name
     S-10.
+
+
+## 0.8.1 (Unreleased)
+
+STACK: a numerical answer test that cannot be applied to an answer because
+it is not a number is false, and the response tree takes its false branch
+(S-05; step-2 design §9, order 5). A MINOR release (verdicts change);
+math-exercise's tables do not change (H2).
+
+### Grading changes
+
+- **S-05: NumAbsolute, NumRelative and NumDecPlaces on an answer that is
+  not a number.** Before, the answer `45*x` (or `x`, `3+4*%i`, `inf`) was
+  an "invalid" test (`valid` false, note `invalid`): the response tree
+  stopped there, its other nodes were not reached and the question's score
+  was 0 with no feedback. For a list, a set, a matrix, an equation or a
+  logical expression the test raised an author error. Now the test is
+  applicable-or-false: it returns `valid` true, `correct` false and
+  `cas_valid` false, with a note and a message, and the response tree takes
+  the false branch (`assessment.NUMERICAL_TESTS`, `answer_test`):
+
+  | Test | Answer is not a number | Teacher's answer is not a number |
+  |---|---|---|
+  | NumAbsolute, NumRelative | `ATNumerical_SA_not_number`: "Your answer should be a floating point number, but is not." | `ATNumerical_SB_not_number` |
+  | NumDecPlaces | `ATNumDecPlaces_SA_Not_num`: "Your answer must be a floating point number, but is not." | invalid, as before |
+
+  "Not a number" is anything that is not a finite real number: a symbol, a
+  complex number, `inf`, a list, a set, a matrix, an equation, a logical
+  expression. NumDecPlaces also needs a decimal literal: `1`, `1/2`,
+  `sqrt(2)`, `0.5+0.25` are not (its note is then `SA_Not_num`; before,
+  `invalid`). The option of the test comes first, as before: a tolerance
+  or a number of places that is not a number is an author error whatever
+  the answer is. A teacher's answer that is a list, a set, a matrix or an
+  equation stays unsupported (the engine does not compare collections with
+  these tests). Tests: `tests/stack/test_numerical_applicability.py` (each
+  kind of answer for each test, the numbers unchanged, the teacher's
+  answer, the options before the answer, the three response trees of
+  `examples/stack/supplement/numerical-applicability.xml` with the scores
+  and notes below, the audit's `numabs-branch.xml` and its question
+  tests); mutations (docs/goldens.md): the check removed (37 rows), the
+  teacher's answer not named (2), `cas_valid` true (27), the three notes
+  (12, 3, 10), NumDecPlaces invalid for what is not a decimal literal
+  (104); two more that only the tests catch (the option checked after the
+  answer, a collection as the teacher's answer made applicable).
+  - **Native STACK** (STACK `10d3233` = 4.13.1 and 4.14.0 `3338304`, PHP and
+    Maxima 5.46): both versions give the same results. Question level,
+    `numerical-applicability.xml` with 19 answers (a number, the decimal
+    literals of NumDecPlaces, and a symbol, a complex number, a list, a
+    set, a matrix, an equation, a logical expression, `inf`, `pi`, `1/2`)
+    through the three response trees: every score, node note and the false
+    branch agree (`prt1-F`, `prt2-F`, `prt3-F` with the answer notes
+    `ATNumerical_SA_not_number.`, `ATNumDecPlaces_SA_Not_num.`);
+    `numabs-branch.xml`: `45*x` scores 0.5 in both versions and in the
+    engine, notes `ATNumerical_SA_not_number.`, `prt1-1-F`, `prt1-2-T`.
+    `numerical-measurement.xml` (`reported` = `35/2`, the text of its
+    teacher's answer): 0.7 in both versions and in the engine. Answer-test
+    level (34 cases): 30 verdicts agree; four differ and are not changed by
+    this release: a list or an equation as the teacher's answer
+    (unsupported here; STACK `ATNumerical_SA_not_list`, `SB_not_number`),
+    `{0.5}` as the answer of NumDecPlaces and a teacher's answer `x`
+    there (here invalid; STACK `SA_Not_num` and correct). The note of a
+    NumDecPlaces answer that is a float written as an expression
+    (`0.5+0.25`) is `SA_Not_num` here and `Wrong_DPs` in STACK: the same
+    branch. The message of a node's test comes after the node's feedback
+    here and before it in STACK (S-08).
+  - **Golden diff** (`tools/golden.py diff --base 794ea36`, with
+    `update --change S-05 --drop-stale`): 89 rows changed and 74 added:
+
+    | Table | Changed | Added | Removed |
+    |---|---|---|---|
+    | `stack/probe-questions.jsonl` | 6 | 0 | 0 |
+    | `stack/probes.jsonl` | 3 | 0 | 0 |
+    | `stack/questions-helm.jsonl` | 36 | 0 | 0 |
+    | `stack/questions-project.jsonl` | 44 | 0 | 0 |
+    | `stack/supplement.jsonl` | 0 | 74 | 0 |
+
+    - `probe-questions` (6): the 3 question tests of `numabs-branch.xml`
+      (failed, now passed) and its answer `45*x` for seeds 1 to 3 (invalid
+      0.0, now graded 0.5, as native STACK).
+    - `probes` (3): NumAbsolute `x` and `sqrt(-2)` and NumDecPlaces `3`
+      (note `invalid`, now the notes above, `valid` true; the rows' `native`
+      data hold the same notes and `cas_valid` false).
+    - `questions-helm` (36) and `questions-project` (44): answers of the
+      generated answer sets only (no `stack.card`, `stack.tests`,
+      `stack.instantiate` row and no teacher's answer of a question test
+      changes). In `upstream/rounding-three-dp.xml` (seed 47) one answer is
+      altered at a time (a fraction, `pi`, `(x)+1`, `2*(x)`, `-(x)`) and
+      NumDecPlaces now takes the false branch where it was invalid: 0.0,
+      now 0.8333333333 (the other five answers are right). In
+      `numerical-measurement.xml` (seeds 1 to 3 and 47) the same for
+      NumAbsolute (`perimeter`), NumRelative (`area`) and NumDecPlaces
+      (`reported`): 0.0, now 0.3, 0.4 or 0.7 (the two other trees score).
+      4 of these rows (one for each seed) are the generated answer set made
+      of the text of the question's `tans` expressions (`area` = `35/2`,
+      `perimeter` = `24`, `reported` = `35/2`): `35/2` is not a decimal
+      literal, so `reported` takes the false branch and the set scores 0.7
+      (native STACK the same, above) where it was invalid; this is not a
+      question test and not the teacher's answer of one: the question's
+      tests, which type `17.50`, still score 1.
+    - `supplement` (74 added): 27 answer-test rows, and for
+      `numerical-applicability.xml` its import, 3 variants, 3 question-test
+      runs and 40 answers.
+    No `stack.card`, teacher's answer or question test of the example
+    questions changes; the math-exercise tables do not change. The rows that
+    differ from the legacy code name S-05.
+
+
+The S-05 behaviour and AC decisions above are preserved while combining
+the current shared checker and native authoring foundations. Recorded
+release hashes remain unchanged; this combined payload is 0.8.1.dev0.
+
 
 ## 0.8.0 (21 October 2026)
 
@@ -301,6 +625,29 @@ math-exercise's tables do not change (H2).
     No `stack.card`, teacher's answer or question test of the example
     questions changes; the math-exercise tables do not change. The rows that
     differ from the legacy code name S-05.
+
+
+## 0.7.1 (Unreleased)
+
+Reconcile S-07 with the shared checker and native authoring foundations.
+The recorded 0.7.0 release hashes remain unchanged; the combined payload
+uses development version 0.7.1.dev0.
+
+### Grading changes
+
+S-07 is unchanged from 0.7.0 below: unsupported question options stop
+the build; the approved presentation options remain accepted. The
+same options.xml import and 28 removed rows are documented there.
+
+Removed row IDs: `00b89a4d9c5de703`, `041f95019c53c82b`, `0ab645d9ed430a14`, `1bc88e949573f3c0`, `1ed4457307e9d688`, `30b35293ba813fc2`, `327601d53c9c18f7`, `32f406e85cd07c12`, `3dd2f1b592447208`, `42c0a3bffabb3f58`, `45efc312f1eb7310`, `46a93e77698d2859`, `5637f3fb40713734`, `56f7fc3d18493e7e`, `6371aea80d980bd5`, `68312522e2fcfd1e`, `68c5111183c15449`, `69b5c9c03a498a54`, `79c787795ae55bc9`, `7a29e8439fe1622f`, `7ed364c40fdc7709`, `8cb6c21a5aaf1498`, `8fc77c34ab08473d`, `959d5ed9f805ad56`, `be2f74d80bc70f1f`, `cbf4feed0850110d`, `d9c002449277573b`, `f8b0d389e8863f40`, `14f2d3ad4ac8d581`, `36390a37664587ff`, `92f8385572a53c93`, `050ba53f680ce59e`, `4e71a326b3e06f72`, `53d744a9d65e6e45`, `5e4e7516bbd0a644`, `692fd246817edfc0`, `7dae19be97bc25d3`, `8ee6cb6ae290a136`, `99c14c7573f31a4e`, `9b11a94694b72fa3`, `c49d744dc2a79af0`, `c6336b0451a7d363`, `cd7fcbc23844c51f`, `d1e8bf2caf6991a5`, `d9e714a332e95974`, `00d769b134f50e34`, `0bcea440e57bfe06`, `1ee8935d85b575bb`, `20e4ae7a8beae768`, `238238804237bb85`, `2ba8193d62fc62f1`, `3f7d165681ba47cf`, `42b964a621bb50a5`, `4e974eb94a09631e`, `53dc73f028976551`, `56eecf40c84de7c6`, `5edf4c66266a4a13`, `61f296029afddc3e`, `62261255b0d5696a`, `747f50145806d931`, `751bcb56560fcf0b`, `7da47c0df9c45a41`, `89a79858d43d10a3`, `8f1eb4aecda78ff9`, `a7200147f979efbc`, `a80b05095d453277`, `b41b363e2f1eb831`, `c0c8c57136e60bbb`, `d816a5290fe77926`, `e58c237563333898`, `f4ac380fe9772913`, `f5b937299d5b45ec`, `fa1c85838dd83ff2`.
+
+- Custom-checker execution lives in the engine-neutral core. Math retains its
+  response preparation, namespace, output, errors and result contract unchanged.
+  This is the shared H1 foundation; no STACK adapter or new syntax is added.
+- Shared declarative authored question tests use the real math-exercise
+  graders in every mode, with named/positional fields, exact expressions,
+  raw student strings, per-field or overall expectations and scores.
+  Legacy custom assertions remain supported. No grading/golden changes.
 
 ## 0.7.0 (21 October 2026)
 

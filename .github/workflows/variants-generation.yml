@@ -1,0 +1,52 @@
+name: Native variables execution kernel
+on:
+  push:
+    branches: [consolidation/2026-10-native-variables, consolidation/2026-10-exact-rounding]
+    paths: ['src/ctm_checkers/math_exercise/numeric.py', 'authoring/ctm_variants/generation.py', 'tests/test_numeric_exact.py', 'tests/test_variants_generation.py', '.github/workflows/variants-generation.yml']
+  pull_request:
+    paths: ['src/ctm_checkers/math_exercise/numeric.py', 'authoring/ctm_variants/generation.py', 'tests/test_numeric_exact.py', 'tests/test_variants_generation.py', '.github/workflows/variants-generation.yml']
+permissions:
+  contents: read
+jobs:
+  execution:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.9', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install sympy==1.13.3
+      - name: Report exact runtime
+        run: python -c "import sys,sympy; print(sys.version); print('SymPy',sympy.__version__)"
+      - name: Native bounded variables contracts
+        run: python tests/test_variants_generation.py
+      - name: Exact authoring helpers from source
+        run: python tests/test_numeric_exact.py
+      - run: python tools/build.py
+      - run: python tools/build.py --check
+      - name: Same exact helpers and bounded execution from actual wheel
+        run: |
+          folder="$PWD/_extensions/ctm-checkers"
+          export CTM_CHECKERS_WHEEL="$folder/$(python -c 'import json; print(json.load(open("_extensions/ctm-checkers/checkers.json"))["wheel"])')"
+          python tests/test_numeric_exact.py
+          python tests/test_variants_generation.py
+      - name: Checksummed canonical binary and UTF-8 output
+        if: matrix.python == '3.12'
+        run: |
+          python - <<'PY'
+          import base64, hashlib, json
+          from pathlib import Path
+          for path in sorted(Path('_extensions/ctm-checkers').iterdir()):
+              data = path.read_bytes()
+              print('CTM_GENERATED ' + json.dumps({'path':path.as_posix(),'sha256':hashlib.sha256(data).hexdigest(),'base64':base64.b64encode(data).decode()}))
+          PY
+      - uses: actions/upload-artifact@v7
+        if: matrix.python == '3.12'
+        with:
+          name: canonical-exact-rounding-payload
+          path: _extensions/ctm-checkers
+          retention-days: 7

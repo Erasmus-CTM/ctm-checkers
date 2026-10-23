@@ -74,7 +74,7 @@ def _decimal(value) -> Decimal:
 def _option(options: str, env, assumptions):
     try:
         return evaluate(options, env, assumptions=assumptions)
-    except InvalidAnswer as exc:
+    except (InvalidAnswer, Undecided, OverflowError, DecimalException) as exc:
         raise Unsupported(f"Invalid answer-test options: {exc}") from exc
 
 
@@ -82,7 +82,13 @@ def _numerical_option(name: str, options: str, env, assumptions):
     """The tolerance of NumAbsolute and NumRelative, the number of places of NumDecPlaces: an author error
     in it stops the build (Unsupported / InvalidAnswer), whatever the answer is."""
     if name != "NumDecPlaces":
-        return _number(_option(numeric_option_source(options), env, assumptions), "Tolerance")
+        tolerance = _number(_option(numeric_option_source(options), env, assumptions), "Tolerance")
+        if tolerance.is_Rational is not True:
+            try:
+                _decimal(tolerance)
+            except (OverflowError, DecimalException) as exc:
+                raise Unsupported(f"Numerical tolerance exceeds supported bounds: {exc}") from exc
+        return tolerance
     if not options.strip():
         raise Unsupported("NumDecPlaces requires a decimal-place count")
     required = _option(options, env, assumptions)
@@ -405,7 +411,7 @@ def _answer_test(name: str, student: Node | str, teacher: str, options: str = ""
         if name not in {"AlgEquiv", "SameType"} and _helper_call(teacher_ast):
             raise Unsupported("Direct finite helper calls require AlgEquiv or SameType; use a frozen evaluated author value")
         teacher_value = evaluate(teacher_ast, env, assumptions=assumptions)
-    except (InvalidAnswer, TypeError, ZeroDivisionError) as exc:
+    except (InvalidAnswer, TypeError, ZeroDivisionError, Undecided, OverflowError, DecimalException) as exc:
         raise Unsupported(f"Invalid teacher expression: {exc}") from exc
 
     if name == "PythonChecker":
@@ -522,36 +528,52 @@ def _answer_test(name: str, student: Node | str, teacher: str, options: str = ""
             else:
                 correct = difference <= abs(teacher_number * tolerance * (1 + sp.Rational(1, 10**9)))
             return _result(True, bool(correct))
+        # Check the authored values before a student-side numerical bound can
+        # take the false branch. Keep the exact Rational path above unchanged.
+        try:
+            ta = _decimal(teacher_number)
+            tol = _decimal(tolerance)
+            with localcontext() as ctx:
+                ctx.prec = 200
+                threshold = (abs(tol) + Decimal("1e-9") if name == "NumAbsolute"
+                             else abs(ta * tol * (1 + Decimal("1e-9"))))
+        except (OverflowError, DecimalException) as exc:
+            raise Unsupported(f"Numerical teacher answer or tolerance exceeds supported bounds: {exc}") from exc
         sa = _decimal(student_number)
-        ta = _decimal(teacher_number)
-        tol = _decimal(tolerance)
         with localcontext() as ctx:
             ctx.prec = 200
             difference = abs(sa - ta)
             if name == "NumAbsolute":
                 # STACK numericaltest.mac: strict inequality, 10E-10 guard.
-                correct = difference < abs(tol) + Decimal("1e-9")
+                correct = difference < threshold
             else:
                 # Inclusive equality supports the 0/0 zero-tolerance case.
-                correct = difference <= abs(ta * tol * (1 + Decimal("1e-9")))
+                correct = difference <= threshold
         return _result(True, correct)
 
     required = option
+    # Validate the authored target before student formatting can return a
+    # verdict. A numeric teacher outside these bounds remains an author error.
+    teacher_error = None
+    try:
+        teacher_decimal = _decimal(_number(teacher_value, "Teacher answer"))
+        with localcontext() as ctx:
+            ctx.prec = 230
+            quantum = Decimal(1).scaleb(-int(required))
+            expected = teacher_decimal.quantize(quantum, rounding=ROUND_HALF_EVEN)
+    except (OverflowError, DecimalException) as exc:
+        raise Unsupported(f"Numerical teacher answer exceeds supported bounds: {exc}") from exc
+    except InvalidAnswer as exc:
+        teacher_error = str(exc)
     try:
         written, places = _decimal_places(raw if raw is not None else student if isinstance(student, str) else "")
     except InvalidAnswer:
         # STACK: the answer must be a float (`3`, `1/2`, `sqrt(2)` are not); a decimal literal with its
         # trailing zeros is what this engine reads the places from.
         return _not_applicable(_NOT_A_NUMBER[name])
-    try:
-        teacher_decimal = _decimal(_number(teacher_value, "Teacher answer"))
-    except InvalidAnswer as exc:
-        return _result(False, False, "invalid", str(exc))
+    if teacher_error is not None:
+        return _result(False, False, "invalid", teacher_error)
     if places != int(required):
         return _result(True, False, "wrong_decimal_places", "Incorrect number of decimal places")
-    with localcontext() as ctx:
-        ctx.prec = 230
-        quantum = Decimal(1).scaleb(-int(required))
-        expected = teacher_decimal.quantize(quantum, rounding=ROUND_HALF_EVEN)
-        correct = written == expected
+    correct = written == expected
     return _result(True, correct, "" if correct else "wrong_value")
