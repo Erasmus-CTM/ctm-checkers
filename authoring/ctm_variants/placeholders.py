@@ -166,8 +166,11 @@ def _display(style,value,precision):
     precision = int(precision)
     rounded = round_exact(value,precision) if style == "dispdp" else sigfig_exact(value,precision)
     def fixed(number,places):
+        from decimal import Decimal
         negative = number < 0
-        digits = str(abs(int(number*10**places)))
+        # Decimal(int) is exact and does not cross Python 3.11+'s int-to-str
+        # digit limit when adding fractional display zeros to a large value.
+        digits = format(Decimal(abs(int(number*10**places))),"f")
         if places:
             digits = digits.zfill(places+1)
             digits = digits[:-places]+"."+digits[-places:]

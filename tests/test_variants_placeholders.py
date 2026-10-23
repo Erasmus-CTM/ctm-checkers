@@ -98,6 +98,8 @@ class PlaceholderTests(unittest.TestCase):
                 value=result["resolutions"][0]["value"]
                 self.assertIn("display",value)
         self.assertEqual(self.local("{@dispsf(9.95,2)@}")["text"],r"$1.0\times 10^{1}$")
+        large=_display("dispdp",sp.Integer(10)**4000,1000).text
+        self.assertEqual(large,"1"+"0"*4000+"."+"0"*1000)
 
     def test_display_cannot_enter_arithmetic_or_teacher_codec(self):
         value=_display("dispdp",sp.Integer(1),2)
@@ -111,6 +113,10 @@ class PlaceholderTests(unittest.TestCase):
             with self.subTest(expression=expression),self.assertRaises((ValueError,GenerationError)):
                 self.local("{@"+expression+"@}")
         with self.assertRaises(GenerationError): execute("a=dispdp(1,2)")
+        public=render("{#dispdp(1,2)#}")
+        self.assertIsInstance(public["resolutions"][0]["value"],DisplayValue)
+        with self.assertRaisesRegex(ValueError,"unsupported exact value"):
+            question_context(["a"],{}, {"a":public["resolutions"][0]["value"]})
 
     def test_reserved_names_and_malformed_source_fail_contextually(self):
         for name in ("dispdp","dispsf","round","sigfig","sin","subs","raw"):
@@ -139,6 +145,57 @@ class PlaceholderTests(unittest.TestCase):
         self.assertEqual(len(children),3)
         self.assertTrue(all(child.poll() is not None for child in children))
         self.assertFalse(any(thread.name=="ctm-placeholder-reader" for thread in threading.enumerate()))
+
+    def _fake_worker(self,messages,**options):
+        import ctm_variants.placeholders as placeholders
+        real=placeholders.subprocess.Popen
+        children=[]
+        script="import time; "+"; ".join("time.sleep("+repr(message)+")" if isinstance(message,float)
+            else "print("+repr(json.dumps(message))+",flush=True)" for message in messages)+"; time.sleep(10)"
+        def launch(*args,**kwargs):
+            child=real([sys.executable,"-c",script],**kwargs);children.append(child);return child
+        try:
+            with patch.object(placeholders.subprocess,"Popen",launch):
+                return render("{@1@} {@2@}",**options)
+        finally:
+            self.assertTrue(children and all(child.poll() is not None for child in children))
+            self.assertFalse(any(thread.name=="ctm-placeholder-reader" for thread in threading.enumerate()))
+
+    def test_real_progress_resets_only_placeholder_not_template_budget(self):
+        first={"placeholder":0,"span":{"start":0,"end":5,"line":1,"column":1}}
+        second={"placeholder":1,"span":{"start":6,"end":11,"line":1,"column":7}}
+        progress=[first,0.3,second,0.3,{"result":{}}]
+        with self.assertRaisesRegex(GenerationError,"time budget"):
+            self._fake_worker(progress,template_timeout=0.5)
+        with self.assertRaisesRegex(GenerationError,"result shape"):
+            self._fake_worker(progress,placeholder_timeout=0.5)
+
+    def test_protocol_boundaries_and_decoded_result_types_fail_closed(self):
+        first={"placeholder":0,"span":{"start":0,"end":5,"line":1,"column":1}}
+        second={"placeholder":1,"span":{"start":6,"end":11,"line":1,"column":7}}
+        result=self.local("{@1@} {@2@}")
+        bad_value=json.loads(json.dumps(result))
+        bad_value["resolutions"][0]["value"]={"exact":{"version":1,"value":["text","not scalar"]}}
+        bad_span=json.loads(json.dumps(first));bad_span["span"]["line"]=True
+        for messages,expected in [([first,first],"boundary"),([bad_span],"boundary"),
+                ([{"result":result}],"protocol"),([first,second,{"result":bad_value}],"result type")]:
+            with self.subTest(expected=expected),self.assertRaisesRegex(GenerationError,expected):
+                self._fake_worker(messages)
+
+    def test_template_count_and_actual_worker_output_are_bounded(self):
+        for text in ("a"*16385,"{@1@}"*129):
+            with self.assertRaisesRegex(GenerationError,"limit"):
+                render(text)
+        # Every individual expression is valid; the complete response must fail
+        # rather than return a truncated template or resolution collection.
+        with self.assertRaisesRegex(GenerationError,"output exceeds byte limit"):
+            render(" ".join("{#dispdp(1,1000)#}" for _ in range(128)))
+
+    def test_symbolic_semantic_validation_stays_inside_supervised_child(self):
+        import ctm_variants.placeholders as placeholders
+        with patch.object(placeholders,"_exact",side_effect=AssertionError("parent semantic evaluation")):
+            result=render("{@sqrt(2)@}")
+        self.assertEqual(result["resolutions"][0]["value"],sp.sqrt(2))
 
 
 if __name__ == "__main__":
