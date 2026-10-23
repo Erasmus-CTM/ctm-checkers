@@ -1,19 +1,8 @@
 name: Native STACK
 
-# STACK's engine (ctm_checkers.stack) against native STACK 10d3233 in Maxima
-# 5.46 and in the browser's Pyodide: the compliance report (moved from
-# stack-sympy: its native-compliance.yml, the maxima-reference job of its
-# site.yml and native-image-validation.yml). Runs on pull requests that touch
-# the engine or its tools, weekly and on demand, and when stack-sympy's site
-# calls it with the ctm-checkers commit it pins (`ctm-checkers-ref`); the
-# rendered report is the artifact native-compliance-html, which stack-sympy
-# publishes under /compliance. The native image is validated in full (paired
-# build, every runnable row) weekly, on demand, and on pull requests that
-# change its builder. The golden tables' answers that name a question
-# variable, and every answer for STACK's rules for the text of an answer,
-# are also validated by STACK's own PHP input validation
-# (tools/stack_native/check_validation.py; S-01, S-13), and the data of those
-# rules is checked to be STACK's (tools/stack_native/stack_input_data.py).
+# Native STACK is deferred from automatic PR/scheduled testing. Explicit
+# manual campaigns require AC's phrase. The existing workflow_call contract
+# remains available to pinned stack-sympy callers and produces the same report.
 on:
   workflow_call:
     inputs:
@@ -21,18 +10,12 @@ on:
         description: The ctm-checkers commit to check (the caller's pin)
         required: true
         type: string
-  pull_request:
-    paths:
-      - 'src/ctm_checkers/stack/**'
-      - 'examples/stack/**'
-      - 'tests/stack/**'
-      - 'tools/stack_native/**'
-      - 'reports/stack-compliance/**'
-      - 'ci/requirements.txt'
-      - '.github/workflows/native-stack.yml'
-  schedule:
-    - cron: '23 5 * * 1'
   workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'AC authorization: enter broad testing campaign'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -42,7 +25,22 @@ env:
   STACK_COMMIT: 10d323311b7f39fb7b092dd10ce75f7d8632f525
 
 jobs:
+  authorize:
+    name: Authorize broad testing campaign
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require explicit campaign confirmation
+        env:
+          CALLER_REF: ${{ inputs.ctm-checkers-ref }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          if [ -n "$CALLER_REF" ]; then
+            echo 'Preserving the existing reusable native compliance/report contract.'
+          else
+            test "$CONFIRMATION" = 'broad testing campaign'
+          fi
   desired:
+    needs: authorize
     name: Python vs authored desired outcomes
     runs-on: ubuntu-24.04
     timeout-minutes: 35
@@ -70,6 +68,7 @@ jobs:
           if-no-files-found: warn
 
   native:
+    needs: authorize
     name: Observe official STACK/Maxima
     runs-on: ubuntu-24.04
     timeout-minutes: 35
@@ -147,8 +146,8 @@ jobs:
 
   reference:
     name: Compare Python with native STACK
-    needs: [desired, native]
-    if: always()
+    needs: [authorize, desired, native]
+    if: ${{ needs.authorize.result == 'success' && (always()) }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -176,8 +175,8 @@ jobs:
 
   parity:
     name: Pyodide vs CPython
-    needs: desired
-    if: always()
+    needs: [authorize, desired]
+    if: ${{ needs.authorize.result == 'success' && (always()) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
@@ -207,6 +206,7 @@ jobs:
           if-no-files-found: warn
 
   port-regressions:
+    needs: authorize
     name: Project regressions (Python, Maxima, Pyodide)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -252,8 +252,8 @@ jobs:
 
   report:
     name: Assemble and render inspectable report
-    needs: [desired, native, reference, parity, port-regressions]
-    if: always()
+    needs: [authorize, desired, native, reference, parity, port-regressions]
+    if: ${{ needs.authorize.result == 'success' && (always()) }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -300,6 +300,7 @@ jobs:
           python -m pytest -q -p no:cacheprovider -rs tests/stack/test_report_ui.py
 
   maxima-reference:
+    needs: authorize
     name: Reference cases against native STACK answer tests
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -335,9 +336,10 @@ jobs:
           if-no-files-found: error
 
   native-image:
+    needs: authorize
     name: Native image full equivalence and performance
     # Not when a caller runs this workflow (its event is the caller's).
-    if: ${{ !inputs.ctm-checkers-ref }}
+    if: ${{ needs.authorize.result == 'success' && (!inputs.ctm-checkers-ref) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
