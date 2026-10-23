@@ -14,11 +14,13 @@ import zipfile
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "authoring"))
 from ctm_variants import history
 from ctm_variants.bot import token
+from ctm_variants.checklist import question_marker
+from ctm_variants.review import card_id
 from ctm_variants.github_bot import Recorder, GitHubTransport, event_request, _artifact_bytes
 from ctm_variants.model import VariantError, candidate, digest, snapshot
 
 HEAD, NEXT, BASE = "a" * 40, "b" * 40, "c" * 40
-PATHS = [".github/workflows/variants.yml", ".github/scripts/ctm-variants-records.py", "native/native.json", "native/helper.py", "pins.json"]
+PATHS = [".github/workflows/variants.yml", ".github/scripts/ctm-variants-records.py", ".github/ctm-variants.json", "native/native.json", "native/helper.py", "pins.json"]
 
 
 class FakeGitHub:
@@ -32,10 +34,11 @@ class FakeGitHub:
         row = candidate("value:$(never-execute)", snapshot(["2"], {"answer": "2"}, {}), tests={"passed": True})
         self.old = history.empty("q")
         self.value = history.append_proposals(self.old, [{"record": row, "tape": []}])
-        self.body = "- [x] answer " + token("q", row["id"], row["hash"])
+        self.body = question_marker('q') + "\n- [x] answer " + token("q", row["id"], row["hash"])
         self.envelope = {"version": 1, "headSha": HEAD, "producerSha": BASE, "event": "pull_request", "expectedHead": HEAD, "runId": 20, "repositoryId": 1,
-                         "pullRequest": 7, "questions": [{"label": "q", "path": "_variants/q.yml", "commentId": 11,
-                             "baseHash": digest(self.old), "manifest": self.value, "records": [row]}]}
+                         "pullRequest": 7, "questions": [{"label": "q", "path": "_variants/q.yml",
+                             "baseHash": digest(self.old), "manifest": self.value, "records": [row],
+                             "cards": {row['id']:'https://preview.test/review/q.html#'+card_id(row['id'])}}]}
 
     def archive(self):
         output = io.BytesIO()

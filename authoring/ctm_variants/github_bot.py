@@ -11,9 +11,11 @@ import re
 import zipfile
 
 from ctm_variants.bot import plan
-from ctm_variants.model import VariantError, canonical, digest
+from ctm_variants.model import VariantError, canonical, digest, classify
 from ctm_variants import history
 from ctm_variants.review import apply_decisions
+from ctm_variants.checklist import QUESTION, question_marker, render as render_checklist, _url
+from ctm_variants.review import card_id
 
 MAX_ARTIFACT = 16 * 1024 * 1024
 SHA = re.compile(r"[0-9a-f]{40}")
@@ -52,7 +54,7 @@ class Recorder:
             raise VariantError("configured bot login is required")
         if workflow != "variants.yml":
             raise VariantError("only the explicit variants.yml check workflow is supported")
-        required = {".github/workflows/variants.yml", ".github/scripts/ctm-variants-records.py"}
+        required = {".github/workflows/variants.yml", ".github/scripts/ctm-variants-records.py", ".github/ctm-variants.json"}
         if (type(producer_paths) is not list or not required.issubset(producer_paths)
                 or len(set(producer_paths)) != len(producer_paths)
                 or any(not isinstance(path, str) or not re.fullmatch(r"[A-Za-z0-9_./-]+", path)
@@ -107,22 +109,7 @@ class Recorder:
                 raise VariantError("PR changed or omitted trusted records producer: " + path)
         return trusted
 
-    def _records(self, pull, number, trusted_base):
-        head = pull["head"]["sha"]
-        runs = self.get("/actions/workflows/variants.yml/runs?head_sha=" + head + "&per_page=100")["workflow_runs"]
-        runs = [run for run in runs if run.get("head_sha") == head and run.get("status") == "completed"
-                and run.get("path") == ".github/workflows/variants.yml"
-                and run.get("repository", {}).get("id") == pull["base"]["repo"]["id"]
-                and ((run.get("event") == "pull_request" and any(pr.get("number") == number for pr in run.get("pull_requests", [])))
-                     or (run.get("event") == "workflow_dispatch" and run.get("head_branch") == pull["head"]["ref"]
-                         and run.get("head_repository", {}).get("id") == pull["head"]["repo"]["id"]))]
-        if not runs:
-            raise VariantError("no exact-head variants check artifact run")
-        run = max(runs, key=lambda item: _positive(item["id"], "workflow run"))
-        run_id = run["id"]
-        jobs = self.get("/actions/runs/" + str(run_id) + "/jobs?per_page=100")["jobs"]
-        if not any(job.get("name") == "variants-records" and job.get("conclusion") == "success" for job in jobs):
-            raise VariantError("exact-head records producer did not succeed")
+    def _download_records(self, run_id):
         artifacts = self.get("/actions/runs/" + str(run_id) + "/artifacts?per_page=100")["artifacts"]
         selected = [item for item in artifacts if item.get("name") == "ctm-variants-records" and not item.get("expired")]
         if len(selected) != 1:
@@ -133,7 +120,27 @@ class Recorder:
         data = self.api.download(self.prefix + "/actions/artifacts/" + str(_positive(artifact["id"], "artifact id")) + "/zip", MAX_ARTIFACT)
         if artifact.get("digest") != "sha256:" + hashlib.sha256(data).hexdigest():
             raise VariantError("artifact archive digest differs or is unavailable")
-        value = _artifact_bytes(data)
+        return _artifact_bytes(data)
+
+    def _records(self, pull, number, trusted_base, run_id=None):
+        head = pull["head"]["sha"]
+        runs = self.get("/actions/workflows/variants.yml/runs?head_sha=" + head + "&per_page=100")["workflow_runs"]
+        runs = [run for run in runs if run.get("head_sha") == head and run.get("status") == "completed"
+                and run.get("path") == ".github/workflows/variants.yml"
+                and run.get("repository", {}).get("id") == pull["base"]["repo"]["id"]
+                and ((run.get("event") == "pull_request" and any(pr.get("number") == number for pr in run.get("pull_requests", [])))
+                     or (run.get("event") == "workflow_dispatch" and run.get("head_branch") == pull["head"]["ref"]
+                         and run.get("head_repository", {}).get("id") == pull["head"]["repo"]["id"]))]
+        if not runs:
+            raise VariantError("no exact-head variants check artifact run")
+        run = next((item for item in runs if item["id"] == run_id), None) if run_id is not None else max(runs, key=lambda item: _positive(item["id"], "workflow run"))
+        if run is None:
+            raise VariantError("requested preview run is not the exact current head run")
+        run_id = run["id"]
+        jobs = self.get("/actions/runs/" + str(run_id) + "/jobs?per_page=100")["jobs"]
+        if not any(job.get("name") == "variants-records" and job.get("conclusion") == "success" for job in jobs):
+            raise VariantError("exact-head records producer did not succeed")
+        value = self._download_records(run_id)
         if (type(value) is not dict or set(value) != {"version", "headSha", "producerSha", "event", "expectedHead", "runId", "repositoryId", "pullRequest", "questions"}
                 or type(value["version"]) is not int or value["version"] != 1 or value["headSha"] != head
                 or value["producerSha"] != trusted_base or value["event"] != run["event"] or value["expectedHead"] != head
@@ -141,6 +148,56 @@ class Recorder:
                 or value["pullRequest"] != number or type(value["questions"]) is not list):
             raise VariantError("artifact provenance does not match GitHub run/head/PR")
         return value
+
+    def _questions(self, artifact):
+        labels, paths = set(), set()
+        for question in artifact["questions"]:
+            if type(question) is not dict or set(question) != {"label", "path", "baseHash", "manifest", "records", "cards"}:
+                raise VariantError("invalid question artifact schema")
+            label, path = question["label"], question["path"]
+            if (not isinstance(label, str) or not LABEL.fullmatch(label) or ".." in label
+                    or path != "_variants/" + label + ".yml" or label in labels or path in paths):
+                raise VariantError("question paths must be unique canonical variant manifests")
+            labels.add(label); paths.add(path)
+            value = history.validate(question["manifest"])
+            if value["question"] != label:
+                raise VariantError("question artifact manifest label differs")
+            canonical(question["records"])
+            classify(value["decisions"], question["records"])
+            if type(question["cards"]) is not dict or set(question["cards"]) != {item["id"] for item in question["records"]}:
+                raise VariantError("preview cards differ from resolved identities")
+            for locator, url in question["cards"].items():
+                if not _url(url).endswith("#" + card_id(locator)):
+                    raise VariantError("preview card does not use the canonical review anchor")
+        return artifact["questions"]
+
+    def _value(self, question, head):
+        label, path = question["label"], question["path"]
+        current_file = self.get("/contents/" + path + "?ref=" + head)
+        if current_file is None:
+            old, actual = history.empty(label), None
+        else:
+            if current_file.get("encoding") != "base64" or current_file.get("type") != "file":
+                raise VariantError("manifest must be an ordinary UTF-8 JSON/YAML file")
+            try:
+                old = history.validate(json.loads(base64.b64decode(current_file["content"], validate=False)))
+            except (ValueError, UnicodeError) as error:
+                raise VariantError("invalid current manifest JSON/YAML") from error
+            actual = digest(old)
+        value = history.validate(question["manifest"])
+        if (old["question"] != label or value["question"] != label or actual != question["baseHash"]
+                or value["decisions"] != old["decisions"] or value["events"] != old["events"]
+                or value["proposals"][:len(old["proposals"])] != old["proposals"]):
+            raise VariantError("artifact manifest lease/history differs from exact head")
+        return value
+
+    def _comment(self, number, comment_id):
+        comment = self.get("/issues/comments/" + str(comment_id))
+        if (comment.get("id") != comment_id or not isinstance(comment.get("updated_at"), str)
+                or comment.get("user", {}).get("login") != self.bot
+                or comment.get("issue_url") != "https://api.github.com" + self.prefix + "/issues/" + str(number)):
+            raise VariantError("event must refer to this PR's own bot comment")
+        return comment
 
     def record(self, *, pull_request, comment_id, sender):
         number = _positive(pull_request, "pull request")
@@ -153,44 +210,19 @@ class Recorder:
         pull = self._head(number)
         head, branch = pull["head"]["sha"], pull["head"]["ref"]
         trusted_base = self._producer(pull)
-        comment = self.get("/issues/comments/" + str(comment_id))
-        if (comment.get("id") != comment_id or not isinstance(comment.get("updated_at"), str)
-                or comment.get("user", {}).get("login") != self.bot
-                or comment.get("issue_url") != "https://api.github.com" + self.prefix + "/issues/" + str(number)):
-            raise VariantError("event must refer to this PR's own bot comment")
+        comment = self._comment(number, comment_id)
         artifact = self._records(pull, number, trusted_base)
-        questions = artifact["questions"]
-        labels, paths, comments = set(), set(), set()
+        questions = self._questions(artifact)
+        matched = False
         changes, excluded = [], {}
         for question in questions:
-            if type(question) is not dict or set(question) != {"label", "path", "commentId", "baseHash", "manifest", "records"}:
-                raise VariantError("invalid question artifact schema")
-            label, path, own_comment = question["label"], question["path"], question["commentId"]
-            if (not isinstance(label, str) or not LABEL.fullmatch(label) or ".." in label
-                    or path != "_variants/" + label + ".yml" or label in labels or path in paths
-                    or type(own_comment) is not int or own_comment <= 0 or own_comment in comments):
-                raise VariantError("question paths/comments must be unique canonical variant manifests")
-            labels.add(label); paths.add(path); comments.add(own_comment)
-            if own_comment != comment_id:
+            label, path = question["label"], question["path"]
+            if QUESTION.findall(comment["body"]) != QUESTION.findall(question_marker(label)):
                 continue
+            matched = True
             # The artifact can append tested proposals, never rewrite prior
             # decisions/events or old proposals. Current bytes come from GitHub.
-            current_file = self.get("/contents/" + path + "?ref=" + head)
-            if current_file is None:
-                old, actual = history.empty(label), None
-            else:
-                if current_file.get("encoding") != "base64" or current_file.get("type") != "file":
-                    raise VariantError("manifest must be an ordinary UTF-8 JSON/YAML file")
-                try:
-                    old = history.validate(json.loads(base64.b64decode(current_file["content"], validate=False)))
-                except (ValueError, UnicodeError) as error:
-                    raise VariantError("invalid current manifest JSON/YAML") from error
-                actual = digest(old)
-            value = history.validate(question["manifest"])
-            if (old["question"] != label or value["question"] != label or actual != question["baseHash"]
-                    or value["decisions"] != old["decisions"] or value["events"] != old["events"]
-                    or value["proposals"][:len(old["proposals"])] != old["proposals"]):
-                raise VariantError("artifact manifest lease/history differs from exact head")
+            value = self._value(question, head)
             selected = plan(comment["body"], label=label, records=question["records"], decisions=value["decisions"],
                 sender=sender, permission=permission, comment_author=self.bot, bot_login=self.bot,
                 head_repository_id=pull["head"]["repo"]["id"], base_repository_id=pull["base"]["repo"]["id"])
@@ -199,7 +231,7 @@ class Recorder:
                 updated = apply_decisions(value, question["records"], selected["decisions"])
                 changes.append({"path": path, "mode": "100644", "type": "blob",
                                 "content": json.dumps(updated, ensure_ascii=False, indent=2, allow_nan=False) + "\n"})
-        if comment_id not in comments:
+        if not matched:
             raise VariantError("bot comment is not in the verified current artifact")
         if not changes:
             return {"changed": False, "head": head, "notPassing": excluded}
@@ -228,6 +260,76 @@ class Recorder:
                   "inputs": {"expected_head": new_head, "pull_request": str(number)}})
         return {"changed": True, "head": new_head, "notPassing": excluded,
                 "statusAttachment": "unverified: observe dispatched variants.yml on this exact head"}
+
+    def _own_comments(self, number):
+        comments = []
+        for page in range(1, 6):
+            batch = self.get("/issues/" + str(number) + "/comments?per_page=100&page=" + str(page))
+            comments += [item for item in batch if item.get("user", {}).get("login") == self.bot]
+            if len(batch) < 100:return comments
+        raise VariantError("sticky comment scan exceeded its explicit page budget")
+
+    def refresh_run(self, run_id):
+        """Trusted workflow_run entry: derive PR selector from neutral data only.
+
+        Deriving the selector is not authorization: refresh_preview independently
+        proves the exact run/head/producer/repository/PR before any comment write.
+        This supports dispatch runs with no GitHub pull_requests link.
+        """
+        run_id = _positive(run_id, "preview workflow run")
+        value = self._download_records(run_id)
+        return self.refresh_preview(_positive(value.get("pullRequest"), "artifact pull request"), run_id=run_id)
+
+    def refresh_preview(self, number, *, run_id):
+        """Write only authenticated sticky comments from an exact neutral run.
+
+        No course code or HTML artifact is executed. The latest own-comment body
+        is merged immediately before update. The inactive workflow serializes
+        preview refreshes; GitHub has no atomic comment-body/head transaction.
+        """
+        number, run_id = _positive(number, "pull request"), _positive(run_id, "preview run")
+        pull = self._head(number)
+        head, trusted = pull["head"]["sha"], self._producer(pull)
+        artifact = self._records(pull, number, trusted, run_id=run_id)
+        questions = self._questions(artifact)
+        # Validate every manifest before the first side effect; a broken later
+        # question cannot cause a partially refreshed report to look complete.
+        values = {question["label"]: self._value(question, head) for question in questions}
+        comments = self._own_comments(number)
+        result = {}
+        for question in questions:
+            label = question["label"]
+            marker = QUESTION.findall(question_marker(label))
+            existing = [item for item in comments if QUESTION.findall(item.get("body", "")) == marker]
+            if len(existing) > 1:
+                raise VariantError("duplicate own sticky comments for one question")
+            previous = self._comment(number, _positive(existing[0]["id"], "sticky comment id")) if existing else None
+            rendered = render_checklist(label=label, records=question["records"], decisions=values[label]["decisions"],
+                cards=question["cards"], previous_body=previous["body"] if previous else None,
+                comment_author=self.bot if previous else None, bot_login=self.bot if previous else None)
+            body = rendered["body"] + "\n\nEvidence: head `" + head + "`; records run " + str(run_id) + "."
+            self._head(number, head)
+            if self._producer(pull) != trusted:
+                raise VariantError("trusted preview producer base moved")
+            if previous:
+                latest = self._comment(number, previous["id"])
+                if any(latest.get(key) != previous.get(key) for key in ("body", "updated_at")):
+                    rendered = render_checklist(label=label, records=question["records"], decisions=values[label]["decisions"],
+                        cards=question["cards"], previous_body=latest["body"], comment_author=self.bot, bot_login=self.bot)
+                    body = rendered["body"] + "\n\nEvidence: head `" + head + "`; records run " + str(run_id) + "."
+                if latest["body"] != body:
+                    saved = self.api.request("PATCH", self.prefix + "/issues/comments/" + str(previous["id"]), {"body": body})
+                else:saved = latest
+            else:
+                if any(QUESTION.findall(item.get("body", "")) == marker for item in self._own_comments(number)):
+                    raise VariantError("sticky comment appeared concurrently; retry refresh")
+                saved = self.post("/issues/" + str(number) + "/comments", {"body": body})
+            if saved.get("user", {}).get("login") != self.bot or saved.get("body") != body:
+                raise VariantError("sticky response does not confirm the configured bot body")
+            result[label] = {"commentId": _positive(saved["id"], "saved sticky comment"),
+                             "preserved": len(rendered["preserved"]), "notCarried": rendered["notCarried"]}
+        return {"head": head, "runId": run_id, "questions": result,
+                "statusAttachment": "unverified: observe actual exact-head required check"}
 
 
 class GitHubTransport:
@@ -310,6 +412,7 @@ def main(argv=None):
     parser.add_argument("--bot-login", default="github-actions[bot]")
     parser.add_argument("--producer-manifest", type=Path, required=True,
                         help="trusted-base JSON list enumerating the full records producer closure")
+    parser.add_argument("--refresh-preview", action="store_true", help="trusted workflow_run preview reconciliation")
     args = parser.parse_args(argv)
     try:
         if args.event_file is None:
@@ -319,7 +422,12 @@ def main(argv=None):
         event = json.loads(args.event_file.read_text(encoding="utf-8"))
         recorder = Recorder(GitHubTransport(os.environ.get("GITHUB_TOKEN")), repository=args.repository,
                             bot_login=args.bot_login, producer_paths=json.loads(args.producer_manifest.read_text(encoding="utf-8")))
-        result = recorder.record(**event_request(event, args.repository))
+        if args.refresh_preview:
+            if event.get("repository", {}).get("full_name") != args.repository or event.get("action") != "completed":
+                raise VariantError("preview refresh needs this repository's completed workflow_run event")
+            result = recorder.refresh_run(event.get("workflow_run", {}).get("id"))
+        else:
+            result = recorder.record(**event_request(event, args.repository))
         print(json.dumps(result, ensure_ascii=True, allow_nan=False))
         return 0
     except Exception as error:

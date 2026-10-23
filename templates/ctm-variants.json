@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "sourceGlobs": ["**/*.qmd"],
+  "wrapper": "_extensions/math-exercise/question-variants.py",
+  "previewBase": "https://COURSE-PREVIEW-HOST/previews/variants-{pullRequest}/review"
+}

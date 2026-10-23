@@ -38,9 +38,15 @@ or claim the producer's preview-card routes exist; callers supply the actual URL
 The trusted adapter/inactive serial workflow template and explicit check dispatch
 are described in [the adapter checkpoint](variants-github-adapter.md).
 
-Still required before day-one bot completion: real trusted records/preview
-producer and workflow, GitHub sticky-comment integration using these pure APIs,
-rejection commands (the disconnected page supports rejection), and observed proof
-that the dispatched check status attaches to the new head. Callers must recheck
-comment/head snapshots before any future update. No workflow, live comment or
-privileged automation is activated here; variants authoring remains draft/HOLD.
+The trusted producer and sticky-write adapters are now connected by a
+comment-independent neutral artifact protocol and inactive workflow templates.
+Source/fake tests exercise first comment creation, recording against its actual
+marker and latest-body tick reconciliation; no actual comment was sent. See
+[producer boundaries](variants-producer.md). Still required before day-one bot
+completion: reviewed course installation/coverage/inventory, real preview
+publishing, rejection commands (the disconnected page supports rejection),
+retirement of comments for removed questions and the >30-question summary, and
+observed proof that a dispatched check attaches to its new head. GitHub has no
+joint comment/head transaction; snapshots are rechecked immediately before
+updates. No workflow or privileged automation is activated; authoring remains
+draft/HOLD.

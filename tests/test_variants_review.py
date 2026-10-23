@@ -11,10 +11,38 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "authoring"))
 from ctm_variants import history
 from ctm_variants.model import VariantError, candidate, snapshot
-from ctm_variants.review import request, document, apply_decisions
+from ctm_variants.review import request, document, apply_decisions, card_id
 
 
 class ReviewTests(unittest.TestCase):
+    def test_component_student_previews_are_named_local_and_lazy(self):
+        item = candidate("a", snapshot(["2"], {"answer": "2"}, {}))
+        response = {"manifest": history.empty("q"), "baseHash": "lease", "records": [item]}
+        url = "/" + "t" * 43 + "/previews/a/nb/index.html"
+        page = document(response, student_previews={"a": [{"language": "nb", "url": url}]})
+        self.assertIn('data-src="' + url + '"', page)
+        self.assertIn('title="Student view — nb"', page)
+        self.assertNotRegex(page, r'<iframe[^>]*\ssrc=')
+        self.assertIn('Open Student view — nb', page)
+        self.assertIn('Resolved Markdown text preview', page)
+        for invalid in ("javascript:alert(1)", "https://example.com/", url.replace('/nb/', '/de/')):
+            with self.assertRaises(VariantError):
+                document(response, student_previews={"a": [{"language": "nb", "url": invalid}]})
+
+    def test_connected_mode_is_explicit_and_token_route_only(self):
+        item = candidate("a", snapshot(["2"], {"answer": "2"}, {}), tests={"passed": True})
+        response = {"manifest": history.empty("q"), "baseHash": "lease", "records": [item]}
+        self.assertNotIn("const endpoint=", document(response))
+        endpoint = "/" + "a" * 43 + "/"
+        page = document(response, connected_endpoint=endpoint)
+        self.assertIn("Connected local review", page)
+        self.assertIn("JSON.stringify({baseHash:base.baseHash,decisions:[...pending.values()]})", page)
+        self.assertIn("Save not confirmed:", page)
+        self.assertIn("Rebuild the review before retrying", page)
+        for invalid in ("https://example.com/", "/save", "/../", endpoint + "?x=1"):
+            with self.assertRaises(VariantError):
+                document(response, connected_endpoint=invalid)
+
     def test_component_can_decide_reconciled_changed_source_without_intermediate_write(self):
         first = candidate("a", snapshot(["2"], {"answer": "2"}, {}))
         value = history.append_proposals(history.empty("q"), [{"record": first, "tape": []}])
@@ -61,6 +89,8 @@ class ReviewTests(unittest.TestCase):
                        "manifest": "q.yml", "label": "q", "records": [item]}
             response = request(payload)
             markup = document(response)
+            self.assertIn('id="' + card_id(item["id"]) + '"', markup)
+            self.assertRegex(card_id(item["id"]), r"^variant-[0-9a-f]{64}$")
             self.assertIn("&lt;b&gt;unsafe&lt;/b&gt;", markup)
             self.assertNotIn('"</script>"', markup)
             self.assertIn('aria-live="polite"', markup)

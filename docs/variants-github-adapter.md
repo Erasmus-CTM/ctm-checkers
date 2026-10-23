@@ -2,9 +2,11 @@
 
 This is an **inactive template and fake-transport-tested adapter**, not an
 installed bot. No live comments, decision commits or workflow dispatches were
-sent to test it. Day-one bot completion still needs the real trusted records
-producer/artifact workflow, sticky comment/rejection integration, and observation
-that the explicitly dispatched check attaches to its new commit.
+sent to test it. Trusted records/sticky workflow glue now exists as source and
+inactive templates, tested using fake resolvers and transports. Day-one bot
+completion still needs course configuration/installation and an actual observed
+run, preview hosting, rejection commands, and observation that the explicitly
+dispatched check attaches to its new commit.
 
 The privileged native launcher is `ctm-variants-bot.py`, included by the canonical
 native-only producer. It runs from a trusted default-branch checkout with isolated
@@ -38,7 +40,7 @@ GitHub archive SHA256 digest and reads one bounded `variants-records.json` membe
 without extracting paths. Its envelope is:
 
 ```json
-{"version":1,"headSha":"<PR head>","producerSha":"<trusted producer SHA>","event":"pull_request or workflow_dispatch","expectedHead":"<PR head>","runId":123,"repositoryId":456,"pullRequest":7,"questions":[{"label":"q","path":"_variants/q.yml","commentId":789,"baseHash":"<current manifest digest or null>","manifest":{},"records":[]}]}
+{"version":1,"headSha":"<PR head>","producerSha":"<trusted producer SHA>","event":"pull_request or workflow_dispatch","expectedHead":"<PR head>","runId":123,"repositoryId":456,"pullRequest":7,"questions":[{"label":"q","path":"_variants/q.yml","baseHash":"<current manifest digest or null>","manifest":{},"records":[],"cards":{}}]}
 ```
 
 Only canonical `_variants/<label>.yml` paths are writable. The native format is
@@ -46,6 +48,12 @@ UTF-8 JSON, a YAML subset; general YAML is not interpreted by this adapter.
 Artifact histories may append proposals but cannot alter the exact-head manifest's
 old proposals, decisions or events. Current id/hash/number tokens and explicitly
 passing tests are validated before the shared pure decision API is called.
+Comment IDs are deliberately absent from producer artifacts: the first artifact
+exists before its comment. The privileged recorder fetches the actual own-bot
+comment, matches its exact hidden question marker to one artifact question and
+validates all checked identity tokens. Preview refresh similarly looks up own
+comments dynamically; duplicate owned question comments fail instead of choosing
+one. Canonical card URLs must end in the shared native review anchor.
 
 The only branch mutation is GraphQL `createCommitOnBranch` with
 `expectedHeadOid`; a concurrent branch move fails atomically. PR/producer heads
@@ -62,10 +70,15 @@ before the CAS; changed intent fails without recording. GitHub provides no joint
 atomic operation for a comment edit and branch commit, so a later comment edit
 cannot retroactively cancel a successful recording.
 
-`templates/variants-decide.yml` is kept outside `.github/workflows`; it does not
-activate automation. It uses per-PR serialization, pinned actions, default-branch
-code, and event-file parsing rather than interpolating comment text into shell
-commands. Install it only with the actual reviewed records workflow/inventory.
+`templates/variants-decide.yml`, `variants.yml` and `variants-preview.yml` are
+kept outside `.github/workflows`; they do not activate automation. The records
+workflow runs only trusted native tooling against a separate authored checkout
+with read permissions. A separate default-branch `workflow_run` job reads neutral
+JSON and can write sticky comments; it never executes the triggering course or
+extracts its HTML. The decide workflow retains per-PR serialization, pinned
+actions and event-file parsing. Install only after configuring/reviewing the
+complete producer inventory and actual preview destination. See
+[producer/workflow installation boundaries](variants-producer.md).
 
 Focused tests: `python -m unittest discover -s tests -p
 test_variants_github_bot.py`; planner tests remain in `test_variants_bot.py`.

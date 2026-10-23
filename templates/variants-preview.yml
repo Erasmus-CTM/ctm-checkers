@@ -1,0 +1,31 @@
+name: Variants trusted sticky preview
+on:
+  workflow_run:
+    workflows: [Variants]
+    types: [completed]
+permissions: {}
+concurrency:
+  group: variants-preview-${{ github.repository }}-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+jobs:
+  sticky:
+    # workflow_run code comes from the default branch. Never checkout the
+    # triggering run's head or execute its artifact/course HTML in this job.
+    if: github.event.workflow_run.head_repository.id == github.event.repository.id
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - name: Verify neutral artifact and reconcile own sticky comments
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python -I _extensions/ctm-checkers/native-authoring/ctm-variants-bot.py --producer-manifest .github/ctm-variants-producer.json --refresh-preview
