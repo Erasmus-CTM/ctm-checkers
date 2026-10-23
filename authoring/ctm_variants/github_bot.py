@@ -223,7 +223,7 @@ class Recorder:
             # The artifact can append tested proposals, never rewrite prior
             # decisions/events or old proposals. Current bytes come from GitHub.
             value = self._value(question, head)
-            selected = plan(comment["body"], label=label, records=question["records"], decisions=value["decisions"],
+            selected = plan(comment["body"], label=label, records=question["records"], decisions=value["decisions"], retained=value["proposals"],
                 sender=sender, permission=permission, comment_author=self.bot, bot_login=self.bot,
                 head_repository_id=pull["head"]["repo"]["id"], base_repository_id=pull["base"]["repo"]["id"])
             excluded[label] = selected["notPassing"]

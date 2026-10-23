@@ -15,6 +15,35 @@ from ctm_variants.review import request, document, apply_decisions, card_id
 
 
 class ReviewTests(unittest.TestCase):
+    def test_gone_approved_snapshot_is_readonly_with_retirement_only(self):
+        old = candidate("gone", snapshot(["2"], {"answer": "2"}, {}), note="old")
+        value = history.append_proposals(history.empty("q"), [{"record": old, "tape": []}])
+        value = history.decision(value, [old], old["id"], "approved")
+        page = document({"manifest": value, "baseHash": "lease", "records": []})
+        self.assertIn('Retained approved snapshot — Variant 1', page)
+        self.assertIn('Retire missing Variant 1', page)
+        self.assertNotIn('data-status="approved"', page)
+        self.assertIn('Reason for retiring Variant 1', page)
+        self.assertIn('required', page)
+        value["proposals"] = []
+        repair = document({"manifest": value, "baseHash": "lease", "records": []})
+        self.assertIn('Retained proposal is missing', repair)
+        self.assertNotIn('Retire missing Variant 1', repair)
+
+    def test_github_manifest_export_requires_explicit_safe_context(self):
+        item = candidate("a", snapshot(["2"], {"answer": "2"}, {}))
+        response = {"manifest": history.empty("q"), "baseHash": None, "records": [item]}
+        context = {"repository": "course/lesson", "branch": "feature/variants", "path": "_variants/q.yml", "head": "a" * 40}
+        page = document(response, github_context=context)
+        self.assertIn('Copy file', page)
+        self.assertIn('Open in GitHub editor', page)
+        self.assertIn('manifestJSON', page)
+        self.assertIn('https://github.com/', page)
+        self.assertNotIn('Copy file', document(response))
+        for field, invalid in (("repository", "evil.test/a/b"), ("repository", None), ("branch", "bad\nbranch"), ("path", "../q.yml"), ("head", "moving-branch")):
+            with self.assertRaises(VariantError):
+                document(response, github_context=dict(context, **{field: invalid}))
+
     def test_component_student_previews_are_named_local_and_lazy(self):
         item = candidate("a", snapshot(["2"], {"answer": "2"}, {}))
         response = {"manifest": history.empty("q"), "baseHash": "lease", "records": [item]}
@@ -36,12 +65,24 @@ class ReviewTests(unittest.TestCase):
         endpoint = "/" + "a" * 43 + "/"
         page = document(response, connected_endpoint=endpoint)
         self.assertIn("Connected local review", page)
-        self.assertIn("JSON.stringify({baseHash:base.baseHash,decisions:[...pending.values()]})", page)
+        self.assertIn("operation({baseHash:base.baseHash,decisions:[...pending.values()]},false)", page)
         self.assertIn("Save not confirmed:", page)
         self.assertIn("Rebuild the review before retrying", page)
         for invalid in ("https://example.com/", "/save", "/../", endpoint + "?x=1"):
             with self.assertRaises(VariantError):
                 document(response, connected_endpoint=invalid)
+
+    def test_connected_generation_action_uses_original_lease_and_localized_labels(self):
+        response = {"manifest": history.empty("q"), "baseHash": "original", "records": []}
+        endpoint = "/" + "a" * 43 + "/"
+        for language, label in (("en", "Generate 25 more"), ("de", "25 weitere generieren"), ("nb", "Generer 25 til")):
+            page = document(response, connected_endpoint=endpoint, language=language)
+            self.assertIn(label, page)
+            self.assertIn("action:'generate25more',baseHash:base.baseHash", page)
+            self.assertIn("generate.type='button'", page)
+        self.assertNotIn("generate.id='generate-more'", document(response))
+        with self.assertRaises(VariantError):
+            document(response, language="unknown")
 
     def test_component_can_decide_reconciled_changed_source_without_intermediate_write(self):
         first = candidate("a", snapshot(["2"], {"answer": "2"}, {}))

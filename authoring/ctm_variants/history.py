@@ -80,6 +80,28 @@ def decision(value, candidates, locator, status, **metadata):
     return validate(result)
 
 
+def retire(value, candidates, locator, content_hash, **metadata):
+    """Reject a gone approval using its retained proof; never revive absent math."""
+    from ctm_variants.model import classify
+    validate(value)
+    rows = classify(value["decisions"], candidates)["entries"]
+    row = next((row for row in rows if row["entry"]["id"] == locator), None)
+    if (row is None or row["state"] != "gone" or row["entry"]["hash"] != content_hash
+            or row["entry"]["status"] != "approved" or not metadata.get("reason", "").strip()):
+        raise VariantError("retirement requires a gone approved entry, exact hash and reason")
+    entry = row["entry"]
+    retained = next((p["record"] for p in value["proposals"]
+        if p["record"]["id"] == locator and p["record"]["hash"] == content_hash
+        and all(p["record"]["snapshot"][key] == entry["snapshot"][key]
+                for key in ("math", "teacher", "grading"))), None)
+    if retained is None:
+        raise VariantError("retirement requires its retained proposal and replay tape")
+    selected = copy.deepcopy(retained)
+    selected["snapshot"] = copy.deepcopy(entry["snapshot"])
+    selected["note"] = entry.get("note", "")
+    return decision(value, [*candidates, selected], locator, "rejected", **metadata)
+
+
 def publication(entries, candidates, *, approval="required", render_mode="publish", target=25):
     """Select current decisions only; changed/rejected records never deploy."""
     from ctm_variants.model import classify

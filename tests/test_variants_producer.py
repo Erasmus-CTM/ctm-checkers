@@ -24,7 +24,7 @@ class MetadataAPI:
         self.calls.append((method,path));assert method=='GET'
         if path.endswith('/git/ref/heads/main'):return {'object':{'sha':self.producer}}
         assert path=='/repos/org/course/pulls/7'
-        return {'state':'open','head':{'sha':self.head,'repo':{'id':2 if self.fork else 1,'full_name':'fork/course' if self.fork else 'org/course'}},'base':{'repo':{'id':1,'full_name':'org/course','default_branch':'main'}}}
+        return {'state':'open','head':{'sha':self.head,'ref':'feature/teacher-question','repo':{'id':2 if self.fork else 1,'full_name':'fork/course' if self.fork else 'org/course'}},'base':{'repo':{'id':1,'full_name':'org/course','default_branch':'main'}}}
 
 
 class ProducerTests(unittest.TestCase):
@@ -97,6 +97,22 @@ class ProducerTests(unittest.TestCase):
         self.assertEqual(verify_context(api,**dispatch)['event'],'workflow_dispatch')
         for fault in [dict(source_head='c'*40),dict(producer_head='c'*40),dict(event={**dispatch['event'],'inputs':{'pull_request':'7','expected_head':'c'*40}})]:
             with self.subTest(fault=fault),self.assertRaises(VariantError):verify_context(api,**dict(dispatch,**fault))
+
+    def test_github_file_editor_context_comes_from_verified_head_including_forks(self):
+        api=MetadataAPI();api.fork=True;editor={}
+        event={'repository':{'full_name':'org/course'},'pull_request':{'number':7,'head':{'sha':HEAD}}}
+        context=verify_context(api,repository='org/course',event_name='pull_request',event=event,run_id='20',source_head=HEAD,producer_head=BASE,editor_out=editor)
+        self.assertEqual(editor,{'repository':'fork/course','branch':'feature/teacher-question','head':HEAD})
+        self.assertEqual(context,CONTEXT,'editor metadata does not change the artifact provenance schema')
+        with tempfile.TemporaryDirectory() as folder:
+            value=history.append_proposals(history.empty('q'),[{'record':self.item,'tape':[]}])
+            response={'baseHash':None,'manifest':value,'records':[self.item]}
+            _,pages=produce(folder,context,self.config,definitions=[self.definition],resolve=lambda _:response,github_context=editor)
+            self.assertIn('GitHub review snapshot:',pages['review/q.html'])
+            self.assertIn('fork/course',pages['review/q.html'])
+            self.assertIn('feature/teacher-question',pages['review/q.html'])
+            with self.assertRaisesRegex(VariantError,'verified source head'):
+                produce(folder,context,self.config,definitions=[self.definition],resolve=lambda _:response,github_context=dict(editor,head='c'*40))
 
     def test_workflow_split_never_executes_authored_checkout_privileged(self):
         records=(ROOT/'templates/variants.yml').read_text()

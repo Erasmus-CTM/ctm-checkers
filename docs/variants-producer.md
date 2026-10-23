@@ -86,7 +86,7 @@ publisher, which must preserve the `review/` directory layout. Native cards rema
 resolved Markdown text, not a real component-rendered Try it view. No public URL
 or live preview route was proven by these tests.
 
-Rejection commands, retirement of sticky comments for deleted questions and the
+Retirement of sticky comments for deleted questions and the
 large-project summary are unfinished. GitHub provides no atomic joint operation
 for a human comment edit and a sticky update; current snapshots are reread, and
 the preview workflow serializes refreshes per branch. Required-check attachment
@@ -96,3 +96,10 @@ the template/job or creating a dispatch is not that proof. This remains HOLD.
 Focused source checks: producer6, sticky fake-transport4, adapter8 and native
 distribution3. These overlap earlier native checks and are not a new broad
 acceptance campaign.
+
+Handwritten `pool: true` questions without variables are also discovered. Their
+trusted supervised `check-pool` action must pass teacher answers and authored
+cases for every task. The producer emits a bounded separate `pool-checks.json`
+receipt and the inactive template uploads it as `ctm-pool-checks`. Pools never
+receive native proposal identities, manifests or approvals. Ordinary Quarto pool
+rendering remains independent of this CI action.

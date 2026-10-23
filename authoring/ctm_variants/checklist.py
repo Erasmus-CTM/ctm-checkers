@@ -12,6 +12,7 @@ from urllib.parse import urlsplit
 
 from ctm_variants.bot import TOKEN, CHECKED, _decode, token, bulk_token
 from ctm_variants.model import VariantError, canonical, classify
+from ctm_variants.rejection_hint import rejection_hint
 
 QUESTION = re.compile(r"<!-- ctm-question:([A-Za-z0-9_-]+) -->")
 
@@ -136,6 +137,12 @@ def render(*, label, records, decisions, cards, previous_body=None, comment_auth
     checked = {item["id"] for item in carried["preserved"]}
     lines = [question_marker(label), "### Variants: " + _inline(label),
              "{} need a decision · {} recorded current decisions. Recorded decisions have no checkboxes.".format(len(pending), len(recorded))]
+    hint = rejection_hint(decisions)
+    if hint:
+        lines += ["", "Authoring hint: {} of {} decided variants were rejected. Consider a require(...) condition so these cases are not proposed. No condition is applied automatically.".format(hint["rejected"], hint["decided"]),
+                  "Rejection reasons: " + "; ".join(_inline(reason) for reason in hint["reasons"]) + "."]
+        if hint["suggestions"]:
+            lines.append("Shared rejected values absent from approvals: " + "; ".join("`" + suggestion + "`" for suggestion in hint["suggestions"]) + ".")
     if pending:
         # Always uncheck the fresh bulk row. Prior bulk consent is represented by
         # preserved individual checks, never extended to newly generated rows.

@@ -16,7 +16,7 @@ from ctm_variants import history
 from ctm_variants.batches import _record
 from ctm_variants.checklist import _url
 from ctm_variants.github_bot import LABEL, SHA, MAX_ARTIFACT, GitHubTransport
-from ctm_variants.model import VariantError, digest
+from ctm_variants.model import VariantError, digest, classify
 from ctm_variants.review import card_id, document
 
 NEUTRAL = ("id", "hash", "note", "snapshot", "data", "tests")
@@ -65,7 +65,7 @@ def discover(project, patterns, parse_source, *, ast=_ast):
                     raise VariantError(file + ": native STACK records producer is not implemented")
                 if "{math-exercise}" in classes:
                     options, question = parse_source(raw)
-                    if "variables" not in options:
+                    if "variables" not in options and options.get("pool") not in (True, "true"):
                         return
                     label = options.get("label")
                     if not isinstance(label, str) or not LABEL.fullmatch(label) or ".." in label or label in labels:
@@ -87,18 +87,21 @@ def discover(project, patterns, parse_source, *, ast=_ast):
     return found
 
 
-def produce(project, context, config, *, definitions, resolve):
+def produce(project, context, config, *, definitions, resolve, github_context=None):
     """Resolve through trusted supervised component code, then emit neutral data.
 
     resolve is injectable for source-only tests; the CLI supplies the installed
     trusted component wrapper. It is not configurable from authored JSON/code.
     """
     project = Path(project).resolve()
+    if github_context is not None and (type(github_context) is not dict or set(github_context) != {"repository", "branch", "head"}
+                                       or github_context["head"] != context["headSha"]):
+        raise VariantError("producer editor context must name the verified source head")
     preview = config["previewBase"].replace("{pullRequest}", str(context["pullRequest"])).replace("{headSha}", context["headSha"])
     _url(preview)
     if "{" in preview or "}" in preview:
         raise VariantError("previewBase has an unknown placeholder")
-    questions, pages, seen = [], {}, set()
+    questions, pages, seen, pool_checks = [], {}, set(), []
     artifact_bytes = len(json.dumps({**context, "version": 1, "questions": []}, ensure_ascii=False, indent=2).encode())
     review_bytes = 0
     for definition in definitions:
@@ -106,6 +109,24 @@ def produce(project, context, config, *, definitions, resolve):
         if not LABEL.fullmatch(label) or ".." in label or label in seen:
             raise VariantError("producer requires distinct safe question labels")
         seen.add(label)
+        if definition["options"].get("pool") in (True, "true") and "variables" not in definition["options"]:
+            receipt = resolve(dict(copy.deepcopy(definition), version=1, projectRoot=str(project),
+                                   sourceFile=file, action="check-pool"))
+            if (type(receipt) is not dict or receipt.get("version") != 1 or receipt.get("kind") != "pool"
+                    or receipt.get("label") != label or receipt.get("passed") is not True
+                    or type(receipt.get("count")) is not int or receipt["count"] < 1
+                    or type(receipt.get("tasks")) is not list or len(receipt["tasks"]) != receipt["count"]):
+                raise VariantError("handwritten pool requires successful supervised teacher/authored checks")
+            for number, task in enumerate(receipt["tasks"], 1):
+                if (type(task) is not dict or set(task) != {"n", "teacher", "tests"} or task["n"] != number
+                        or type(task["teacher"]) is not dict or task["teacher"].get("passed") is not True
+                        or type(task["tests"]) is not list
+                        or any(type(test) is not dict or test.get("passed") is not True for test in task["tests"])):
+                    raise VariantError("handwritten pool requires passing teacher/authored task receipts")
+            pool_checks.append(receipt)
+            if len(json.dumps(pool_checks, ensure_ascii=False, allow_nan=False).encode()) > ARTIFACT_BUDGET:
+                raise VariantError("aggregate handwritten pool receipt budget exceeded")
+            continue
         path = "_variants/" + label + ".yml"
         manifest_path = inside(project, path)
         old, lease = history.load(manifest_path, label)
@@ -134,7 +155,8 @@ def produce(project, context, config, *, definitions, resolve):
         artifact_bytes += len(encoded) + encoded.count(b"\n") * 4 + 6
         if artifact_bytes > ARTIFACT_BUDGET:
             raise VariantError("aggregate neutral records artifact budget exceeded")
-        page = document({**response, "records": records})
+        page = document({**response, "records": records},
+                        github_context={**github_context, "path": path} if github_context else None)
         review_bytes += len(page.encode())
         if review_bytes > REVIEW_BUDGET:
             raise VariantError("aggregate review HTML budget exceeded")
@@ -143,11 +165,14 @@ def produce(project, context, config, *, definitions, resolve):
     envelope = {**context, "version": 1, "questions": questions}
     if len(json.dumps(envelope, ensure_ascii=False, indent=2).encode()) > ARTIFACT_BUDGET:
         raise VariantError("aggregate neutral records artifact budget exceeded")
+    if pool_checks:
+        pages["pool-checks.json"] = json.dumps({"version": 1, "headSha": context["headSha"], "pools": pool_checks},
+                                               ensure_ascii=False, indent=2, allow_nan=False) + "\n"
     return envelope, pages
 
 
 def check(envelope):
-    """Run the required publication gate after the successful records artifact.
+    """Run strict CI approval checks after the successful records artifact.
 
     Keeping this separate lets zero-approved questions produce review evidence
     while the required check still fails; no authored code is executed here.
@@ -155,14 +180,21 @@ def check(envelope):
     warnings = []
     for question in envelope["questions"]:
         records = question["records"]
+        value = history.validate(question["manifest"])
+        stale = [row for row in classify(value["decisions"], records)["entries"]
+                 if row["entry"]["status"] == "approved" and row["state"] in ("changed", "gone")]
+        if stale:
+            details = "; ".join("Variant {} ({}) is {}".format(row["entry"]["n"],
+                row["entry"]["id"], row["state"]) for row in stale)
+            raise VariantError(question["label"] + ": strict variants check needs review: " + details)
         target = records[0].get("data", {}).get("options", {}).get("variants", 25) if records else 25
         if isinstance(target, str) and target.isdecimal():target = int(target)
-        selected = history.publication(question["manifest"]["decisions"], records, approval="required", render_mode="publish", target=target)
+        selected = history.publication(value["decisions"], records, approval="required", render_mode="publish", target=target)
         warnings += [question["label"] + ": " + warning for warning in selected["warnings"]]
     return warnings
 
 
-def verify_context(api, *, repository, event_name, event, run_id, source_head, producer_head):
+def verify_context(api, *, repository, event_name, event, run_id, source_head, producer_head, editor_out=None):
     """Authenticate run selectors against GitHub; strings never become commands."""
     if (not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository or "")
             or event.get("repository", {}).get("full_name") != repository
@@ -187,6 +219,11 @@ def verify_context(api, *, repository, event_name, event, run_id, source_head, p
     trusted = api.request("GET", "/repos/" + repository + "/git/ref/heads/" + quote(pull["base"]["repo"]["default_branch"], safe="/"))
     if trusted["object"]["sha"] != producer_head:
         raise VariantError("producer checkout differs from the API-observed trusted default SHA")
+    if editor_out is not None:
+        if type(editor_out) is not dict or not isinstance(pull["head"].get("ref"), str):
+            raise VariantError("GitHub editor metadata requires an observed PR branch")
+        editor_out.clear()
+        editor_out.update(repository=pull["head"]["repo"]["full_name"], branch=pull["head"]["ref"], head=source_head)
     return {"headSha": source_head, "producerSha": producer_head, "event": event_name, "expectedHead": expected,
             "runId": run_id, "repositoryId": pull["base"]["repo"]["id"], "pullRequest": number}
 
@@ -208,9 +245,10 @@ def main(argv=None):
             raise VariantError("producer executable must come from the trusted checkout")
         git_head = lambda root: subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, timeout=10).strip()
         event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
+        editor_context = {}
         context = verify_context(GitHubTransport(os.environ.get("GITHUB_TOKEN")), repository=os.environ.get("GITHUB_REPOSITORY"),
             event_name=os.environ.get("GITHUB_EVENT_NAME"), event=event, run_id=os.environ.get("GITHUB_RUN_ID"),
-            source_head=git_head(project), producer_head=git_head(trusted))
+            source_head=git_head(project), producer_head=git_head(trusted), editor_out=editor_context)
         artifact = args.output / "variants-records.json"
         if args.check:
             value = json.loads(artifact.read_text(encoding="utf-8"))
@@ -229,7 +267,7 @@ def main(argv=None):
             code, stdout, stderr = module["supervised"](json.dumps(payload, ensure_ascii=True).encode())
             if code:raise VariantError("supervised native records resolution failed: " + stderr.decode(errors="replace")[:4096])
             return json.loads(stdout)
-        envelope, pages = produce(project, context, config, definitions=definitions, resolve=resolve)
+        envelope, pages = produce(project, context, config, definitions=definitions, resolve=resolve, github_context=editor_context)
         if args.output.resolve().is_relative_to(project) or args.output.resolve().is_relative_to(trusted):
             raise VariantError("records output must be outside both source checkouts")
         args.output.mkdir(parents=True, exist_ok=True)

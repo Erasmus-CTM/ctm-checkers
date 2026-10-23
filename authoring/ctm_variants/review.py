@@ -5,6 +5,7 @@ from pathlib import Path
 
 from ctm_variants import history
 from ctm_variants.model import VariantError, classify, digest
+from ctm_variants.rejection_hint import rejection_hint
 
 
 def card_id(locator):
@@ -44,6 +45,10 @@ def apply_decisions(value, records, selections):
             raise VariantError("decision locators must be distinct strings")
         seen.add(selected["id"])
         item = next((item for item in records if item["id"] == selected["id"]), None)
+        if item is None and selected["status"] == "rejected":
+            value = history.retire(value, records, selected["id"], selected["hash"],
+                by=selected.get("by", ""), date=selected.get("date", ""), reason=selected.get("reason", ""))
+            continue
         if item is None or item["hash"] != selected["hash"]:
             raise VariantError("decision id/hash differs from current candidate")
         value = history.decision(value, records, selected["id"], selected["status"],
@@ -79,16 +84,34 @@ def request(payload):
             "classification": classify(value["decisions"], records), "records": records}
 
 
-def document(response, *, connected_endpoint=None, student_previews=None):
+def document(response, *, connected_endpoint=None, student_previews=None, github_context=None, language="en"):
     """Overview with disconnected export or an explicit local connected endpoint.
 
     Component-resolved Markdown is shown as text. Full filter-rendered cards and
     live Check belong to the component review integration, not this native file.
     """
+    generate_text = {
+        "en": {"saved": "Generation saved. Rebuilding review…", "button": "Generate 25 more", "working": "Generating up to 25 more proposals…", "done": "Generation saved. Review rebuilt from current source and manifest.", "failed": "Generation not confirmed: ", "retry": "Rebuild review before trying again.", "rebuild": "Rebuild review"},
+        "de": {"saved": "Generierung gespeichert. Die Übersicht wird neu erstellt…", "button": "25 weitere generieren", "working": "Bis zu 25 weitere Vorschläge werden generiert…", "done": "Generierung gespeichert. Die Übersicht wurde aus aktueller Quelle und Manifest neu erstellt.", "failed": "Generierung nicht bestätigt: ", "retry": "Vor einem weiteren Versuch die Übersicht neu erstellen.", "rebuild": "Übersicht neu erstellen"},
+        "nb": {"saved": "Genereringen er lagret. Bygger oversikten på nytt…", "button": "Generer 25 til", "working": "Genererer opptil 25 nye forslag…", "done": "Genereringen er lagret. Oversikten er bygd på nytt fra gjeldende kilde og manifest.", "failed": "Genereringen er ikke bekreftet: ", "retry": "Bygg oversikten på nytt før du prøver igjen.", "rebuild": "Bygg oversikten på nytt"},
+    }
+    if language not in generate_text:
+        raise VariantError("review language must be en, de or nb")
     if connected_endpoint is not None:
         import re
         if not isinstance(connected_endpoint, str) or not re.fullmatch(r"/[A-Za-z0-9_-]{40,}/", connected_endpoint):
             raise VariantError("connected review requires a token-bound local route")
+    if github_context is not None:
+        import re
+        if (type(github_context) is not dict or set(github_context) != {"repository", "branch", "path", "head"}
+                or any(not isinstance(github_context.get(key), str) for key in ("repository", "branch", "path", "head"))
+                or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", github_context.get("repository", ""))
+                or not isinstance(github_context.get("branch"), str) or not github_context["branch"]
+                or any(ord(char) < 32 for char in github_context["branch"])
+                or not re.fullmatch(r"_variants/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\.yml", github_context.get("path", ""))
+                or ".." in github_context["path"]
+                or not re.fullmatch(r"[0-9a-f]{40}", github_context.get("head", ""))):
+            raise VariantError("GitHub editor requires explicit repository, branch, manifest path and source head")
     student_previews = {} if student_previews is None else student_previews
     if type(student_previews) is not dict:
         raise VariantError("student previews must be a candidate mapping")
@@ -145,7 +168,7 @@ def document(response, *, connected_endpoint=None, student_previews=None):
             text(json.dumps(item["tests"], ensure_ascii=False, indent=2)),
             changes(entry["snapshot"], item["snapshot"]) if state == "changed" else "")
         for student in student_previews.get(item["id"], []):
-            title = "Student view — " + ("course language" if student["language"] == "default" else student["language"])
+            title = "Student view — " + ("Default question" if student["language"] == "default" else student["language"])
             preview += ('<details data-student-preview><summary>{title}</summary>'
                         '<p><a href="{url}" target="_blank" rel="noopener noreferrer">Open {title}</a></p>'
                         '<iframe data-src="{url}" title="{title}" loading="lazy" '
@@ -155,14 +178,50 @@ def document(response, *, connected_endpoint=None, student_previews=None):
         rows.append('<tr id="{anchor}" data-index="{i}" data-needs="{needs}"><th scope="row">{number}</th><td>{state}; {status}<span class="pending"></span></td><td><code>{note}</code>{preview}</td><td>{teacher}</td><td>{verdict}</td><td><button type="button" data-index="{i}" data-status="approved" {disabled}>Approve {number}</button> <button type="button" data-index="{i}" data-status="rejected">Reject {number}</button><label>Reason for {number}<input data-reason="{i}"></label></td></tr>'.format(
             anchor=card_id(item["id"]), i=index, needs=str(status == "undecided").lower(), number=text(number), state=text(state), status=text(status),
             note=text(item["note"]), preview=preview, teacher=teacher, verdict=verdict, disabled="" if passed else "disabled"))
+    for missing in classified["entries"]:
+        entry = missing["entry"]
+        if missing["state"] != "gone" or entry["status"] != "approved":
+            continue
+        index = len(items)
+        retained = any(proposal["record"]["id"] == entry["id"] and proposal["record"]["hash"] == entry["hash"]
+                       and all(proposal["record"]["snapshot"][key] == entry["snapshot"][key]
+                               for key in ("math", "teacher", "grading")) for proposal in value["proposals"])
+        number = "Variant " + str(entry["n"])
+        items.append(dict(id=entry["id"], hash=entry["hash"], state="gone", status="approved", passed=False,
+                          answersUnchanged=False, number=number, previousStatus="approved", absent=True))
+        snapshot_view = '<details><summary>Retained approved snapshot — {}</summary><pre>{}</pre></details>'.format(
+            text(number), text(json.dumps(entry["snapshot"], ensure_ascii=False, indent=2)))
+        teacher = '<dl>' + ''.join('<dt>{}</dt><dd><code>{}</code></dd>'.format(text(key), text(answer))
+                                  for key, answer in entry["snapshot"]["teacher"]) + '</dl>'
+        action = ('<button type="button" data-index="{i}" data-status="rejected">Retire missing {number}</button>'
+                  '<label>Reason for retiring {number}<input data-reason="{i}" required></label>').format(i=index, number=text(number)) if retained else 'Retained proposal is missing; native repair is required.'
+        rows.append('<tr id="{anchor}" data-index="{i}" data-needs="true"><th scope="row">{number}</th>'
+                    '<td>gone; approved<span class="pending"></span></td><td><code>{note}</code>{snapshot}</td>'
+                    '<td>{teacher}</td><td>Absent from current source; approval is unavailable.</td><td>{action}</td></tr>'.format(
+                        anchor=card_id(entry["id"]), i=index, number=text(number), note=text(entry.get("note", "")),
+                        snapshot=snapshot_view, teacher=teacher, action=action))
     counts = {name: sum(item["state"] == name for item in items) for name in ("new", "changed", "current", "moved")}
     counts["gone"] = sum(row["state"] == "gone" for row in classified["entries"])
+    hint = rejection_hint(value["decisions"])
+    hint_html = ""
+    if hint:
+        hint_html = ('<aside class="variant-rejection-hint" role="note"><p>Authoring hint: {} of {} decided variants were rejected. '
+            'Consider a <code>require(...)</code> condition so these cases are not proposed. '
+            'No condition is applied automatically.</p><p>Rejection reasons:</p><ul>{}</ul>').format(
+                hint["rejected"], hint["decided"], ''.join('<li>' + text(reason) + '</li>' for reason in hint["reasons"]))
+        if hint["suggestions"]:
+            hint_html += '<p>Shared rejected values absent from approvals:</p><ul>' + ''.join(
+                '<li><code>' + text(suggestion) + '</code></li>' for suggestion in hint["suggestions"]) + '</ul>'
+        hint_html += '</aside>'
     data = json.dumps({"baseHash": response["baseHash"], "label": value["question"], "records": response["records"],
+                       "manifestJSON": json.dumps(value, ensure_ascii=False, allow_nan=False),
+                       "recordsJSON": json.dumps(response["records"], ensure_ascii=False, allow_nan=False),
+                       "github": github_context,
                        "items": items}, ensure_ascii=True).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
     page = '''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Variant review</title>
 <style>body{font:1rem system-ui;line-height:1.5;margin:1.5rem;max-width:90rem}table{border-collapse:collapse;width:100%}th,td{border:1px solid #aaa;padding:.5rem;text-align:left;vertical-align:top}button,input{font:inherit;margin:.2rem}pre{white-space:pre-wrap;overflow-wrap:anywhere}label{display:block}.unchanged{color:#666}.pending{font-weight:bold}button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid #146bb5}dl{margin:0}dd{margin-left:0}code{overflow-wrap:anywhere}details table{width:auto}</style>
 <h1>Variant review: ''' + text(value["question"]) + '''</h1><p>Disconnected review: stage choices, download one decision request, then apply it with the native CLI. Nothing is saved by this page. Reloading discards choices that have not been applied.</p>
-<p id="overview">''' + text(' · '.join('{} {}'.format(count, state) for state, count in counts.items())) + '''</p>
+<p id="overview">''' + text(' · '.join('{} {}'.format(count, state) for state, count in counts.items())) + '''</p>''' + hint_html + '''
 <p><label>Project root <input id="root" required></label> <label>Manifest path <input id="path" required></label></p>
 <p><label><input type="checkbox" id="problems" checked>Show only variants needing a decision</label>
 <button type="button" id="bulk">Approve all passing variants of this question</button>
@@ -177,13 +236,22 @@ const status=document.getElementById('status');
 function refresh(message){
  document.querySelectorAll('tr[data-index]').forEach(row=>{const choice=pending.get(Number(row.dataset.index));row.querySelector('.pending').textContent=choice?' → '+choice.status+' (staged)':'';row.hidden=document.getElementById('problems').checked&&row.dataset.needs!=='true'&&!choice;});
  document.getElementById('undo').disabled=!undo.length;document.getElementById('download').disabled=!pending.size;
+ for(const id of ['copy-file','github-editor']){const button=document.getElementById(id);if(button)button.disabled=!pending.size;}
  status.textContent=message||pending.size+' staged decision(s); nothing saved.';
 }
 function stage(selections,message){
  if(!selections.length){refresh(message||'No eligible passing variants.');return;}
+ for(const [index,choice] of selections){
+  if(base.items[index].absent&&choice==='rejected'){
+   const reason=document.querySelector('[data-reason="'+index+'"]');
+   reason.setCustomValidity(reason.value.trim()?'':'Provide a reason for retiring this missing variant.');
+   if(!reason.reportValidity()){status.textContent='A reason is required before retiring a missing approved variant.';return;}
+  }
+ }
  undo.push(new Map(pending));selections.forEach(([index,status])=>pending.set(index,{id:base.items[index].id,hash:base.items[index].hash,status,reason:status==='rejected'?document.querySelector('[data-reason="'+index+'"]').value:''}));refresh(message);
 }
 document.querySelectorAll('button[data-index]').forEach(button=>button.addEventListener('click',()=>stage([[Number(button.dataset.index),button.dataset.status]])));
+document.querySelectorAll('input[data-reason]').forEach(input=>input.addEventListener('input',()=>input.setCustomValidity('')));
 document.getElementById('problems').addEventListener('change',()=>refresh());
 document.getElementById('bulk').addEventListener('click',()=>{
  const selected=base.items.flatMap((item,index)=>item.passed&&item.previousStatus!=='rejected'&&pending.get(index)?.status!=='rejected'?[[index,'approved']]:[]);
@@ -201,6 +269,39 @@ document.getElementById('download').addEventListener('click',()=>{
  status.textContent=pending.size+' decision(s) downloaded; nothing saved. Apply with the native CLI, then regenerate this review before another download. The baseHash lease rejects stale writes.';
 });
 refresh();</script></html>'''
+    if github_context is not None:
+        from ctm_variants.browser_manifest import SCRIPT
+        exports = r'''<script>
+const manifestArea=document.createElement('textarea');manifestArea.readOnly=true;manifestArea.rows=12;manifestArea.style.width='100%';
+const manifestLabel=document.createElement('label');manifestLabel.textContent='Complete manifest file (copy all text)';manifestLabel.append(manifestArea);manifestLabel.hidden=true;status.before(manifestLabel);
+const copyFile=document.createElement('button');copyFile.type='button';copyFile.id='copy-file';copyFile.textContent='Copy file';
+const editor=document.createElement('button');editor.type='button';editor.id='github-editor';editor.textContent='Open in GitHub editor';
+status.before(copyFile,editor);
+const context=document.createElement('p');context.textContent='GitHub review snapshot: '+base.github.repository+' · '+base.github.branch+' · '+base.github.head+'. Compare the branch file before replacing it; source changes require fresh review. The human Git commit records authorship.';copyFile.before(context);
+function completeManifest(){
+ const content=CTMManifestExport.apply(base.manifestJSON,base.recordsJSON,[...pending.values()]);
+ manifestArea.value=content;manifestLabel.hidden=false;return content;
+}
+copyFile.addEventListener('click',async()=>{
+ try{
+  const content=completeManifest();
+  if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(content);status.textContent='Complete manifest copied. Paste it into the selected branch file and review the Git diff before committing.';}
+  else{manifestArea.focus();manifestArea.select();status.textContent='Complete manifest ready. Copy the selected text, then paste it into the GitHub editor.';}
+ }catch(error){manifestArea.focus();manifestArea.select();status.textContent='Copy not confirmed: '+error.message+' Copy the complete text manually if available.';}
+});
+editor.addEventListener('click',()=>{
+ try{
+  completeManifest();
+  const github=base.github,repo=github.repository.split('/').map(encodeURIComponent).join('/'),branch=encodeURIComponent(github.branch);
+  const path=github.path.split('/').map(encodeURIComponent).join('/');
+  const url=base.baseHash===null?'https://github.com/'+repo+'/new/'+branch+'?filename='+encodeURIComponent(github.path):'https://github.com/'+repo+'/edit/'+branch+'/'+path;
+  window.open(url,'_blank','noopener,noreferrer');
+  status.textContent='GitHub editor opened. Paste the complete file, compare changes and commit on this branch. This page has not saved repository files.';
+ }catch(error){status.textContent='Manifest export failed: '+error.message;}
+});
+refresh();
+</script>'''
+        page = page.rsplit('</html>', 1)[0] + '<script>' + SCRIPT + '</script>' + exports + '</html>'
     if student_previews:
         lazy = '''<script>
 function loadStudentPreview(details){
@@ -218,36 +319,45 @@ document.querySelectorAll('details[data-student-preview][open]').forEach(loadStu
     endpoint = json.dumps(connected_endpoint)
     bridge = '''<script>
 const endpoint=ENDPOINT;
+const generationText=GENERATION_TEXT;
+const reviewLanguage=REVIEW_LANGUAGE;
 const intro=document.querySelector('h1').nextElementSibling;
 intro.textContent='Connected local review: each decision is saved through the current-source validator. Rebuild after changing source. This page shows resolved text, not a live exercise.';
 for(const id of ['root','path'])document.getElementById(id).closest('p').hidden=true;
 for(const id of ['download','undo'])document.getElementById(id).hidden=true;
-const rebuild=document.createElement('button');rebuild.textContent='Rebuild review';rebuild.type='button';rebuild.onclick=()=>location.reload();status.before(rebuild);
+const rebuild=document.createElement('button');rebuild.textContent=generationText.rebuild;rebuild.lang=reviewLanguage;rebuild.type='button';rebuild.onclick=()=>location.reload();status.before(rebuild);
+const generate=document.createElement('button');generate.textContent=generationText.button;generate.lang=reviewLanguage;generate.type='button';generate.id='generate-more';status.before(generate);
 let saving=false;
 const stageDisconnected=stage;
 stage=async function(selections,message){
  if(saving)return;
  stageDisconnected(selections,message);
  if(!pending.size)return;
+ await operation({baseHash:base.baseHash,decisions:[...pending.values()]},false);
+};
+generate.addEventListener('click',()=>operation({action:'generate25more',baseHash:base.baseHash},true));
+async function operation(payload,generation){
+ if(saving)return;
  saving=true;
  const buttons=[...document.querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);
- status.textContent='Saving decisions…';
+ status.lang=generation?reviewLanguage:'en';status.textContent=generation?generationText.working:'Saving decisions…';
  try{
-  const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({baseHash:base.baseHash,decisions:[...pending.values()]})});
+  const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   const result=await response.json();
   if(!response.ok||result.saved!==true)throw new Error(result.error||'Unexpected save response.');
-  status.textContent='Saved. Rebuilding review…';
-  try{sessionStorage.setItem('ctm-review-saved',location.pathname);}catch{}
+  status.textContent=generation?generationText.saved:'Saved. Rebuilding review…';
+  try{sessionStorage.setItem(generation?'ctm-review-generated':'ctm-review-saved',location.pathname);}catch{}
   location.reload();
  }catch(error){
-  status.textContent='Save not confirmed: '+error.message+' Rebuild the review before retrying.';
+  status.textContent=generation?generationText.failed+error.message+' '+generationText.retry:'Save not confirmed: '+error.message+' Rebuild the review before retrying.';
   // A rejected or interrupted response can follow a completed native write.
   // Keep the lease terminal until a fresh GET; never silently retry it.
   rebuild.disabled=false;
  }
-};
+}
 try{if(sessionStorage.getItem('ctm-review-saved')===location.pathname){sessionStorage.removeItem('ctm-review-saved');status.textContent='Saved. Review rebuilt from the current source and manifest.';}}catch{}
-</script>'''.replace('ENDPOINT', endpoint)
+try{if(sessionStorage.getItem('ctm-review-generated')===location.pathname){sessionStorage.removeItem('ctm-review-generated');status.lang=reviewLanguage;status.textContent=generationText.done;}}catch{}
+</script>'''.replace('ENDPOINT', endpoint).replace('GENERATION_TEXT', json.dumps(generate_text[language])).replace('REVIEW_LANGUAGE', json.dumps(language))
     if student_previews:
         bridge = bridge.replace('This page shows resolved text, not a live exercise.',
                                 'Open Student view to load the component-rendered exercise.')

@@ -50,3 +50,13 @@ observed proof that a dispatched check attaches to its new head. GitHub has no
 joint comment/head transaction; snapshots are rechecked immediately before
 updates. No workflow or privileged automation is activated; authoring remains
 draft/HOLD.
+
+The source recorder now accepts `/variants reject 7 12 "reason"` using existing
+stable positive numbers, or `/variants reject id:"opaque current id" "reason"`
+for an unnumbered proposal. Commands belong in the authenticated own-bot question
+comment; fenced/indented examples are ignored. A reason is required. `0`, `New1`
+and display ordinals are not stable identities. The teacher page is simpler for
+new proposals. Rejections use the same exact-head artifact, permissions, lease
+and atomic ref update as approvals. A gone approval may only be retired using
+its retained exact identity/hash/snapshot; absent mathematics cannot be approved.
+These are fake-transport source checks; no live command was posted or recorded.

@@ -33,3 +33,31 @@ This is the native disconnected seam. It does not supply full filter-rendered
 multilingual student cards, live Try it/Check, a connected save helper, project
 scanning, or course review-profile integration. Those require the component and
 shared review producers; this document labels its previews as resolved text.
+
+## GitHub-only complete files
+
+When a trusted producer supplies explicit repository, branch, manifest path and
+source-head context, the same page additionally offers **Copy file** and
+**Open in GitHub editor**. Stage individual or bulk decisions (Undo remains
+available), copy the complete manifest, open the selected branch file, paste and
+review its Git diff before making your own commit. New-file links prefill the
+filename; existing-file links open that file. No GitHub request or commit is
+made by the page. Without this context, the decision-request download remains
+the available route.
+
+The complete `.yml` file uses native-compatible JSON, including retained proposal
+tapes, snapshots, stable numbers and append-only decision events. A small
+lossless JSON tree preserves numeric tokens, including integers beyond browser
+Number precision; ordinary JSON.parse/stringify must not rewrite these files.
+The browser copies validated snapshots and ports only decision/history updates,
+not source resolution, grading or snapshot construction. Native Python semantic
+goldens and native validation/write/load checks cover migrations, changed/tied
+content, large numbers and histories. Formatting is not claimed byte-identical
+to the Python writer.
+
+This is a review snapshot, not a live filesystem lease. Compare the branch and
+file with the displayed source head before pasting. If source or manifest has
+changed, regenerate the review instead of replacing newer history with an old
+file. Review/check CI must validate current source after the human commit.
+Informational `by` metadata is not authorization; the actual Git commit records
+who wrote the repository change.
