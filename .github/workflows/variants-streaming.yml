@@ -1,0 +1,33 @@
+name: Supervised lazy raw choices
+on:
+  pull_request:
+    paths: ['authoring/ctm_variants/**', 'tests/test_variants_streaming.py', '.github/workflows/variants-streaming.yml']
+permissions:
+  contents: read
+jobs:
+  streaming:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.9', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install sympy==1.13.3
+      - run: python -c "import sys,sympy; print(sys.version); print('SymPy',sympy.__version__)"
+      - name: Source lazy choices and exhaustive contracts
+        run: |
+          python tests/test_variants_streaming.py
+          python tests/test_variants_enumeration.py
+      - name: Native authoring uses the unchanged actual browser wheel
+        run: |
+          folder="$PWD/_extensions/ctm-checkers"
+          export CTM_CHECKERS_WHEEL="$folder/$(python -c 'import json; print(json.load(open("_extensions/ctm-checkers/checkers.json"))["wheel"])')"
+          python tests/test_variants_streaming.py
+          python tests/test_variants_enumeration.py
+      - name: Canonical browser payload remains current
+        run: python tools/build.py --check
