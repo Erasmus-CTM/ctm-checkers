@@ -254,8 +254,12 @@ TESTS = {
     # S-11 (0.10.0): the errors of the author that stay errors, and the refusal of a number too large (tests/stack/test_undecided.py).
     'stack-s11-teacher-logic': ('stack/assessment.py', '''            raise Unsupported(f"The teacher's answer: {exc}") from exc   # an error of the author, not of the answer\n    if is_logical(student_value):''',
                                 '''            pass\n    if is_logical(student_value):''', 1, ('tests/stack/test_undecided.py',)),
-    'stack-s11-teacher-facform': ('stack/assessment.py', '''            raise Unsupported(f"The teacher's answer: {exc}") from exc   # an error of the author, not of the answer\n        _facform_preflight''',
-                                  '''            pass\n        _facform_preflight''', 1, ('tests/stack/test_assessment.py',)),
+    'stack-s11-teacher-facform': ('stack/assessment.py', '''            _facform_polynomial(teacher_value, variable)\n        except Undecided as exc:\n            raise Unsupported(f"The teacher's answer: {exc}") from exc   # an error of the author, not of the answer''',
+                                  '''            _facform_polynomial(teacher_value, variable)\n        except Undecided as exc:\n            pass''', 1, ('tests/stack/test_assessment.py',)),
+    # Restore the old bypass: authored values are unchecked for a non-expression answer.
+    'stack-s11-facform-author-order': ('stack/assessment.py', '    if name == "FacForm" and plain_teacher:\n',
+                                      '    if name == "FacForm" and plain_teacher and not (is_collection(student_value) or is_logical(student_value) or isinstance(student_value, MatrixValue)):\n',
+                                      1, ('tests/stack/test_undecided.py',)),
     'stack-s11-not-compared': ('stack/assessment.py', 'not_compared = Undecided if plain_teacher else Unsupported', 'not_compared = Undecided', 1,
                                ('tests/stack/test_undecided.py',)),
     'stack-s11-validation-overflow': ('stack/engine.py', '    except OverflowError:\n        # A number too large', '    except ZeroDivisionError:\n        # A number too large', 1,

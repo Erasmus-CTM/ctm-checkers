@@ -23,6 +23,7 @@ NOT_EXPRESSION = "Your answer should be an expression, not an equation, inequali
 ENTERED_EQUATION = ('You have entered an equation, but an equation is not expected here. You may have typed something like '
                     '"y=2*x+1" when you only needed to type "2*x+1".')
 UNDECIDED = "This answer could not be checked automatically."
+NON_EXPRESSION_ANSWERS = ("[1,2]", "{1,2}", "matrix([1,2])", "x=1", "a and b")
 
 
 def run(*args, **kwargs):
@@ -89,6 +90,46 @@ def test_the_errors_of_the_author_still_raise():
             ("Int", "x", "x", "")):                               # a test the engine does not have
         with pytest.raises((Unsupported, InvalidAnswer)):
             answer_test(test, student, teacher, options, raw=student)
+
+
+@pytest.mark.parametrize("student", NON_EXPRESSION_ANSWERS)
+@pytest.mark.parametrize("teacher, options, message", [
+    ("x^2-1", "", "FacForm requires a polynomial variable option"),
+    ("x^2-1", "x+1", "FacForm requires a single polynomial variable"),
+    ("x^2-y^2", "x", "The teacher's answer: FacForm supports univariate rational polynomials"),
+    ("sin(x)", "x", "The teacher's answer: FacForm supports univariate rational polynomials"),
+    ("(x+1)^100*(x+1)", "x", "The teacher's answer: FacForm polynomial exceeds supported bounds"),
+])
+def test_facform_author_errors_precede_nonexpression_fallback(student, teacher, options, message):
+    with pytest.raises(Unsupported) as exc:
+        answer_test("FacForm", student, teacher, options, raw=student)
+    assert str(exc.value) == message
+
+
+@pytest.mark.parametrize("student", NON_EXPRESSION_ANSWERS)
+def test_facform_valid_teacher_keeps_nonexpression_fallback(student):
+    assert run("FacForm", student, "x^2-1", "x") == (
+        True, False, False, "ATFacForm_SA_not_expression", NOT_EXPRESSION)
+
+
+@pytest.mark.parametrize("teacher, options", [("x^2-1", ""), ("x^2-1", "x+1"), ("x^2-y^2", "x")])
+def test_facform_malformed_student_keeps_input_error_precedence(teacher, options):
+    assert answer_test("FacForm", "x+", teacher, options) == {
+        "valid": False, "correct": False, "note": "invalid", "feedback": "Expected an expression"}
+
+
+@pytest.mark.parametrize("options", ["", "x+1"])
+@pytest.mark.parametrize("teacher, message", [
+    ("[1,2]", "Collections require AlgEquiv, Sets, SameType or EqualComAss"),
+    ("{1,2}", "Collections require AlgEquiv, Sets, SameType or EqualComAss"),
+    ("matrix([1,2])", "Matrices require AlgEquiv, SameType or EqualComAss"),
+    ("x=1", "Logical answers require AlgEquiv"),
+    ("a and b", "Logical answers require AlgEquiv"),
+])
+def test_facform_structured_teacher_keeps_type_error_precedence(teacher, options, message):
+    with pytest.raises(Unsupported) as exc:
+        answer_test("FacForm", "x", teacher, options)
+    assert str(exc.value) == message
 
 
 def test_the_teachers_answer_outside_the_logic_bounds_is_an_error_of_the_author():

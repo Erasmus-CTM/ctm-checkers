@@ -434,6 +434,17 @@ def _answer_test(name: str, student: Node | str, teacher: str, options: str = ""
     # answer is an error of the author.
     plain_teacher = not (isinstance(teacher_value, MatrixValue) or is_collection(teacher_value) or is_logical(teacher_value))
     not_compared = Undecided if plain_teacher else Unsupported
+    if name == "FacForm" and plain_teacher:
+        # Check authored values before a non-expression answer can take the false branch.
+        if not options.strip():
+            raise Unsupported("FacForm requires a polynomial variable option")
+        variable = _option(options, env, assumptions)
+        if not isinstance(variable, sp.Symbol):
+            raise Unsupported("FacForm requires a single polynomial variable")
+        try:
+            _facform_polynomial(teacher_value, variable)
+        except Undecided as exc:
+            raise Unsupported(f"The teacher's answer: {exc}") from exc   # an error of the author, not of the answer
     if name == "SameType":
         # STACK's ATSameTypefun: AlgEquiv is applicable to the pair (the types of S-10's validation).
         from .collections import type_mismatch
@@ -502,15 +513,6 @@ def _answer_test(name: str, student: Node | str, teacher: str, options: str = ""
         return {**_result(True, correct), "cas_valid": True}
 
     if name == "FacForm":
-        if not options.strip():
-            raise Unsupported("FacForm requires a polynomial variable option")
-        variable = _option(options, env, assumptions)
-        if not isinstance(variable, sp.Symbol):
-            raise Unsupported("FacForm requires a single polynomial variable")
-        try:
-            _facform_polynomial(teacher_value, variable)
-        except Undecided as exc:
-            raise Unsupported(f"The teacher's answer: {exc}") from exc   # an error of the author, not of the answer
         _facform_preflight(student_ast, env, assumptions)
         _facform_polynomial(student_value, variable)
         factored = _facform_factored(student_ast, env, assumptions, variable)
