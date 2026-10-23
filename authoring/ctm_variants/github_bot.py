@@ -269,6 +269,82 @@ class Recorder:
             if len(batch) < 100:return comments
         raise VariantError("sticky comment scan exceeded its explicit page budget")
 
+    def export_review(self, run_id, output):
+        """Export only bounded authenticated review pages; never execute HTML.
+
+        The caller may pass this directory to the inactive Pages publisher. All
+        archive members are validated before the first filesystem mutation.
+        """
+        from pathlib import Path
+        run_id = _positive(run_id, "preview workflow run")
+        selector = self._download_records(run_id)
+        number = _positive(selector.get("pullRequest"), "artifact pull request")
+        pull = self._head(number)
+        head, trusted = pull["head"]["sha"], self._producer(pull)
+        artifact = self._records(pull, number, trusted, run_id=run_id)
+        questions = self._questions(artifact)
+        for question in questions:
+            self._value(question, head)
+        destination = "previews/variants-" + str(number)
+        expected = {question["label"] + ".html": question for question in questions}
+        if not expected:
+            return {"head": head, "pullRequest": number, "destination": destination, "publish": False}
+        from urllib.parse import urlsplit
+        for question in questions:
+            expected_path = "/" + destination + "/review/" + question["label"] + ".html"
+            for url in question["cards"].values():
+                if not urlsplit(url).path.endswith(expected_path):
+                    raise VariantError("preview card route differs from the fixed Pages destination")
+        artifacts = self.get("/actions/runs/" + str(run_id) + "/artifacts?per_page=100")["artifacts"]
+        selected = [item for item in artifacts if item.get("name") == "ctm-variants-review" and not item.get("expired")]
+        if len(selected) != 1:
+            raise VariantError("expected one live review HTML artifact")
+        item = selected[0]
+        limit = 32 * 1024 * 1024
+        if type(item.get("size_in_bytes")) is not int or not 0 < item["size_in_bytes"] <= limit:
+            raise VariantError("review archive size exceeds budget")
+        data = self.api.download(self.prefix + "/actions/artifacts/" + str(_positive(item["id"], "artifact id")) + "/zip", limit)
+        if item.get("digest") != "sha256:" + hashlib.sha256(data).hexdigest():
+            raise VariantError("review archive digest differs or is unavailable")
+        pages, total = {}, 0
+        try:
+            with zipfile.ZipFile(io.BytesIO(data)) as archive:
+                members = archive.infolist()
+                if len(members) != len(expected) or {member.filename for member in members} != set(expected):
+                    raise VariantError("review archive members differ from exact question pages")
+                for member in members:
+                    if (member.is_dir() or member.flag_bits & 1 or member.file_size > limit
+                            or (member.external_attr >> 16) & 0o170000 not in (0, 0o100000)):
+                        raise VariantError("review archive requires ordinary unencrypted HTML files")
+                    total += member.file_size
+                    if total > limit:
+                        raise VariantError("aggregate review archive budget exceeded")
+                    with archive.open(member) as source:
+                        content = source.read(member.file_size + 1)
+                    if len(content) != member.file_size:
+                        raise VariantError("review archive file length differs")
+                    text = content.decode("utf-8")
+                    for locator in expected[member.filename]["cards"]:
+                        if 'id="' + card_id(locator) + '"' not in text:
+                            raise VariantError("review page omits a verified candidate anchor")
+                    pages[member.filename] = content
+        except (UnicodeError, zipfile.BadZipFile, RuntimeError) as error:
+            raise VariantError("invalid review HTML archive") from error
+        self._head(number, head)
+        if self._producer(pull) != trusted:
+            raise VariantError("trusted preview producer base moved")
+        output = Path(output)
+        if any(parent.is_symlink() for parent in (output, *output.parents)):
+            raise VariantError("review export output cannot follow symbolic links")
+        if output.exists() and (output.is_symlink() or not output.is_dir() or any(output.iterdir())):
+            raise VariantError("review export requires an empty ordinary output directory")
+        output.mkdir(parents=True, exist_ok=True)
+        review = output / "review"
+        review.mkdir()
+        for name, content in pages.items():
+            (review / name).write_bytes(content)
+        return {"head": head, "pullRequest": number, "destination": destination, "publish": True}
+
     def refresh_run(self, run_id):
         """Trusted workflow_run entry: derive PR selector from neutral data only.
 
@@ -413,6 +489,7 @@ def main(argv=None):
     parser.add_argument("--producer-manifest", type=Path, required=True,
                         help="trusted-base JSON list enumerating the full records producer closure")
     parser.add_argument("--refresh-preview", action="store_true", help="trusted workflow_run preview reconciliation")
+    parser.add_argument("--export-preview", type=Path, help="export verified exact-run HTML for the inactive Pages publisher")
     args = parser.parse_args(argv)
     try:
         if args.event_file is None:
@@ -422,10 +499,14 @@ def main(argv=None):
         event = json.loads(args.event_file.read_text(encoding="utf-8"))
         recorder = Recorder(GitHubTransport(os.environ.get("GITHUB_TOKEN")), repository=args.repository,
                             bot_login=args.bot_login, producer_paths=json.loads(args.producer_manifest.read_text(encoding="utf-8")))
-        if args.refresh_preview:
+        if args.refresh_preview or args.export_preview is not None:
             if event.get("repository", {}).get("full_name") != args.repository or event.get("action") != "completed":
                 raise VariantError("preview refresh needs this repository's completed workflow_run event")
-            result = recorder.refresh_run(event.get("workflow_run", {}).get("id"))
+            run_id = event.get("workflow_run", {}).get("id")
+            result = recorder.export_review(run_id, args.export_preview) if args.export_preview is not None else recorder.refresh_run(run_id)
+            if args.export_preview is not None and os.environ.get("GITHUB_OUTPUT"):
+                with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as target:
+                    target.write("publish=" + str(result["publish"]).lower() + "\ndestination=" + result["destination"] + "\n")
         else:
             result = recorder.record(**event_request(event, args.repository))
         print(json.dumps(result, ensure_ascii=True, allow_nan=False))

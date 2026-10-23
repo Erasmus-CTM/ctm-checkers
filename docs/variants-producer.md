@@ -80,16 +80,22 @@ new module/launcher without changing browser wheels.
 
 ## Remaining actual acceptance
 
-The templates upload HTML as an artifact; **they do not publish it**. The sample
-preview host must be replaced and connected to the course's reviewed preview
-publisher, which must preserve the `review/` directory layout. Native cards remain
+The source templates upload HTML and include an inactive Pages publishing step;
+**no template was activated and no site was published here**. The sample
+preview host must be replaced with the course's actual Pages origin. The inactive
+trusted preview template now exports the authenticated exact-run HTML archive
+and publishes only `previews/variants-<PR>/review/` using a commit-pinned Pages
+action with `keep_files: true`. The preview workflow serializes its own Pages updates repository-wide. Before
+activation, the main site publisher must use the same global concurrency group
+and preserve `previews/`; this template cannot prevent a separate publisher
+from racing or deleting preview subtrees. Native cards remain
 resolved Markdown text, not a real component-rendered Try it view. No public URL
 or live preview route was proven by these tests.
 
 Retirement of sticky comments for deleted questions and the
 large-project summary are unfinished. GitHub provides no atomic joint operation
 for a human comment edit and a sticky update; current snapshots are reread, and
-the preview workflow serializes refreshes per branch. Required-check attachment
+the preview workflow serializes its own refreshes repository-wide. Required-check attachment
 must be observed on a real explicitly dispatched PR-head run: merely declaring
 the template/job or creating a dispatch is not that proof. This remains HOLD.
 
@@ -103,3 +109,14 @@ cases for every task. The producer emits a bounded separate `pool-checks.json`
 receipt and the inactive template uploads it as `ctm-pool-checks`. Pools never
 receive native proposal identities, manifests or approvals. Ordinary Quarto pool
 rendering remains independent of this CI action.
+
+
+The Pages exporter verifies exact current PR/run/producer, all neutral manifests,
+archive API digest and bounded member inventory before writing files. Only the
+expected per-question UTF-8 HTML pages are accepted; traversal, extra files,
+symlinks, missing anchors and stale heads fail. It never executes downloaded HTML
+or authored PR source. The publisher preserves the existing Pages branch and
+fixed destination subtree. This is inactive source/fake-download proof only: no
+Pages deployment or public URL was attempted, and actual required-check status
+attachment remains unobserved. The checked-in templates remain outside
+`.github/workflows`.
