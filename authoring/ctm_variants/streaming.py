@@ -3,6 +3,7 @@
 No sampling, templates, candidate testing or approval policy lives here.
 """
 import contextlib
+import hashlib
 import json
 import math
 import os
@@ -25,15 +26,17 @@ from ctm_variants.enumeration import _Branch, MAX_OUTPUT
 @contextlib.contextmanager
 def choice_stream(source, *, attempt_limit, variables=None, file="<variables>",
                   label="<question>", variable_timeout=5.0,
-                  attempt_timeout=30.0, exercise_timeout=30.0):
+                  attempt_timeout=30.0, exercise_timeout=30.0, seed=None):
     """Yield a demand-driven iterator over distinct exact choice tapes.
 
-    Finite-domain order is the existing exhaustive order. attempt_limit counts
+    Without seed, finite-domain order is the existing exhaustive order. A text
+    seed permutes each finite domain lazily; no Cartesian pool is materialized.
+    attempt_limit counts
     actual prefix executions, including branches, rejections and duplicates.
     Use the context manager so an early consumer stop closes the native worker.
     """
     stream = _Stream(source, attempt_limit, variables, file, label,
-                     variable_timeout, attempt_timeout, exercise_timeout)
+                     variable_timeout, attempt_timeout, exercise_timeout, seed)
     try:
         yield stream
     finally:
@@ -42,7 +45,7 @@ def choice_stream(source, *, attempt_limit, variables=None, file="<variables>",
 
 class _Stream:
     def __init__(self, source, limit, variables, file, label, variable_timeout,
-                 attempt_timeout, exercise_timeout):
+                 attempt_timeout, exercise_timeout, seed):
         self.where = "{}: {}".format(file, label)
         self.process = self.reader = self.temporary = None
         self.messages, self.stopped = queue.Queue(maxsize=1), threading.Event()
@@ -57,6 +60,8 @@ class _Stream:
         try:
             if type(limit) is not int or limit < 1:
                 raise GenerationError("attempt_limit must be a positive integer")
+            if seed is not None and (not isinstance(seed, str) or len(seed) > 1024):
+                raise GenerationError("seed must be text of at most 1024 characters")
             for timeout in (variable_timeout, attempt_timeout, exercise_timeout):
                 if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or timeout <= 0:
                     raise GenerationError("timeouts must be positive finite seconds")
@@ -72,7 +77,7 @@ class _Stream:
             roots = sorted({str(Path(package.__file__).resolve().parents[1])
                 for package in (ctm_checkers, ctm_variants, sympy, mpmath)})
             request = json.dumps({"source": source, "variables": encode(variables or {}),
-                "attempt_limit": limit, "import_roots": roots}, ensure_ascii=True).encode("utf-8")
+                "attempt_limit": limit, "import_roots": roots, "seed": seed}, ensure_ascii=True).encode("utf-8")
             if len(request) > MAX_IPC:
                 raise GenerationError("worker request exceeds byte limit")
             self.temporary = tempfile.TemporaryDirectory(prefix="ctm-choice-stream-")
@@ -231,6 +236,19 @@ class _Stream:
             self.temporary.cleanup()
 
 
+def _permutation(size, seed, prefix):
+    if seed is None or size == 1:
+        return 0, 1
+    bits = hashlib.sha256((seed + ":" + _key(prefix)).encode("utf-8")).digest()
+    offset = int.from_bytes(bits[:16], "big") % size
+    stride = 1 + int.from_bytes(bits[16:], "big") % size
+    for unused in range(1024):
+        if math.gcd(stride, size) == 1:
+            return offset, stride
+        stride = stride % size + 1
+    return offset, 1  # Still a complete permutation, with bounded setup work.
+
+
 def _worker(request_path):
     def emit(message):
         text = json.dumps(message, ensure_ascii=True)
@@ -247,10 +265,10 @@ def _worker(request_path):
 
     def advance_path():
         while frames:
-            domain, index = frames[-1]
+            domain, index, offset, stride = frames[-1]
             if index + 1 < domain.size:
                 frames[-1][1] += 1
-                prefix[-1] = domain.at(index + 1)
+                prefix[-1] = domain.at((offset + stride * (index + 1)) % domain.size)
                 return True
             frames.pop()
             prefix.pop()
@@ -284,8 +302,9 @@ def _worker(request_path):
                     result = _run(source, variables, "", None,
                         lambda index, number: emit({"statement": index, "line": number}), choose)
                 except _Branch as branch:
-                    frames.append([branch.domain, 0])
-                    prefix.append(branch.domain.at(0))
+                    offset, stride = _permutation(branch.domain.size, request["seed"], prefix)
+                    frames.append([branch.domain, 0, offset, stride])
+                    prefix.append(branch.domain.at(offset))
                     emit({"end": "branch", "size": branch.domain.size})
                 except Rejected:
                     emit({"end": "rejected"})

@@ -12,6 +12,7 @@ def produce(destination, *, check=False, root=ROOT):
     source = root / "authoring" / "ctm_variants"
     entries = {"ctm_variants/" + path.name: path.read_bytes()
                for path in sorted(source.glob("*.py"))}
+    entries["ctm-variants.py"] = (root / "authoring" / "ctm-variants.py").read_bytes()
     entries["LICENSE"] = (root / "LICENSE").read_bytes()
     report = {"version": 1, "kind": "native-authoring", "files": {
         name: {"bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}

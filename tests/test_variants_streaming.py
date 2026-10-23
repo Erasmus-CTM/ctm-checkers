@@ -19,6 +19,17 @@ from ctm_variants.enumeration import enumerate_exhaustive
 
 
 class StreamTests(unittest.TestCase):
+    def test_seeded_traversal_is_complete_replayable_and_label_deterministic(self):
+        source = "a=pick(1,4)\nb=pick([10,20,30])"
+        def rows(seed):
+            with choice_stream(source, attempt_limit=100, seed=seed) as stream:
+                return list(stream)
+        first = rows("lesson:q")
+        self.assertEqual(first, rows("lesson:q"))
+        self.assertNotEqual([r["choices"] for r in first], [r["choices"] for r in rows("lesson:other")])
+        self.assertEqual({tuple(r["choices"]) for r in first}, set(itertools.product(range(1,5), [10,20,30])))
+        self.assertEqual(execute(source, replay=first[0]["choices"])["variables"], first[0]["variables"])
+
     def test_first25_of_large_cartesian_space_one_worker_no_frontier_pool(self):
         import ctm_variants.streaming as streaming
         real, children = streaming.subprocess.Popen, []
