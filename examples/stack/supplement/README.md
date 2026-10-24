@@ -19,4 +19,11 @@ From 0.5.0 (S-02): `constants.xml` has Euler's number and the imaginary
 unit next to the variables `E` and `I`. From 0.6.0 (S-13): `input-text.xml`
 has an answer for each of STACK's rules for the text of an answer, and the
 inverse trigonometric functions in its teacher's answer.
+From 0.8.0 (S-05): `numerical-applicability.xml` has one input and three
+response trees, NumAbsolute, NumRelative and NumDecPlaces, against the
+teacher's answer `pi/4`: answers that are not numbers (a symbol, a complex
+number, a list, a set, a matrix, an equation, a logical expression, `inf`)
+take the false branch of each tree, a decimal literal is graded by the
+number of places (its answers: `PROBE_ANSWERS` in tools/golden_stack.py;
+the answer-test rows: `SUPPLEMENT`).
 AGPL-3.0-or-later.
