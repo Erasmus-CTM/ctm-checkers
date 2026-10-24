@@ -28,6 +28,8 @@ class FakeGitHub:
         self.calls, self.mutations = [], []
         self.head, self.fork, self.permission, self.author = HEAD, False, "write", "ctm[bot]"
         self.stale_at, self.head_reads, self.race_at_cas = None, 0, False
+        self.committed, self.post_cas_heads, self.post_cas_fault = False, [], None
+        self.post_cas_ref = None
         self.producer_changed, self.run_event, self.job, self.digest_bad = None, "pull_request", "success", False
         self.run_branch = 'feature/variants'
         self.comment_reads, self.change_comment = 0, False
@@ -65,6 +67,7 @@ class FakeGitHub:
                 if self.head != data["expectedHeadOid"]:
                     return {"errors": [{"message": "expected head differs"}]}
                 self.mutations.append((method, path, value));self.head = NEXT
+                self.committed = True
                 return {"data": {"createCommitOnBranch": {"commit": {"oid": NEXT}}}}
             assert path == "/repos/org/course/actions/workflows/variants.yml/dispatches"
             self.mutations.append((method, path, value));return None
@@ -75,8 +78,16 @@ class FakeGitHub:
             self.head_reads += 1
             if self.stale_at == self.head_reads:self.head = "d" * 40
             repo = {"id": 1, "full_name": "org/course", "default_branch": "main"}
-            return {"state": "open", "merged": False, "head": {"sha": self.head, "ref": "feature/variants", "repo": dict(repo, id=2 if self.fork else 1)}, "base": {"sha": BASE, "repo": repo}}
+            projected = self.head
+            if self.committed and self.post_cas_heads:
+                projected = self.post_cas_heads[0]
+                if len(self.post_cas_heads) > 1:self.post_cas_heads.pop(0)
+            pull = {"state": "open", "merged": False, "head": {"sha": projected, "ref": "feature/variants", "repo": dict(repo, id=2 if self.fork else 1)}, "base": {"sha": BASE, "repo": repo}}
+            if self.committed and self.post_cas_fault:self.post_cas_fault(pull)
+            return pull
         if suffix == "/git/ref/heads/main":return {"object": {"sha": BASE}}
+        if suffix == "/git/ref/heads/feature/variants":
+            return {"object": {"sha": self.post_cas_ref or self.head}}
         if suffix.startswith("/contents/") and "_variants/q.yml" not in suffix:
             file, ref = suffix[len("/contents/"):].split("?ref=")
             return {"type": "file", "sha": ("different" if file == self.producer_changed and ref == HEAD else "trusted-blob")}
@@ -154,6 +165,43 @@ class GitHubBotTests(unittest.TestCase):
             with self.assertRaises(VariantError):self.run_bot(api)
             self.assertEqual(api.mutations, [])
             self.assertFalse(any(call[1].endswith('/dispatches') for call in api.calls))
+
+    def test_known_pre_commit_pr_projection_can_catch_up_before_exact_dispatch(self):
+        api = FakeGitHub();api.post_cas_heads = [HEAD, HEAD, NEXT]
+        with patch('ctm_variants.github_bot.time.sleep') as sleep:
+            result = self.run_bot(api)
+        self.assertEqual(result['head'], NEXT)
+        self.assertEqual([call.args for call in sleep.call_args_list], [(1,), (2,)])
+        self.assertEqual(api.calls[-2][:2], ('GET', '/repos/org/course/git/ref/heads/feature/variants'))
+        self.assertEqual(api.mutations[-1][2]['inputs']['expected_head'], NEXT)
+
+    def test_unpropagated_pr_projection_stops_after_bounded_old_head_retries(self):
+        api = FakeGitHub();api.post_cas_heads = [HEAD]
+        with patch('ctm_variants.github_bot.time.sleep') as sleep:
+            with self.assertRaisesRegex(VariantError, 'not propagated'):self.run_bot(api)
+        self.assertEqual([call.args for call in sleep.call_args_list], [(1,), (2,), (4,), (8,)])
+        self.assertEqual(api.head_reads, 7)  # two pre-CAS reads plus five post-CAS reads
+        self.assertEqual(len(api.mutations), 1)
+        self.assertFalse(any(call[1].endswith('/dispatches') for call in api.calls))
+
+    def test_post_commit_head_metadata_and_authoritative_ref_races_never_dispatch(self):
+        faults = [
+            lambda api:setattr(api, 'post_cas_heads', ['d' * 40]),
+            lambda api:setattr(api, 'post_cas_fault', lambda pull:pull['head'].update(ref='renamed')),
+            lambda api:setattr(api, 'post_cas_fault', lambda pull:pull['head']['repo'].update(id=2)),
+            lambda api:setattr(api, 'post_cas_fault', lambda pull:pull.update(state='closed')),
+            lambda api:setattr(api, 'post_cas_fault', lambda pull:pull.update(merged=True)),
+            lambda api:setattr(api, 'post_cas_fault', lambda pull:pull['head'].update(ref='main')),
+            lambda api:setattr(api, 'post_cas_ref', 'd' * 40),
+        ]
+        for index, fault in enumerate(faults):
+            with self.subTest(fault=index):
+                api = FakeGitHub();fault(api)
+                with patch('ctm_variants.github_bot.time.sleep') as sleep:
+                    with self.assertRaises(VariantError):self.run_bot(api)
+                sleep.assert_not_called()
+                self.assertEqual(len(api.mutations), 1)
+                self.assertFalse(any(call[1].endswith('/dispatches') for call in api.calls))
 
     def test_zip_payload_is_not_extracted_and_event_sender_is_not_an_input(self):
         for name in ("../variants-records.json", "source.py"):
