@@ -15,3 +15,8 @@ Since ctm-checkers 0.7.0 (S-07) `options.xml` no longer builds: it sets two
 question options the engine does not read (`complexno`, `decimals`), and
 the build stops with the diagnostic that names them; its golden rows are
 the import's error (`stack/probe-questions`).
+
+Since ctm-checkers 0.8.0 (S-05) the answer `45*x` of `numabs-branch.xml`
+takes the false branch of its first response node (NumAbsolute cannot be
+applied to an answer that is not a number) and reaches the second node, so
+the question's three question tests pass.

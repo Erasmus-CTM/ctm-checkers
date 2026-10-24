@@ -6,6 +6,221 @@ release. Every grading change is listed under "Grading changes" with the
 finding or decision it implements, its test and the summary of its golden
 diff (docs/goldens.md).
 
+## 0.8.1 (Unreleased)
+
+STACK: a numerical answer test that cannot be applied to an answer because
+it is not a number is false, and the response tree takes its false branch
+(S-05; step-2 design §9, order 5). A MINOR release (verdicts change);
+math-exercise's tables do not change (H2).
+
+### Grading changes
+
+- **S-05: NumAbsolute, NumRelative and NumDecPlaces on an answer that is
+  not a number.** Before, the answer `45*x` (or `x`, `3+4*%i`, `inf`) was
+  an "invalid" test (`valid` false, note `invalid`): the response tree
+  stopped there, its other nodes were not reached and the question's score
+  was 0 with no feedback. For a list, a set, a matrix, an equation or a
+  logical expression the test raised an author error. Now the test is
+  applicable-or-false: it returns `valid` true, `correct` false and
+  `cas_valid` false, with a note and a message, and the response tree takes
+  the false branch (`assessment.NUMERICAL_TESTS`, `answer_test`):
+
+  | Test | Answer is not a number | Teacher's answer is not a number |
+  |---|---|---|
+  | NumAbsolute, NumRelative | `ATNumerical_SA_not_number`: "Your answer should be a floating point number, but is not." | `ATNumerical_SB_not_number` |
+  | NumDecPlaces | `ATNumDecPlaces_SA_Not_num`: "Your answer must be a floating point number, but is not." | invalid, as before |
+
+  "Not a number" is anything that is not a finite real number: a symbol, a
+  complex number, `inf`, a list, a set, a matrix, an equation, a logical
+  expression. NumDecPlaces also needs a decimal literal: `1`, `1/2`,
+  `sqrt(2)`, `0.5+0.25` are not (its note is then `SA_Not_num`; before,
+  `invalid`). The option of the test comes first, as before: a tolerance
+  or a number of places that is not a number is an author error whatever
+  the answer is. A teacher's answer that is a list, a set, a matrix or an
+  equation stays unsupported (the engine does not compare collections with
+  these tests). Tests: `tests/stack/test_numerical_applicability.py` (each
+  kind of answer for each test, the numbers unchanged, the teacher's
+  answer, the options before the answer, the three response trees of
+  `examples/stack/supplement/numerical-applicability.xml` with the scores
+  and notes below, the audit's `numabs-branch.xml` and its question
+  tests); mutations (docs/goldens.md): the check removed (37 rows), the
+  teacher's answer not named (2), `cas_valid` true (27), the three notes
+  (12, 3, 10), NumDecPlaces invalid for what is not a decimal literal
+  (104); two more that only the tests catch (the option checked after the
+  answer, a collection as the teacher's answer made applicable).
+  - **Native STACK** (STACK `10d3233` = 4.13.1 and 4.14.0 `3338304`, PHP and
+    Maxima 5.46): both versions give the same results. Question level,
+    `numerical-applicability.xml` with 19 answers (a number, the decimal
+    literals of NumDecPlaces, and a symbol, a complex number, a list, a
+    set, a matrix, an equation, a logical expression, `inf`, `pi`, `1/2`)
+    through the three response trees: every score, node note and the false
+    branch agree (`prt1-F`, `prt2-F`, `prt3-F` with the answer notes
+    `ATNumerical_SA_not_number.`, `ATNumDecPlaces_SA_Not_num.`);
+    `numabs-branch.xml`: `45*x` scores 0.5 in both versions and in the
+    engine, notes `ATNumerical_SA_not_number.`, `prt1-1-F`, `prt1-2-T`.
+    `numerical-measurement.xml` (`reported` = `35/2`, the text of its
+    teacher's answer): 0.7 in both versions and in the engine. Answer-test
+    level (34 cases): 30 verdicts agree; four differ and are not changed by
+    this release: a list or an equation as the teacher's answer
+    (unsupported here; STACK `ATNumerical_SA_not_list`, `SB_not_number`),
+    `{0.5}` as the answer of NumDecPlaces and a teacher's answer `x`
+    there (here invalid; STACK `SA_Not_num` and correct). The note of a
+    NumDecPlaces answer that is a float written as an expression
+    (`0.5+0.25`) is `SA_Not_num` here and `Wrong_DPs` in STACK: the same
+    branch. The message of a node's test comes after the node's feedback
+    here and before it in STACK (S-08).
+  - **Golden diff** (`tools/golden.py diff --base 794ea36`, with
+    `update --change S-05 --drop-stale`): 89 rows changed and 74 added:
+
+    | Table | Changed | Added | Removed |
+    |---|---|---|---|
+    | `stack/probe-questions.jsonl` | 6 | 0 | 0 |
+    | `stack/probes.jsonl` | 3 | 0 | 0 |
+    | `stack/questions-helm.jsonl` | 36 | 0 | 0 |
+    | `stack/questions-project.jsonl` | 44 | 0 | 0 |
+    | `stack/supplement.jsonl` | 0 | 74 | 0 |
+
+    - `probe-questions` (6): the 3 question tests of `numabs-branch.xml`
+      (failed, now passed) and its answer `45*x` for seeds 1 to 3 (invalid
+      0.0, now graded 0.5, as native STACK).
+    - `probes` (3): NumAbsolute `x` and `sqrt(-2)` and NumDecPlaces `3`
+      (note `invalid`, now the notes above, `valid` true; the rows' `native`
+      data hold the same notes and `cas_valid` false).
+    - `questions-helm` (36) and `questions-project` (44): answers of the
+      generated answer sets only (no `stack.card`, `stack.tests`,
+      `stack.instantiate` row and no teacher's answer of a question test
+      changes). In `upstream/rounding-three-dp.xml` (seed 47) one answer is
+      altered at a time (a fraction, `pi`, `(x)+1`, `2*(x)`, `-(x)`) and
+      NumDecPlaces now takes the false branch where it was invalid: 0.0,
+      now 0.8333333333 (the other five answers are right). In
+      `numerical-measurement.xml` (seeds 1 to 3 and 47) the same for
+      NumAbsolute (`perimeter`), NumRelative (`area`) and NumDecPlaces
+      (`reported`): 0.0, now 0.3, 0.4 or 0.7 (the two other trees score).
+      4 of these rows (one for each seed) are the generated answer set made
+      of the text of the question's `tans` expressions (`area` = `35/2`,
+      `perimeter` = `24`, `reported` = `35/2`): `35/2` is not a decimal
+      literal, so `reported` takes the false branch and the set scores 0.7
+      (native STACK the same, above) where it was invalid; this is not a
+      question test and not the teacher's answer of one: the question's
+      tests, which type `17.50`, still score 1.
+    - `supplement` (74 added): 27 answer-test rows, and for
+      `numerical-applicability.xml` its import, 3 variants, 3 question-test
+      runs and 40 answers.
+    No `stack.card`, teacher's answer or question test of the example
+    questions changes; the math-exercise tables do not change. The rows that
+    differ from the legacy code name S-05.
+
+
+The S-05 behaviour and AC decisions above are preserved while combining
+the current shared checker and native authoring foundations. Recorded
+release hashes remain unchanged; this combined payload is 0.8.1.dev0.
+
+
+## 0.8.0 (21 October 2026)
+
+STACK: a numerical answer test that cannot be applied to an answer because
+it is not a number is false, and the response tree takes its false branch
+(S-05; step-2 design §9, order 5). A MINOR release (verdicts change);
+math-exercise's tables do not change (H2).
+
+### Grading changes
+
+- **S-05: NumAbsolute, NumRelative and NumDecPlaces on an answer that is
+  not a number.** Before, the answer `45*x` (or `x`, `3+4*%i`, `inf`) was
+  an "invalid" test (`valid` false, note `invalid`): the response tree
+  stopped there, its other nodes were not reached and the question's score
+  was 0 with no feedback. For a list, a set, a matrix, an equation or a
+  logical expression the test raised an author error. Now the test is
+  applicable-or-false: it returns `valid` true, `correct` false and
+  `cas_valid` false, with a note and a message, and the response tree takes
+  the false branch (`assessment.NUMERICAL_TESTS`, `answer_test`):
+
+  | Test | Answer is not a number | Teacher's answer is not a number |
+  |---|---|---|
+  | NumAbsolute, NumRelative | `ATNumerical_SA_not_number`: "Your answer should be a floating point number, but is not." | `ATNumerical_SB_not_number` |
+  | NumDecPlaces | `ATNumDecPlaces_SA_Not_num`: "Your answer must be a floating point number, but is not." | invalid, as before |
+
+  "Not a number" is anything that is not a finite real number: a symbol, a
+  complex number, `inf`, a list, a set, a matrix, an equation, a logical
+  expression. NumDecPlaces also needs a decimal literal: `1`, `1/2`,
+  `sqrt(2)`, `0.5+0.25` are not (its note is then `SA_Not_num`; before,
+  `invalid`). The option of the test comes first, as before: a tolerance
+  or a number of places that is not a number is an author error whatever
+  the answer is. A teacher's answer that is a list, a set, a matrix or an
+  equation stays unsupported (the engine does not compare collections with
+  these tests). Tests: `tests/stack/test_numerical_applicability.py` (each
+  kind of answer for each test, the numbers unchanged, the teacher's
+  answer, the options before the answer, the three response trees of
+  `examples/stack/supplement/numerical-applicability.xml` with the scores
+  and notes below, the audit's `numabs-branch.xml` and its question
+  tests); mutations (docs/goldens.md): the check removed (37 rows), the
+  teacher's answer not named (2), `cas_valid` true (27), the three notes
+  (12, 3, 10), NumDecPlaces invalid for what is not a decimal literal
+  (104); two more that only the tests catch (the option checked after the
+  answer, a collection as the teacher's answer made applicable).
+  - **Native STACK** (STACK `10d3233` = 4.13.1 and 4.14.0 `3338304`, PHP and
+    Maxima 5.46): both versions give the same results. Question level,
+    `numerical-applicability.xml` with 19 answers (a number, the decimal
+    literals of NumDecPlaces, and a symbol, a complex number, a list, a
+    set, a matrix, an equation, a logical expression, `inf`, `pi`, `1/2`)
+    through the three response trees: every score, node note and the false
+    branch agree (`prt1-F`, `prt2-F`, `prt3-F` with the answer notes
+    `ATNumerical_SA_not_number.`, `ATNumDecPlaces_SA_Not_num.`);
+    `numabs-branch.xml`: `45*x` scores 0.5 in both versions and in the
+    engine, notes `ATNumerical_SA_not_number.`, `prt1-1-F`, `prt1-2-T`.
+    `numerical-measurement.xml` (`reported` = `35/2`, the text of its
+    teacher's answer): 0.7 in both versions and in the engine. Answer-test
+    level (34 cases): 30 verdicts agree; four differ and are not changed by
+    this release: a list or an equation as the teacher's answer
+    (unsupported here; STACK `ATNumerical_SA_not_list`, `SB_not_number`),
+    `{0.5}` as the answer of NumDecPlaces and a teacher's answer `x`
+    there (here invalid; STACK `SA_Not_num` and correct). The note of a
+    NumDecPlaces answer that is a float written as an expression
+    (`0.5+0.25`) is `SA_Not_num` here and `Wrong_DPs` in STACK: the same
+    branch. The message of a node's test comes after the node's feedback
+    here and before it in STACK (S-08).
+  - **Golden diff** (`tools/golden.py diff --base 794ea36`, with
+    `update --change S-05 --drop-stale`): 89 rows changed and 74 added:
+
+    | Table | Changed | Added | Removed |
+    |---|---|---|---|
+    | `stack/probe-questions.jsonl` | 6 | 0 | 0 |
+    | `stack/probes.jsonl` | 3 | 0 | 0 |
+    | `stack/questions-helm.jsonl` | 36 | 0 | 0 |
+    | `stack/questions-project.jsonl` | 44 | 0 | 0 |
+    | `stack/supplement.jsonl` | 0 | 74 | 0 |
+
+    - `probe-questions` (6): the 3 question tests of `numabs-branch.xml`
+      (failed, now passed) and its answer `45*x` for seeds 1 to 3 (invalid
+      0.0, now graded 0.5, as native STACK).
+    - `probes` (3): NumAbsolute `x` and `sqrt(-2)` and NumDecPlaces `3`
+      (note `invalid`, now the notes above, `valid` true; the rows' `native`
+      data hold the same notes and `cas_valid` false).
+    - `questions-helm` (36) and `questions-project` (44): answers of the
+      generated answer sets only (no `stack.card`, `stack.tests`,
+      `stack.instantiate` row and no teacher's answer of a question test
+      changes). In `upstream/rounding-three-dp.xml` (seed 47) one answer is
+      altered at a time (a fraction, `pi`, `(x)+1`, `2*(x)`, `-(x)`) and
+      NumDecPlaces now takes the false branch where it was invalid: 0.0,
+      now 0.8333333333 (the other five answers are right). In
+      `numerical-measurement.xml` (seeds 1 to 3 and 47) the same for
+      NumAbsolute (`perimeter`), NumRelative (`area`) and NumDecPlaces
+      (`reported`): 0.0, now 0.3, 0.4 or 0.7 (the two other trees score).
+      4 of these rows (one for each seed) are the generated answer set made
+      of the text of the question's `tans` expressions (`area` = `35/2`,
+      `perimeter` = `24`, `reported` = `35/2`): `35/2` is not a decimal
+      literal, so `reported` takes the false branch and the set scores 0.7
+      (native STACK the same, above) where it was invalid; this is not a
+      question test and not the teacher's answer of one: the question's
+      tests, which type `17.50`, still score 1.
+    - `supplement` (74 added): 27 answer-test rows, and for
+      `numerical-applicability.xml` its import, 3 variants, 3 question-test
+      runs and 40 answers.
+    No `stack.card`, teacher's answer or question test of the example
+    questions changes; the math-exercise tables do not change. The rows that
+    differ from the legacy code name S-05.
+
+
 ## 0.7.1 (Unreleased)
 
 Reconcile S-07 with the shared checker and native authoring foundations.

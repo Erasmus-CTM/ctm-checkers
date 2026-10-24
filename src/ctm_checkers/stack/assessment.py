@@ -26,12 +26,36 @@ def _result(valid: bool, correct: bool, note: str = "", feedback: str = "") -> d
     return {"valid": valid, "correct": correct, "note": note, "feedback": feedback}
 
 
+def _real_number(value) -> bool:
+    # `inf`, `infinity` and `und` are not real (sympy: oo, zoo, nan).
+    return isinstance(value, sp.Basic) and value.is_number is True and value.is_real is True
+
+
 def _number(value, label: str):
     if not isinstance(value, sp.Basic) or value.is_number is not True or value.is_real is not True:
         raise InvalidAnswer(f"{label} must be a real number")
     if value.has(sp.nan, sp.zoo, sp.oo, -sp.oo):
         raise InvalidAnswer(f"{label} must be finite")
     return value
+
+
+NUMERICAL_TESTS = {"NumAbsolute", "NumRelative", "NumDecPlaces"}
+
+# STACK's answer notes and texts (lang/en/qtype_stack.php) for a numerical test that cannot be
+# applied: the answer is not a number (S-05). The test is then false (STACK's first flag false,
+# `cas_valid`), the response tree takes its false branch; the answer is valid input.
+_NOT_A_NUMBER = {
+    "NumAbsolute": ("ATNumerical_SA_not_number", "Your answer should be a floating point number, but is not."),
+    "NumRelative": ("ATNumerical_SA_not_number", "Your answer should be a floating point number, but is not."),
+    "NumDecPlaces": ("ATNumDecPlaces_SA_Not_num", "Your answer must be a floating point number, but is not."),
+}
+_TEACHER_NOT_A_NUMBER = ("ATNumerical_SB_not_number", "The value supplied for the teacher's answer should be a floating point number, "
+                         "but is not. This is an internal error with the test.  Please ask your teacher about this.")
+
+
+def _not_applicable(note_and_feedback) -> dict:
+    note, feedback = note_and_feedback
+    return {**_result(True, False, note, feedback), "cas_valid": False}
 
 
 def _decimal(value) -> Decimal:
@@ -50,6 +74,19 @@ def _option(options: str, env, assumptions):
         return evaluate(options, env, assumptions=assumptions)
     except InvalidAnswer as exc:
         raise Unsupported(f"Invalid answer-test options: {exc}") from exc
+
+
+def _numerical_option(name: str, options: str, env, assumptions):
+    """The tolerance of NumAbsolute and NumRelative, the number of places of NumDecPlaces: an author error
+    in it stops the build (Unsupported / InvalidAnswer), whatever the answer is."""
+    if name != "NumDecPlaces":
+        return _number(_option(numeric_option_source(options), env, assumptions), "Tolerance")
+    if not options.strip():
+        raise Unsupported("NumDecPlaces requires a decimal-place count")
+    required = _option(options, env, assumptions)
+    if required.is_Integer is not True or not 1 <= int(required) <= MAX_DECIMAL_PLACES:
+        raise Unsupported(f"NumDecPlaces requires 1 to {MAX_DECIMAL_PLACES} places")
+    return required
 
 
 def numeric_option_source(options: str) -> str:
@@ -352,9 +389,19 @@ def answer_test(name: str, student: Node | str, teacher: str, options: str = "",
     if name == "PythonChecker":
         return invoke_checker(python_checkers, options, student_value, teacher_value)
 
+    from .expressions import MatrixValue
+    if name in NUMERICAL_TESTS and not isinstance(teacher_value, MatrixValue) and not is_collection(teacher_value) \
+            and not is_logical(teacher_value):
+        # Author errors in the test's option come first, as in STACK; then the answer: anything that is
+        # not a (finite, real) number (a symbol, a complex number, a list, a matrix, an equation) is an
+        # answer the test cannot be applied to (S-05), not an invalid one.
+        option = _numerical_option(name, options, env, assumptions)
+        if not _real_number(student_value):
+            return _not_applicable(_NOT_A_NUMBER[name])
+        if name != "NumDecPlaces" and not _real_number(teacher_value):
+            return _not_applicable(_TEACHER_NOT_A_NUMBER)
     for value in (student_value, teacher_value):
         validate_collection(value)
-    from .expressions import MatrixValue
     if any(isinstance(value, MatrixValue) for value in (student_value, teacher_value)) and name not in {"AlgEquiv", "SameType", "EqualComAss"}:
         raise Unsupported("Matrices require AlgEquiv, SameType or EqualComAss")
     if name == "SameType":
@@ -425,12 +472,7 @@ def answer_test(name: str, student: Node | str, teacher: str, options: str = "",
         return _result(True, equivalent and factored)
 
     if name in {"NumAbsolute", "NumRelative"}:
-        tolerance = _number(_option(numeric_option_source(options), env, assumptions), "Tolerance")
-        try:
-            student_number = _number(student_value, "Student answer")
-            teacher_number = _number(teacher_value, "Teacher answer")
-        except InvalidAnswer as exc:
-            return _result(False, False, "invalid", str(exc))
+        tolerance, student_number, teacher_number = option, student_value, teacher_value
         if all(x.is_Rational for x in (student_number, teacher_number, tolerance)):
             difference = abs(student_number - teacher_number)
             if name == "NumAbsolute":
@@ -452,15 +494,15 @@ def answer_test(name: str, student: Node | str, teacher: str, options: str = "",
                 correct = difference <= abs(ta * tol * (1 + Decimal("1e-9")))
         return _result(True, correct)
 
-    if not options.strip():
-        raise Unsupported("NumDecPlaces requires a decimal-place count")
-    required = _option(options, env, assumptions)
-    if required.is_Integer is not True or not 1 <= int(required) <= MAX_DECIMAL_PLACES:
-        raise Unsupported(f"NumDecPlaces requires 1 to {MAX_DECIMAL_PLACES} places")
+    required = option
     try:
-        _number(student_value, "Student answer")
-        teacher_decimal = _decimal(_number(teacher_value, "Teacher answer"))
         written, places = _decimal_places(raw if raw is not None else student if isinstance(student, str) else "")
+    except InvalidAnswer:
+        # STACK: the answer must be a float (`3`, `1/2`, `sqrt(2)` are not); a decimal literal with its
+        # trailing zeros is what this engine reads the places from.
+        return _not_applicable(_NOT_A_NUMBER[name])
+    try:
+        teacher_decimal = _decimal(_number(teacher_value, "Teacher answer"))
     except InvalidAnswer as exc:
         return _result(False, False, "invalid", str(exc))
     if places != int(required):

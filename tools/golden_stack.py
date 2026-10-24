@@ -410,6 +410,10 @@ PROBE_ANSWERS = {
     'examples/stack/supplement/constants.xml': [
         {'ans1': '2*e*x+E', 'ans2': '3*i+I'}, {'ans1': '2*%e*x+E', 'ans2': '3*%i+I'}, {'ans1': '2*E*x+E', 'ans2': '3*I+I'},
         {'ans1': '2*e*x+e', 'ans2': '3*i+i'}, {'ans1': '2*exp(1)*x+E', 'ans2': '3*sqrt(-1)+I'}],
+    # S-05 (0.8.0): answers a numerical test cannot be applied to (not a number), and numbers, for the three tests.
+    'examples/stack/supplement/numerical-applicability.xml': [{'ans1': text} for text in (
+        'pi/4', '0.785', '0.79', '0.7850', '1', '1/2', 'x', '45*x', '3+4*%i', '[1,2]', '{1}', 'matrix([1,2],[3,4])', 'x=1',
+        'a and b', '0.5+0.285', '-0.785', '2.5*10^-1', 'sqrt(2)', 'inf')],
     'examples/stack/probes/twoparts.xml': [{'ans1': '2', 'ans2': ''}],
     'examples/stack/probes/eqtype.xml': [{'ans1': '2*x+1'}],
     'examples/stack/probes/crash.xml': [{'ans1': 'x+1'}, {'ans1': 'x=1'}, {'ans1': 'a and b'},
@@ -527,6 +531,18 @@ SUPPLEMENT = [
     ('NumRelative', 'pi', '3.14159', '0.00000084466457852'), ('NumRelative', 'pi', '3.14159', '0.000000844'),
     ('AlgEquiv', 'sin(x)^20', '((1-cos(2*x))/2)^10*1001/1000', ''), ('AlgEquiv', 'cosh(x)^20', '((exp(x)+exp(-x))/2)^20*1001/1000', ''),
     ('AlgEquiv', 'sin(x)^20', '((1-cos(2*x))/2)^10*(1+1/100000)', ''),
+    # S-05 (0.8.0): a numerical test applied to an answer that is not a number (and to a teacher's answer that is not one)
+    # is false with STACK's answer note, not invalid; numbers, for comparison. Native STACK 10d3233: tools/stack_native/dual.py.
+    ('NumAbsolute', '45*x', 'pi/4', '0.01'), ('NumAbsolute', 'x', 'pi/4', '0.01'), ('NumAbsolute', '3+4*%i', '1', '0.1'),
+    ('NumAbsolute', '[1,2]', '1', '0.1'), ('NumAbsolute', '{1}', '1', '0.1'), ('NumAbsolute', 'matrix([1,2],[3,4])', '1', '0.1'),
+    ('NumAbsolute', 'x=1', '1', '0.1'), ('NumAbsolute', 'a and b', '1', '0.1'), ('NumAbsolute', 'inf', '1', '0.1'),
+    ('NumAbsolute', 'sqrt(-4)', '1', '0.1'), ('NumAbsolute', '1', 'x', '0.1'), ('NumAbsolute', '1.05', '1', '0.1'),
+    ('NumRelative', '45*x', 'pi/4', '0.01'), ('NumRelative', 'x', 'x', '0.1'), ('NumRelative', '1', 'x+1', '0.1'),
+    ('NumRelative', '[1,2]', '1', '0.1'), ('NumRelative', '1.4', '1', '0.5'),
+    ('NumDecPlaces', '1', 'pi/4', '3'), ('NumDecPlaces', '1/2', '0.5', '1'), ('NumDecPlaces', 'x', '0.5', '1'),
+    ('NumDecPlaces', '[0.5]', '0.5', '1'), ('NumDecPlaces', 'matrix([0.5])', '0.5', '1'), ('NumDecPlaces', '3+4*%i', '0.5', '1'),
+    ('NumDecPlaces', 'sqrt(2)', '0.5', '1'), ('NumDecPlaces', '0.5+0.25', '0.75', '2'), ('NumDecPlaces', '2.5*10^-1', '0.25', '2'),
+    ('NumDecPlaces', '0.785', 'pi/4', '3'),
 ]
 
 

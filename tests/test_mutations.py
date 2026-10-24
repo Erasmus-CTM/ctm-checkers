@@ -160,6 +160,18 @@ MUTATIONS = {
     'stack-s07-decimals': ('stack/importer.py', '    "decimals": (".",),\n', '', 1, (STACK,)),
     'stack-s07-multiplicationsign-none': ('stack/importer.py', '"multiplicationsign": ("dot", "none"),', '"multiplicationsign": ("dot",),', 1, (STACK,)),
     'stack-s07-matrixparens-round': ('stack/importer.py', '"matrixparens": ("[", "("),', '"matrixparens": ("[",),', 1, (STACK,)),
+    # S-05 (0.8.0): a numerical answer test that cannot be applied to the answer is false, with its note (supplement rows,
+    # examples/stack/probes/numabs-branch.xml, examples/stack/supplement/numerical-applicability.xml).
+    'stack-s05-not-a-number': ('stack/assessment.py', '        if not _real_number(student_value):\n', '        if False:\n', 1, (STACK,)),
+    'stack-s05-teacher-not-a-number': ('stack/assessment.py', '        if name != "NumDecPlaces" and not _real_number(teacher_value):\n',
+                                       '        if False:\n', 1, (STACK,)),
+    'stack-s05-cas-valid': ('stack/assessment.py', 'return {**_result(True, False, note, feedback), "cas_valid": False}',
+                            'return {**_result(True, False, note, feedback), "cas_valid": True}', 1, (STACK,)),
+    'stack-s05-absolute-note': ('stack/assessment.py', '    "NumAbsolute": ("ATNumerical_SA_not_number",', '    "NumAbsolute": ("ATNumerical_SA_not_a_number",', 1, (STACK,)),
+    'stack-s05-relative-note': ('stack/assessment.py', '    "NumRelative": ("ATNumerical_SA_not_number",', '    "NumRelative": ("ATNumerical_SA_not_a_number",', 1, (STACK,)),
+    'stack-s05-decplaces-note': ('stack/assessment.py', '"NumDecPlaces": ("ATNumDecPlaces_SA_Not_num",', '"NumDecPlaces": ("ATNumDecPlaces_SA_Not_a_num",', 1, (STACK,)),
+    'stack-s05-decplaces-integer': ('stack/assessment.py', '        return _not_applicable(_NOT_A_NUMBER[name])\n    try:\n        teacher_decimal',
+                                    '        return _result(False, False, "invalid", "")\n    try:\n        teacher_decimal', 1, (STACK,)),
 }
 
 # Mutations that no golden row reaches and that tests/ catch: the pytest files of the test column must fail on the
@@ -198,6 +210,15 @@ TESTS = {
     'stack-s07-first-option-only': ('stack/importer.py', 'unsupported.append((option, (found.text or "").strip(), supported))',
                                     'unsupported.append((option, (found.text or "").strip(), supported))\n            break', 1,
                                     ('tests/stack/test_importer.py',)),
+    # S-05 (0.8.0): what no golden row reaches.
+    'stack-s05-option-first': ('stack/assessment.py',
+                               '        option = _numerical_option(name, options, env, assumptions)\n        if not _real_number(student_value):\n'
+                               '            return _not_applicable(_NOT_A_NUMBER[name])\n',
+                               '        if not _real_number(student_value):\n            return _not_applicable(_NOT_A_NUMBER[name])\n'
+                               '        option = _numerical_option(name, options, env, assumptions)\n', 1,
+                               ('tests/stack/test_numerical_applicability.py',)),
+    'stack-s05-collection-teacher': ('stack/assessment.py', 'and not isinstance(teacher_value, MatrixValue) and not is_collection(teacher_value) \\\n            and not is_logical(teacher_value):',
+                                     ':', 1, ('tests/stack/test_numerical_applicability.py',)),
 }
 
 # A few minutes: CI runs them in a step of their own (CTM_MUTATION_TESTS=1).
