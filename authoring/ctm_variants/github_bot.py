@@ -8,6 +8,7 @@ import hashlib
 import io
 import json
 import re
+import time
 import zipfile
 
 from ctm_variants.bot import plan
@@ -129,6 +130,29 @@ class Recorder:
                     or not expected.get("sha") or actual.get("sha") != expected["sha"]):
                 raise VariantError("PR changed or omitted trusted records producer: " + path)
         return trusted
+
+    def _recorded_head(self, number, branch, previous_head, recorded_head):
+        """Wait only for the known pre-CAS PR projection to catch up.
+
+        A successful atomic commit can precede the PR REST projection. Never
+        retry a different head or relax the ordinary recording lease checks.
+        """
+        from urllib.parse import quote
+        for attempt in range(5):
+            pull = self._head(number)
+            if pull["head"]["ref"] != branch:
+                raise VariantError("PR branch changed after recording")
+            observed = pull["head"]["sha"]
+            if observed == recorded_head:
+                ref = self.get("/git/ref/heads/" + quote(branch, safe="/"))
+                if not ref or ref.get("object", {}).get("sha") != recorded_head:
+                    raise VariantError("recorded branch head changed before dispatch")
+                return
+            if observed != previous_head:
+                raise VariantError("PR head changed after recording")
+            if attempt < 4:
+                time.sleep(2 ** attempt)
+        raise VariantError("recorded PR head has not propagated; retry exact-head validation")
 
     def _download_records(self, run_id):
         artifacts = self.get("/actions/runs/" + str(run_id) + "/artifacts?per_page=100")["artifacts"]
@@ -291,7 +315,7 @@ class Recorder:
         new_head = result["data"]["createCommitOnBranch"]["commit"]["oid"]
         if not isinstance(new_head, str) or not SHA.fullmatch(new_head):
             raise VariantError("invalid created commit identity")
-        self._head(number, new_head)
+        self._recorded_head(number, branch, head, new_head)
         self.post("/actions/workflows/variants.yml/dispatches", {"ref": branch,
                   "inputs": {"expected_head": new_head, "pull_request": str(number)}})
         return {"changed": True, "head": new_head, "notPassing": excluded,
