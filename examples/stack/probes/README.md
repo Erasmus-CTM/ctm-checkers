@@ -24,3 +24,12 @@ the question's three question tests pass.
 Since ctm-checkers 0.9.0 (S-10) the answer `2*x+1` of `eqtype.xml`
 (`checkanswertype`, the teacher's answer is the equation `y=2*x+1`) is
 invalid: "Your answer should be an equation, but is not."
+
+Since ctm-checkers 0.10.0 (S-11) the answers `x=1`, `a and b` and the other
+answers that are not expressions take the false branch of `crash.xml`'s first
+node ("Give an expression."; before, "Could not check this answer"), the
+hyperbolic answer reaches its second node (EqualComAss is false for it), and
+`exp(exp(exp(exp(10))))` is graded by `numabs-branch.xml` (before, an
+uncaught `OverflowError`); `crash.xml` and `numabs-branch.xml` also have the
+answers `x=1 or x=2`, `[1,2]`, `{1}`, `matrix([1,2])`, `true` and
+`exp(exp(100))` in the golden table.

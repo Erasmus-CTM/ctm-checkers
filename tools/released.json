@@ -85,6 +85,16 @@
     "wheel": "dbdce42ecf7f07aedfbbb8c61bce1e6e5e3b8f1e2c626bed24a55fcf0db8b987",
     "script": "570fd29d138e10a476e658083b706fcab30f8ef1bbcf60264a5b909e0cc0358b"
    }
+  },
+  "0.10.0": {
+   "contents": "085c6e1a9360af0d8435b28daadfdbc5f157b624ca8a6daf190a62ddf9538b19",
+   "wheel": "839e89ba33cba4f74616873b920d1bb7b9b7402d8d206ca029d60db9b548af2e",
+   "script": "c6c68a0a6b6adce8a854dfcf4572a22631d23261a036c145433824ae1fbf128c",
+   "stack": {
+    "contents": "b65f9d241f28cb70c41dc800d1309d5f10330e078c45c0e2edd8ed0c975f9773",
+    "wheel": "3801b87a70d41d6d3c2d14300d355dd27848bbc2794df4a714043566a2f38069",
+    "script": "b74d3af629658aeb6872592d70029f8d015e1764bd105719932816ccc2208da6"
+   }
   }
  }
 }

@@ -1,7 +1,7 @@
 """Bounded propositional logic and STACK's multiplicity-preserving equations."""
 from itertools import product
 import sympy as sp
-from .expressions import Equation, Logical, Unsupported, is_logical
+from .expressions import Equation, Logical, Undecided, is_logical
 
 MAX_VARIABLES = 8
 MAX_TERMS = 2048
@@ -31,9 +31,9 @@ def _polynomial_shape(expr):
     elif expr.is_Pow and expr.base.is_Rational and expr.exp.is_Integer:
         return 0, 1
     else:
-        raise Unsupported("Equations require polynomials with rational complex coefficients and numeric denominators")
+        raise Undecided("Equations require polynomials with rational complex coefficients and numeric denominators")
     if degree > MAX_DEGREE or terms > MAX_TERMS:
-        raise Unsupported("Polynomial equation exceeds degree or expansion bound")
+        raise Undecided("Polynomial equation exceeds degree or expansion bound")
     return degree, terms
 
 
@@ -44,7 +44,7 @@ def _residual(value):
         return sp.Add(value.args[0], sp.Mul(-1, value.args[1], evaluate=False), evaluate=False)
     if isinstance(value, Logical) and value.operator == "or":
         return sp.Mul(*[_residual(x) for x in value.operands], evaluate=False)
-    raise Unsupported("Equation logic supports equations and disjunctions of equations")
+    raise Undecided("Equation logic supports equations and disjunctions of equations")
 
 
 def _has_equation(value):
@@ -60,7 +60,7 @@ def _proposition(value):
         # SymPy Equivalent's all-operands-equal interpretation for n > 2.
         return {"and": sp.And, "or": sp.Or, "not": sp.Not, "implies": sp.Implies,
                 "xor": sp.Xor, "xnor": lambda a, b: sp.Not(sp.Xor(a, b))}[value.operator](*args)
-    raise Unsupported("Boolean logic requires propositions, not arithmetic expressions")
+    raise Undecided("Boolean logic requires propositions, not arithmetic expressions")
 
 
 def _release(expr):
@@ -71,7 +71,7 @@ def _release(expr):
 def validate_logic(value):
     """Validate each typed value independently before comparing candidates."""
     if len(value.free_symbols) > MAX_VARIABLES or sp.count_ops(value) > 350:
-        raise Unsupported("Logical answer exceeds supported bounds")
+        raise Undecided("Logical answer exceeds supported bounds")
     if _has_equation(value):
         residual = _residual(value)
         _polynomial_shape(residual)
@@ -85,7 +85,7 @@ def validate_logic(value):
             else:
                 return "boolean", sp.true if residual == 0 else sp.false
         except (sp.PolynomialError, sp.CoercionFailed) as exc:
-            raise Unsupported("Equation coefficients outside rational complex domain") from exc
+            raise Undecided("Equation coefficients outside rational complex domain") from exc
         return "equation", residual
     return "boolean", _proposition(value)
 
@@ -97,7 +97,7 @@ def logical_equivalent(student, teacher):
         return False
     symbols = sorted(left.free_symbols | right.free_symbols, key=str)
     if len(symbols) > MAX_VARIABLES:
-        raise Unsupported("Logical comparison exceeds variable bound")
+        raise Undecided("Logical comparison exceeds variable bound")
     if left_kind == "boolean":
         return all(left.xreplace(dict(zip(symbols, values))) == right.xreplace(dict(zip(symbols, values)))
                    for values in product((sp.false, sp.true), repeat=len(symbols)))
@@ -106,6 +106,6 @@ def logical_equivalent(student, teacher):
     try:
         a, b = (sp.Poly(x, *symbols, domain=sp.QQ_I) for x in (left, right))
     except (sp.PolynomialError, sp.CoercionFailed) as exc:
-        raise Unsupported("Equation coefficients outside rational complex domain") from exc
+        raise Undecided("Equation coefficients outside rational complex domain") from exc
     # Normalizing numeric content preserves symbolic factors and multiplicity.
     return a.monic() == b.monic()

@@ -69,9 +69,9 @@ MUTATIONS = {
     'stack-numrelative-strict': ('stack/assessment.py',
                                  'correct = difference <= abs(teacher_number * tolerance * (1 + sp.Rational(1, 10**9)))',
                                  'correct = difference < abs(teacher_number * tolerance)', 1, (STACK,)),
-    'stack-numabsolute-irrational-no-guard': ('stack/assessment.py', 'correct = difference < abs(tol) + Decimal("1e-9")',
+    'stack-numabsolute-irrational-no-guard': ('stack/assessment.py', 'correct = difference < threshold',
                                               'correct = difference < abs(tol)', 1, (STACK,)),
-    'stack-numrelative-irrational-strict': ('stack/assessment.py', 'correct = difference <= abs(ta * tol * (1 + Decimal("1e-9")))',
+    'stack-numrelative-irrational-strict': ('stack/assessment.py', 'correct = difference <= threshold',
                                             'correct = difference < abs(ta * tol)', 1, (STACK,)),
     'stack-decimal-places-half-up': ('stack/assessment.py', 'teacher_decimal.quantize(quantum, rounding=ROUND_HALF_EVEN)',
                                      'teacher_decimal.quantize(quantum, rounding="ROUND_HALF_UP")', 1, (STACK,)),
@@ -170,8 +170,8 @@ MUTATIONS = {
     'stack-s05-absolute-note': ('stack/assessment.py', '    "NumAbsolute": ("ATNumerical_SA_not_number",', '    "NumAbsolute": ("ATNumerical_SA_not_a_number",', 1, (STACK,)),
     'stack-s05-relative-note': ('stack/assessment.py', '    "NumRelative": ("ATNumerical_SA_not_number",', '    "NumRelative": ("ATNumerical_SA_not_a_number",', 1, (STACK,)),
     'stack-s05-decplaces-note': ('stack/assessment.py', '"NumDecPlaces": ("ATNumDecPlaces_SA_Not_num",', '"NumDecPlaces": ("ATNumDecPlaces_SA_Not_a_num",', 1, (STACK,)),
-    'stack-s05-decplaces-integer': ('stack/assessment.py', '        return _not_applicable(_NOT_A_NUMBER[name])\n    try:\n        teacher_decimal',
-                                    '        return _result(False, False, "invalid", "")\n    try:\n        teacher_decimal', 1, (STACK,)),
+    'stack-s05-decplaces-integer': ('stack/assessment.py', '        return _not_applicable(_NOT_A_NUMBER[name])\n    if teacher_error is not None:',
+                                    '        return _result(False, False, "invalid", "")\n    if teacher_error is not None:', 1, (STACK,)),
     # S-10 (0.9.0): checkanswertype refuses an answer of another type than the teacher's (examples/stack/supplement/checkanswertype.xml
     # has an input for each type of teacher's answer; examples/stack/probes/eqtype.xml).
     'stack-s10-check-removed': ('stack/engine.py', '            if mismatch:\n                raise InvalidAnswer(mismatch)\n', '            pass\n', 1, (STACK,)),
@@ -182,6 +182,15 @@ MUTATIONS = {
     'stack-s10-logic-answer': ('stack/collections.py', "        return None if s in {'equation', 'logic'} else SA_NOT_EQUATION\n", "        return None if s == 'equation' else SA_NOT_EQUATION\n", 1, (STACK,)),
     'stack-s10-list-message': ('stack/collections.py', 'SA_NOT_LIST = ("Your answer should be a list, but is not. Note', 'SA_NOT_LIST = ("Your answer must be a list, but is not. Note', 1, (STACK,)),
     'stack-s10-entries': ('stack/collections.py', 'return None if same_type(student, teacher) else ENTRIES_NOT_SAME_TYPE', 'return None', 1, (STACK,)),
+    # S-11 (0.10.0): a valid answer that a test does not compare or cannot decide is false (supplement rows, examples/stack/probes/crash.xml
+    # and numabs-branch.xml).
+    'stack-s11-undecided': ('stack/assessment.py', '    except (Undecided, OverflowError, DecimalException):', '    except (OverflowError, DecimalException):', 1, (STACK,)),
+    'stack-s11-overflow': ('stack/assessment.py', '    except (Undecided, OverflowError, DecimalException):', '    except (Undecided, DecimalException):', 1, (STACK,)),
+    'stack-s11-decimal': ('stack/assessment.py', '    except (Undecided, OverflowError, DecimalException):', '    except (Undecided, OverflowError):', 1, (STACK,)),
+    'stack-s11-same-type': ('stack/assessment.py', 'type_mismatch(student_value, teacher_value) is None', 'True', 1, (STACK,)),
+    'stack-s11-not-expression-note': ('stack/assessment.py', 'f"AT{name}_SA_not_expression"', 'f"AT{name}_SA_not_expr"', 1, (STACK,)),
+    'stack-s11-equation-note': ('stack/assessment.py', '("ATAlgEquiv_TA_not_equation" if equation else "ATAlgEquiv_SA_not_expression",', '("ATAlgEquiv_SA_not_expression" if equation else "ATAlgEquiv_SA_not_expression",', 1, (STACK,)),
+    'stack-s11-singlefrac': ('stack/assessment.py', 'if (name in {"FacForm", "SingleFrac"} or', 'if (name in {"FacForm"} or', 1, (STACK,)),
 }
 
 # Mutations that no golden row reaches and that tests/ catch: the pytest files of the test column must fail on the
@@ -242,6 +251,19 @@ TESTS = {
                                 ('tests/stack/test_checkanswertype.py',)),
     'stack-s10-entered-equation-message': ('stack/collections.py', 'TA_NOT_EQUATION = ("You have entered an equation', 'TA_NOT_EQUATION = ("You entered an equation', 1,
                                            ('tests/stack/test_checkanswertype.py',)),
+    # S-11 (0.10.0): the errors of the author that stay errors, and the refusal of a number too large (tests/stack/test_undecided.py).
+    'stack-s11-teacher-logic': ('stack/assessment.py', '''            raise Unsupported(f"The teacher's answer: {exc}") from exc   # an error of the author, not of the answer\n    if is_logical(student_value):''',
+                                '''            pass\n    if is_logical(student_value):''', 1, ('tests/stack/test_undecided.py',)),
+    'stack-s11-teacher-facform': ('stack/assessment.py', '''            _facform_polynomial(teacher_value, variable)\n        except Undecided as exc:\n            raise Unsupported(f"The teacher's answer: {exc}") from exc   # an error of the author, not of the answer''',
+                                  '''            _facform_polynomial(teacher_value, variable)\n        except Undecided as exc:\n            pass''', 1, ('tests/stack/test_assessment.py',)),
+    # Restore the old bypass: authored values are unchecked for a non-expression answer.
+    'stack-s11-facform-author-order': ('stack/assessment.py', '    if name == "FacForm" and plain_teacher:\n',
+                                      '    if name == "FacForm" and plain_teacher and not (is_collection(student_value) or is_logical(student_value) or isinstance(student_value, MatrixValue)):\n',
+                                      1, ('tests/stack/test_undecided.py',)),
+    'stack-s11-not-compared': ('stack/assessment.py', 'not_compared = Undecided if plain_teacher else Unsupported', 'not_compared = Undecided', 1,
+                               ('tests/stack/test_undecided.py',)),
+    'stack-s11-validation-overflow': ('stack/engine.py', '    except OverflowError:\n        # A number too large', '    except ZeroDivisionError:\n        # A number too large', 1,
+                                      ('tests/stack/test_undecided.py',)),
 }
 
 # A few minutes: CI runs them in a step of their own (CTM_MUTATION_TESTS=1).

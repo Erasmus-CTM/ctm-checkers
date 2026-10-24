@@ -54,14 +54,15 @@ class AssessmentTest(unittest.TestCase):
             answer_test("FacForm", "(x+y)*(x-y)", "x^2-y^2", "x")
         with self.assertRaisesRegex(Unsupported, "polynomial variable"):
             answer_test("FacForm", "x^2-1", "x^2-1", "")
-        with self.assertRaisesRegex(Unsupported, "supported bounds"):
-            answer_test("FacForm", "(x+1)^100*(x+1)^100", "1", "x")
-        for cancelled in ("x/x", "(x-1)/(x-1)", "0/x", "x*(1/x)",
-                          "(x^2-1)*(x/x)", "x^2-1+0/x", "(x/x)+(x^2-1)"):
-            with self.subTest(cancelled=cancelled), self.assertRaisesRegex(Unsupported, "numeric denominators"):
-                answer_test("FacForm", cancelled, "1", "x")
-        with self.assertRaisesRegex(Unsupported, "nonnegative integer powers"):
-            answer_test("FacForm", "x^2-1+0*x^(-1)", "x^2-1", "x")
+        # S-11: an answer outside the test's domain is undecided (false, not applicable), not an error of the author.
+        undecided = (("(x+1)^100*(x+1)^100", "1"), ("x^2-1+0*x^(-1)", "x^2-1"),
+                     *((cancelled, "1") for cancelled in ("x/x", "(x-1)/(x-1)", "0/x", "x*(1/x)",
+                                                          "(x^2-1)*(x/x)", "x^2-1+0/x", "(x/x)+(x^2-1)")))
+        for student, teacher in undecided:
+            with self.subTest(undecided=student):
+                result = answer_test("FacForm", student, teacher, "x")
+                self.assertEqual((result["valid"], result["correct"], result["cas_valid"], result["note"]),
+                                 (True, False, False, "FacForm_undecided"))
 
     def test_singlefrac_equivalence_and_written_shape(self):
         accepted = (("2/n", "2/n"), ("-((x+1)/(x-1))", "-(x+1)/(x-1)"),
