@@ -57,7 +57,7 @@ run them (`stack.import`, `stack.instantiate`, `stack.card`, `stack.tests`,
 | `questions-helm.jsonl` | 179 | **NonCommercial test data** (CC BY-NC 4.0, below): the same for the two HELM questions (`examples/stack/upstream`). |
 | `questions-course.jsonl` | 232 | **Course material** (CC BY-SA 4.0; the checker file and the answers AGPL-3.0-or-later, below): the same as `questions-project` for the three questions derived from the course ingmat3a_ntnu (`examples/stack/course-*.xml`), among them S-01's test case `course-b-rank-pivots.xml` (since 0.3.0 `r` and `P` are invalid as answers: they name question variables). |
 | `probes.jsonl` | 207 | The stack-sympy audit's answer-test probes with STACK's and Maxima's native verdicts (`native`), and its performance probes. |
-| `probe-questions.jsonl` | 289 | The audit's question probes (`examples/stack/probes/`) with its answers. |
+| `probe-questions.jsonl` | 261 | The audit's question probes (`examples/stack/probes/`) with its answers. From 0.7.0 (S-07) `options.xml` does not build: its import row holds the error, and its variants, question tests and answers (28 rows) are gone. |
 | `supplement.jsonl` | 295 | Rules that only the mutation tests reached (below): NumAbsolute's strict bound with STACK's 1e-9 guard and NumRelative's inclusive one, for exact and irrational numbers; AlgEquiv's numeric rejection screen (1e-4 margin); response-tree scores beyond [0, 1] (`examples/stack/supplement/score-modes.xml`); the input rules of `examples/stack/supplement/input-rules.xml` (forbidden words in any case, the numerical input's type, lowest terms with two negative numbers, and/or precedence in the validation's LaTeX, the 64-entry matrix limit), with the answer sets of the example questions and the answers in `golden_stack.PROBE_ANSWERS`; S-01's question `examples/stack/supplement/forbidden-variables.xml` (0.3.0): only its six answers that name question and feedback variables, alone, inside an expression, with implied multiplication, twice, and two names at once (`golden_stack.ANSWERS_ONLY`); and from 0.4.0 (the review of S-01) `forbidden-variables-prts.xml`'s answers that name the feedback variables of its second response tree, separated by a newline (`ANSWERS_ONLY` too), and `teacher-answer-clash.xml`, whose teacher's answer uses a feedback variable's name: its build stops (its import and three variants); and from 0.5.0 (S-02) `constants.xml`, whose teacher's answers hold Euler's number and the imaginary unit next to the variables `E` and `I`, with the answer sets of the example questions and answers that write them in each way (`e`, `%e`, `exp(1)`, `E`; `i`, `%i`, `sqrt(-1)`, `I`); and from 0.6.0 (S-13) `input-text.xml`, an answer for each of STACK's rules for the text of an answer (names of three letters or more, case, `In`, Unicode characters, decimal commas, spaces, `0^0`, the inverse trigonometric functions) with STACK's messages, next to its answer sets. |
 
 `excluded.json` lists the inputs that run longer than 20 s (S-12:
@@ -337,8 +337,13 @@ the first row that differs). Rows that differ in all (of 5,969), by table:
 | S-13: `0^0` is 1 | 4 | probes 1, supplement 3 |
 | S-13: STACK's `arcsin` names not known | 76 | supplement |
 | S-13: the question tests' inputs not bound to the teacher's answers (corpus `AlgMap-1-6.xml` types `ans+1`, which is then a name a student may not type) | 3 | questions-library |
+| S-07: the question options are not checked | 1 | probe-questions |
+| S-07: `complexno` is not in the table of options | 1 | probe-questions |
+| S-07: `decimals` is not in the table of options | 1 | probe-questions |
+| S-07: `multiplicationsign` `none` is not accepted (20 example questions) | 1,205 | questions-project 875, questions-library 330 |
+| S-07: `matrixparens` `(` is not accepted (corpus `AlgMap-12-1.xml`) | 4 | questions-library |
 
-The counts are those of 0.6.0. Since 0.3.0 (S-01) some answers that reached
+The counts are those of 0.6.0 (S-07's, of 0.7.0). Since 0.3.0 (S-01) some answers that reached
 a rule name a question variable and stop at validation, so some mutations
 above change fewer rows than in 0.2.0 (NumRelative 16, `+` 48, the numerical
 type 2, the colours 66); each is still caught. Since 0.6.0 (S-13) the names
@@ -375,6 +380,9 @@ further question-variable names (`tests/stack/test_input_text.py`); and the
 question tests' inputs, which are computed from the teacher's answers and
 validated as the unsimplified value too (`abc*0+ta`) and written as a student
 writes them (`abs`, `mod`), `tests/stack/test_question_test_inputs.py`.
+S-07: the options that no golden question sets (`scientificnotation`,
+`inversetrig`, `logicsymbol`, `sqrtsign`), an empty value accepted, and only
+the first unsupported option named (`tests/stack/test_importer.py`).
 
 ## Refreshing the capture
 

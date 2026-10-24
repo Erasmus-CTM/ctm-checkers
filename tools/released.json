@@ -55,6 +55,16 @@
     "wheel": "bf60c8e8daa9d15d793378ed6d6439ebcaa733646e88004f39f37d40a98f11b5",
     "script": "83e6a000520ac51b689ae6bd53c993dddfb3228e8e7291b109f8cf8461676cea"
    }
+  },
+  "0.7.0": {
+   "contents": "0f17eca50d5a20c4f6a7b34d6f9ea021deda05391e694ec5da85118bd8fd2347",
+   "wheel": "69b76f88aa9a9b686223add7aeffddd34ffd856a193c477e83b253da64548363",
+   "script": "da6a5115e3feb31c0210b99a9f9858ddde1559ebcf1ea9f68a20f2f0796dc4f6",
+   "stack": {
+    "contents": "a692d77c16c25be5d1e6918a06d4e621539120e5478c89871104c262f30db69f",
+    "wheel": "7c3ed0b445ae56d8897700014d5beda2869e4bc2f090bc55e402157213dc2756",
+    "script": "57afad628a0ec80e80bfd10c01d9bb1a4f84240e63a3f98e4e60dd21ba7d49ca"
+   }
   }
  }
 }
