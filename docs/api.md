@@ -168,6 +168,15 @@ manifest selection. The component's Lua filter owns the card shell, labels,
 descriptor and safe JSON-script embedding. The old `render` command remains
 for one documentation-site transition release.
 
+Production `prepare` and ordinary `render` reject author names shared between
+question-variable assignments, student inputs and a PRT's feedback variables
+before producing a plan or card. The error names the source, question, name
+and both scopes. Intentional reassignment within one scope and reuse of a
+feedback-local name in separate PRTs remain valid; duplicate inputs are already
+invalid on import. Explicit `render --diagnostics` may show an inert author
+alert, never an active plan. This preflight does not change legacy
+`instantiate`, `validate` or `grade` behavior.
+
 `stack.validate`, `stack.grade` and `stack.tests` still return normal CAS
 results for invalid learner input. Unsupported questions and malformed
 prepared plans return `ok: false` with the existing string `error` and additive
