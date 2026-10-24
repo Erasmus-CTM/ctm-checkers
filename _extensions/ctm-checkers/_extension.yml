@@ -3,9 +3,9 @@
 # never list this extension: CTM Assessment installs it, ctm-libs loads it.
 title: CTM checkers
 author: CTM team
-version: 0.10.1-dev.0
+version: 0.11.0-dev.0
 quarto-required: ">=1.8.27"
 contributes:
   metadata:
     ctm-checkers:
-      api: 1
+      api: "1.1"

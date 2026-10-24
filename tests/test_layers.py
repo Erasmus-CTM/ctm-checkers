@@ -2,6 +2,7 @@
 between the engines (H2), shared modules below the engines."""
 import ast
 import os
+import re
 import subprocess
 import sys
 
@@ -70,7 +71,13 @@ def test_lazy_names_load_their_modules():
 
 def test_package_version():
     import ctm_checkers
-    assert isinstance(ctm_checkers.API, int)
+    # Major-only levels may be integers; additive minor levels are strings
+    # so that 1.10 never rounds to the floating-point value 1.1.
+    if type(ctm_checkers.API) is int:
+        assert ctm_checkers.API >= 1
+    else:
+        assert type(ctm_checkers.API) is str
+        assert re.fullmatch(r'[1-9]\d*\.(?:0|[1-9]\d*)', ctm_checkers.API)
     assert ctm_checkers.__file__.startswith(PACKAGE)
 
 

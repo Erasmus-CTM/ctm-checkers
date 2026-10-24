@@ -2,10 +2,10 @@
 
 # The package root imports no SymPy, so a component can read the version
 # without loading it.
-__version__ = "0.10.1.dev0"
-# Rises only for an incompatible change of browser.call, the request and
-# result shapes or an author contract (docs/api.md).
-API = 1
+__version__ = "0.11.0.dev0"
+# Major levels describe incompatibilities; a string preserves an additive
+# minor level exactly (1.10 must not become the floating-point number 1.1).
+API = "1.1"
 
 # The STACK engine (ctm_checkers.stack) comes in a wheel of its own
 # (ctm_checkers_stack-<version>-py3-none-any.whl), so that pages with

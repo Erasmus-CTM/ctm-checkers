@@ -89,6 +89,7 @@ GOLDEN = ROOT / 'tests' / 'golden'
 if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 import golden_stack  # noqa: E402
+import golden_storage  # noqa: E402
 MINOR = '%d.%d' % sys.version_info[:2]
 FORMAT = 1
 
@@ -173,13 +174,17 @@ def has_message(value):
 # Tables
 # ---------------------------------------------------------------------------
 
-def table_files(root=GOLDEN):
-    return sorted(p for p in root.rglob('*.jsonl') if not p.name.startswith('sources-') and 'files' not in p.relative_to(root).parts)
+def table_name(path):
+    return golden_storage.logical(path).relative_to(GOLDEN).as_posix()
+
+
+def table_files(root=None):
+    return golden_storage.files(GOLDEN if root is None else root)
 
 
 def read_rows(path):
     rows = []
-    for number, line in enumerate(path.read_text(encoding='utf-8').splitlines(), 1):
+    for number, line in enumerate(golden_storage.read(GOLDEN, path).decode('utf-8').splitlines(), 1):
         row = loads(line)
         if canonical(row) != line:
             raise SystemExit(f'{path}:{number}: not canonical JSON')
@@ -191,8 +196,7 @@ def read_rows(path):
 
 def write_rows(path, rows):
     rows = sorted(rows, key=lambda r: r['id'])
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(''.join(canonical(r) + '\n' for r in rows), encoding='utf-8')
+    golden_storage.write(GOLDEN, path, ''.join(canonical(r) + '\n' for r in rows).encode('utf-8'))
 
 
 def read_sources(root=GOLDEN):
@@ -568,7 +572,7 @@ def annotate(path, message):
 def selected(files, patterns):
     if not patterns:
         return files
-    return [f for f in files if any(re.search(p, f.relative_to(GOLDEN).as_posix()) for p in patterns)]
+    return [f for f in files if any(re.search(p, table_name(f)) for p in patterns)]
 
 
 def verify(adapter, patterns=(), max_diffs=20, out=print, fail_fast=False):
@@ -591,7 +595,7 @@ def verify(adapter, patterns=(), max_diffs=20, out=print, fail_fast=False):
         rows = read_rows(path)
         reason = adapter.skipped(rows)
         if reason:
-            skipped.append(path.relative_to(GOLDEN).as_posix())
+            skipped.append(table_name(path))
             out(f'{skipped[-1]}: {len(rows)} rows; skipped: {reason}')
             continue
         counts = {'reproduced': 0, 'different': 0, 'missing': 0}
@@ -616,7 +620,7 @@ def verify(adapter, patterns=(), max_diffs=20, out=print, fail_fast=False):
                 annotate(path, f'{row["suite"]} {row["id"]} ({row["call"]}) on Python {MINOR}: expected {canonical(expected)[:900]} '
                                f'| actual {canonical(actual)[:900]} | input {canonical(row["input"])[:600]}')
         total += len(rows)
-        out(f'{path.relative_to(GOLDEN).as_posix()}: {len(rows)} rows; ' + ', '.join(f'{k} {v}' for k, v in counts.items()))
+        out(f'{table_name(path)}: {len(rows)} rows; ' + ', '.join(f'{k} {v}' for k, v in counts.items()))
         if fail_fast and failures:
             out('Stopped at the first row that is not reproduced (--fail-fast).')
             break
@@ -850,7 +854,7 @@ RECORDED = {'math_exercise/namespace': namespace_rows, 'math_exercise/rounding':
 
 
 def suite_path(suite):
-    return GOLDEN / (suite + '.jsonl')
+    return golden_storage.physical(GOLDEN, GOLDEN / (suite + '.jsonl'))
 
 
 def record(adapter, out=print, probes=None):
@@ -1277,13 +1281,23 @@ def change_versions(entry):
 def git_tables(base):
     """The tables at the Git commit `base`: {path under tests/golden: rows}."""
     def git(*args):
-        return subprocess.run(['git', '-C', str(ROOT)] + list(args), capture_output=True, text=True, check=True, encoding='utf-8').stdout
+        return subprocess.run(['git', '-C', str(ROOT)] + list(args), capture_output=True, check=True).stdout
     tables = {}
-    for name in git('ls-tree', '-r', '--name-only', base, '--', 'tests/golden').split():
+    names = git('ls-tree', '-r', '--name-only', base, '--', 'tests/golden').decode('utf-8').split()
+    storage = 'tests/golden/' + golden_storage.REGISTRY
+    entries = golden_storage.validate_registry(json.loads(git('show', f'{base}:{storage}').decode('utf-8')))['tables'] if storage in names else {}
+    for name in names:
         relative = Path(name).relative_to('tests/golden')
-        if relative.suffix != '.jsonl' or relative.name.startswith('sources-') or 'files' in relative.parts:
+        logical = golden_storage.logical(relative)
+        if logical.suffix != '.jsonl' or relative.name.startswith('sources-') or 'files' in relative.parts:
             continue
-        tables[relative.as_posix()] = [loads(line) for line in git('show', f'{base}:{name}').splitlines() if line]
+        if logical.as_posix() in tables:
+            raise ValueError('Duplicate golden table in Git revision: ' + logical.as_posix())
+        data = golden_storage.decode(relative, git('show', f'{base}:{name}'), entries)
+        tables[logical.as_posix()] = [loads(line) for line in data.decode('utf-8').splitlines() if line]
+    for name in entries:
+        if 'tests/golden/' + name + '.gz' not in names:
+            raise ValueError('Registered compressed golden table is missing in Git revision: ' + name)
     return tables
 
 
@@ -1291,7 +1305,7 @@ def golden_diff(base):
     """{table: (added, removed, changed)} between the Git commit `base` and
     the working tree; `changed` holds (before, after) pairs."""
     previous = git_tables(base)
-    current = {path.relative_to(GOLDEN).as_posix(): read_rows(path) for path in table_files()}
+    current = {table_name(path): read_rows(path) for path in table_files()}
     report = {}
     for name in sorted(set(previous) | set(current)):
         before = {row['id']: row for row in previous.get(name, [])}
@@ -1632,6 +1646,10 @@ def write_provenance():
              'Recorded suites and the per-version results of Python versions without a Pyodide build were recorded with',
              f'math-exercise\'s own code at `{manifest["legacy"]["math-exercise"]}` (`tools/golden.py record`).', '',
              '| File | Rows | Source | Licence |', '|---|---|---|---|']
+    if golden_storage.registry(GOLDEN)['tables']:
+        lines[4:4] = ['Some large expected tables are stored as `.jsonl.gz`; their logical `.jsonl` names below are unchanged.',
+                      '`table-storage.json` binds each compressed table to its reviewed raw SHA-256, byte count and row count.',
+                      'These are static expected test cases, not uploaded test logs. Shared readers verify the raw identity before grading.', '']
     for name, info in sorted(capture['files'].items()):
         lines.append(f'| `{name}` | {info.get("rows")} | captured from math-exercise `{corpus.get("commit", "")[:12]}` | {info.get("licence")} |')
     for suite, info in sorted(manifest.get('recorded', {}).items()):

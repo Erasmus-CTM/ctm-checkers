@@ -63,6 +63,13 @@
   "umbrella": "10f8c9d01d519e81e61ec99fdf2cc78333824d24"
  },
  "changes": {
+  "C6": {
+   "python": "3.12",
+   "version": "0.11.0",
+   "versions": [
+    "0.11.0"
+   ]
+  },
   "S-01": {
    "python": "3.12",
    "version": "0.3.0",

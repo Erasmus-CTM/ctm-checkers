@@ -31,6 +31,25 @@ def test_versions_and_dependency_versions():
     assert build.dependency_version('0.2.0.dev0', b'wheel') == '0.2.0.dev0+' + hashlib.sha256(b'wheel').hexdigest()[:8]
 
 
+def test_additive_api_levels_preserve_the_minor_number(tmp_path, monkeypatch):
+    package = tmp_path / 'ctm_checkers'
+    package.mkdir()
+    monkeypatch.setattr(build, 'SRC', tmp_path)
+    for spelling, expected in [('1', 1), ('"1.1"', '1.1'), ('"1.10"', '1.10')]:
+        (package / '__init__.py').write_text('__version__ = "0.11.0.dev0"\nAPI = ' + spelling + '\n')
+        assert build.package_info() == ('0.11.0.dev0', expected)
+
+
+@pytest.mark.parametrize('spelling', ['1.1', 'True', '-1', '"invalid"', '"1."', '"1.1.0"'])
+def test_invalid_api_level_spellings_fail_packaging(tmp_path, monkeypatch, spelling):
+    package = tmp_path / 'ctm_checkers'
+    package.mkdir()
+    monkeypatch.setattr(build, 'SRC', tmp_path)
+    (package / '__init__.py').write_text('__version__ = "0.11.0.dev0"\nAPI = ' + spelling + '\n')
+    with pytest.raises(SystemExit, match='API ='):
+        build.package_info()
+
+
 def committed():
     manifest = json.loads((build.OUT / 'checkers.json').read_text())
     return manifest, (build.OUT / manifest['wheel']).read_bytes()

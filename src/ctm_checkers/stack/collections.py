@@ -7,6 +7,7 @@ from __future__ import annotations
 import sympy as sp
 from .expressions import (HeldSet, HeldList, MatrixValue, is_collection, collection_items,
                           collection_kind, validate_collection)
+from .messages import message
 
 
 def normalized_value(value, *, mathematical_constants=False):
@@ -164,14 +165,22 @@ def collection_test(name, student, teacher, compare):
     if name == 'AlgEquiv':
         return result(correct, '' if correct else 'ATSet_wrongentries',
                       'Check the elements of the set.' if not correct else '')
-    notes, feedback = [], []
+    notes, feedback, messages = [], [], []
     if len(sa) < len(original):
         notes.append('ATSets_duplicates')
         feedback.append('Repeated elements were removed from the set.')
+        messages.append(message('ATSets_duplicates', feedback[-1]))
     if extra:
         notes.append('ATSets_wrongentries')
         feedback.append('Extra elements: ' + ', '.join(str(x) for x in extra) + '.')
+        messages.append(message('ATSets_wrongentries', feedback[-1],
+                                elements=[{'text': str(x), 'latex': sp.latex(x)} for x in extra]))
     if missing:
         notes.append('ATSets_missingentries')
         feedback.append('Missing elements: ' + ', '.join(str(x) for x in missing) + '.')
-    return result(correct, ' | '.join(notes), ' '.join(feedback))
+        messages.append(message('ATSets_missingentries', feedback[-1],
+                                elements=[{'text': str(x), 'latex': sp.latex(x)} for x in missing]))
+    answer = result(correct, ' | '.join(notes), ' '.join(feedback))
+    if messages:
+        answer['messages'] = messages
+    return answer

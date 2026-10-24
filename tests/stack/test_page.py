@@ -33,7 +33,10 @@ def roundtrip(value):
 
 def test_the_calls_answer_for_the_cards_variant():
     assert VARIANT["env"] != instantiate(QUESTION, 1)["env"]
-    assert page.validate(request()) == {"ok": True, "result": roundtrip(validate(QUESTION, ANSWERS, variant=VARIANT))}
+    validated = page.validate(request())
+    assert validated["ok"]
+    assert validated["result"].pop("message")["code"] == "stack_validated"
+    assert validated["result"] == roundtrip(validate(QUESTION, ANSWERS, variant=VARIANT))
     graded = page.grade(request())
     assert graded == {"ok": True, "result": roundtrip(grade(QUESTION, ANSWERS, variant=VARIANT))}
     assert graded["result"]["score"] == 1
@@ -48,6 +51,8 @@ def test_an_unsupported_question_is_an_envelope():
     for call in (page.grade, page.tests):
         answer = call(request(question=question))
         assert answer["ok"] is False
+        assert answer["errorDetail"]["kind"] == "author"
+        assert answer["errorDetail"]["code"] == "stack_question_error"
         assert "Answer test 'NumSigFigs' is unsupported" in answer["error"]
 
 
