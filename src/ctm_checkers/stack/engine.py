@@ -466,6 +466,9 @@ def _input_validation(inp, raw, env, assumptions, question=None):
         return {"valid": True, "latex": form_latex(tree, env), "feedback": ""}, value, tree
     except (InvalidAnswer, TypeError, ValueError, ZeroDivisionError) as exc:
         return {"valid": False, "latex": "", "feedback": str(exc)}, None, None
+    except OverflowError:
+        # A number too large to evaluate (S-11): the answer is refused, with no traceback.
+        return {"valid": False, "latex": "", "feedback": "This number is too large"}, None, None
 
 
 def _walk(node):
@@ -668,7 +671,7 @@ def grade(question: dict, answers: Mapping[str, str], seed: int = 1, *, variant:
                 else:
                     result = answer_test(node["test"], tested_student, teacher, node["options"],
                                          env=penv, raw=raw_student or (tested_student if isinstance(tested_student, str) else ""), assumptions=assumptions)
-            except (InvalidAnswer, Unsupported, TypeError, ZeroDivisionError) as exc:
+            except (InvalidAnswer, Unsupported, TypeError, ZeroDivisionError, OverflowError) as exc:
                 raise UnsupportedQuestion(question["name"], f"prt[{prt['name']}]/node[{current}]", str(exc)) from exc
             if not result["valid"]:
                 if node["test"] == "PythonChecker":

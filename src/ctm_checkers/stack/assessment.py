@@ -1,19 +1,21 @@
 """A conservative scalar and finite-collection subset of STACK answer tests.
 
 No numerical sampling is used to declare symbolic equivalence. Unsupported
-answer tests raise Unsupported, whereas malformed student answers return an
-invalid result. Feedback strings are brief and are not localized STACK text.
+answer tests and errors of the author raise Unsupported, whereas malformed
+student answers return an invalid result and a valid answer that a test cannot
+decide (a bound of the engine, a type it does not compare) is false (S-11).
+Feedback strings are brief and are not localized STACK text.
 """
 
 from __future__ import annotations
 
-from decimal import Decimal, InvalidOperation, ROUND_HALF_EVEN, localcontext
+from decimal import Decimal, DecimalException, InvalidOperation, ROUND_HALF_EVEN, localcontext
 import re
 from typing import Any, Mapping
 
 import sympy as sp
 
-from .expressions import (InvalidAnswer, Node, Unsupported, canonical_form, evaluate,
+from .expressions import (Equation, InvalidAnswer, Node, Undecided, Unsupported, canonical_form, evaluate,
                           parse, is_logical, is_collection, validate_collection,
                           AUTHOR_COLLECTION_FUNCTIONS)
 
@@ -72,7 +74,7 @@ def _decimal(value) -> Decimal:
 def _option(options: str, env, assumptions):
     try:
         return evaluate(options, env, assumptions=assumptions)
-    except InvalidAnswer as exc:
+    except (InvalidAnswer, Undecided, OverflowError, DecimalException) as exc:
         raise Unsupported(f"Invalid answer-test options: {exc}") from exc
 
 
@@ -80,7 +82,13 @@ def _numerical_option(name: str, options: str, env, assumptions):
     """The tolerance of NumAbsolute and NumRelative, the number of places of NumDecPlaces: an author error
     in it stops the build (Unsupported / InvalidAnswer), whatever the answer is."""
     if name != "NumDecPlaces":
-        return _number(_option(numeric_option_source(options), env, assumptions), "Tolerance")
+        tolerance = _number(_option(numeric_option_source(options), env, assumptions), "Tolerance")
+        if tolerance.is_Rational is not True:
+            try:
+                _decimal(tolerance)
+            except (OverflowError, DecimalException) as exc:
+                raise Unsupported(f"Numerical tolerance exceeds supported bounds: {exc}") from exc
+        return tolerance
     if not options.strip():
         raise Unsupported("NumDecPlaces requires a decimal-place count")
     required = _option(options, env, assumptions)
@@ -170,13 +178,13 @@ def _decimal_places(raw: str) -> tuple[Decimal, int]:
 def _facform_polynomial(value, variable):
     """Keep FacForm within univariate polynomials over the rationals."""
     if not isinstance(value, sp.Basic) or value.free_symbols - {variable}:
-        raise Unsupported("FacForm supports univariate rational polynomials")
+        raise Undecided("FacForm supports univariate rational polynomials")
     def degree_bound(expr):
         if expr == variable:
             return 1
         if expr.is_Number:
             if expr.is_Rational and max(int(expr.p).bit_length(), int(expr.q).bit_length()) > 256:
-                raise Unsupported("FacForm coefficient exceeds supported bound")
+                raise Undecided("FacForm coefficient exceeds supported bound")
             return 0
         if expr.is_Add:
             return max(degree_bound(a) for a in expr.args)
@@ -184,18 +192,18 @@ def _facform_polynomial(value, variable):
             return sum(degree_bound(a) for a in expr.args)
         if expr.is_Pow and expr.exp.is_Integer and 0 <= int(expr.exp) <= 10000:
             return int(expr.exp) * degree_bound(expr.base)
-        raise Unsupported("FacForm supports univariate rational polynomials")
+        raise Undecided("FacForm supports univariate rational polynomials")
     if value.count_ops() > 500 or degree_bound(value) > 100:
-        raise Unsupported("FacForm polynomial exceeds supported bounds")
+        raise Undecided("FacForm polynomial exceeds supported bounds")
     try:
         poly = sp.Poly(value, variable, domain=sp.QQ)
         if len(poly.terms()) > 101:
-            raise Unsupported("FacForm polynomial exceeds supported bounds")
+            raise Undecided("FacForm polynomial exceeds supported bounds")
         if any(max(int(c.p).bit_length(), int(c.q).bit_length()) > 256 for c in poly.all_coeffs()):
-            raise Unsupported("FacForm coefficient exceeds supported bound")
+            raise Undecided("FacForm coefficient exceeds supported bound")
         return poly
     except (sp.PolynomialError, sp.CoercionFailed, TypeError, ValueError) as exc:
-        raise Unsupported("FacForm supports univariate rational polynomials") from exc
+        raise Undecided("FacForm supports univariate rational polynomials") from exc
 
 
 def _facform_irreducible(value, variable):
@@ -231,12 +239,12 @@ def _facform_factored(node, env, assumptions, variable):
     if node.kind == "binary" and node.value in {"^", "**"}:
         exponent = evaluate(node.children[1], env, assumptions=assumptions)
         if exponent.is_Integer is not True or not 0 <= int(exponent) <= 100:
-            raise Unsupported("FacForm supports nonnegative integer powers")
+            raise Undecided("FacForm supports nonnegative integer powers")
         return _facform_factored(node.children[0], env, assumptions, variable)
     if node.kind == "binary" and node.value == "/":
         denominator = evaluate(node.children[1], env, assumptions=assumptions)
         if not denominator.is_Rational or denominator == 0:
-            raise Unsupported("FacForm supports only numeric denominators")
+            raise Undecided("FacForm supports only numeric denominators")
         return _facform_factored(node.children[0], env, assumptions, variable)
     value = evaluate(node, env, assumptions=assumptions, student=True)
     return _facform_irreducible(value, variable)
@@ -247,7 +255,7 @@ def _facform_value_factored(value, variable):
         return all(_facform_value_factored(factor, variable) for factor in value.args)
     if value.is_Pow:
         if value.exp.is_Integer is not True or not 0 <= int(value.exp) <= 100:
-            raise Unsupported("FacForm supports nonnegative integer powers")
+            raise Undecided("FacForm supports nonnegative integer powers")
         return _facform_value_factored(value.base, variable)
     return _facform_irreducible(value, variable)
 
@@ -261,11 +269,11 @@ def _facform_preflight(node, env, assumptions):
     if node.value == "/":
         denominator = evaluate(node.children[1], env, assumptions=assumptions, student=True)
         if not denominator.is_Rational or denominator == 0:
-            raise Unsupported("FacForm supports only numeric denominators")
+            raise Undecided("FacForm supports only numeric denominators")
     if node.value in {"^", "**"}:
         exponent = evaluate(node.children[1], env, assumptions=assumptions, student=True)
         if exponent.is_Integer is not True or not 0 <= int(exponent) <= 100:
-            raise Unsupported("FacForm supports nonnegative integer powers")
+            raise Undecided("FacForm supports nonnegative integer powers")
 
 
 def _fraction_parts(node: Node):
@@ -354,7 +362,27 @@ def _lowest_terms(node: Node, env, assumptions, negative: bool = False) -> bool:
     return all(_lowest_terms(child, env, assumptions, negative) for child in node.children)
 
 
+UNDECIDED_FEEDBACK = "This answer could not be checked automatically."
+
+
 def answer_test(name: str, student: Node | str, teacher: str, options: str = "", *,
+                env: Mapping[str, Any] | None = None, raw: str | None = None,
+                assumptions: Mapping[str, bool] | None = None,
+                python_checkers: dict | None = None) -> dict:
+    """Apply one answer test to a valid answer (see `_answer_test` for the tests).
+
+    A test that cannot decide the answer (`Undecided`: a bound of the engine, a type of answer the test does not
+    compare; `OverflowError` and the errors of `decimal`: a number too large to evaluate) is false, not applicable (`cas_valid` false) and has the
+    note `<test>_undecided`, so that the response tree takes its false branch (S-11). An error of the author
+    (`Unsupported`: an option, a teacher's answer, a test the engine does not have) is still raised."""
+    try:
+        return _answer_test(name, student, teacher, options, env=env, raw=raw, assumptions=assumptions,
+                            python_checkers=python_checkers)
+    except (Undecided, OverflowError, DecimalException):
+        return {**_result(True, False, f"{name}_undecided", UNDECIDED_FEEDBACK), "cas_valid": False}
+
+
+def _answer_test(name: str, student: Node | str, teacher: str, options: str = "", *,
                 env: Mapping[str, Any] | None = None, raw: str | None = None,
                 assumptions: Mapping[str, bool] | None = None,
                 python_checkers: dict | None = None) -> dict:
@@ -383,7 +411,7 @@ def answer_test(name: str, student: Node | str, teacher: str, options: str = "",
         if name not in {"AlgEquiv", "SameType"} and _helper_call(teacher_ast):
             raise Unsupported("Direct finite helper calls require AlgEquiv or SameType; use a frozen evaluated author value")
         teacher_value = evaluate(teacher_ast, env, assumptions=assumptions)
-    except (InvalidAnswer, TypeError, ZeroDivisionError) as exc:
+    except (InvalidAnswer, TypeError, ZeroDivisionError, Undecided, OverflowError, DecimalException) as exc:
         raise Unsupported(f"Invalid teacher expression: {exc}") from exc
 
     if name == "PythonChecker":
@@ -402,19 +430,43 @@ def answer_test(name: str, student: Node | str, teacher: str, options: str = "",
             return _not_applicable(_TEACHER_NOT_A_NUMBER)
     for value in (student_value, teacher_value):
         validate_collection(value)
-    if any(isinstance(value, MatrixValue) for value in (student_value, teacher_value)) and name not in {"AlgEquiv", "SameType", "EqualComAss"}:
-        raise Unsupported("Matrices require AlgEquiv, SameType or EqualComAss")
+    # A test that does not compare the type of the answer: the student's answer is undecided (false), the teacher's
+    # answer is an error of the author.
+    plain_teacher = not (isinstance(teacher_value, MatrixValue) or is_collection(teacher_value) or is_logical(teacher_value))
+    not_compared = Undecided if plain_teacher else Unsupported
+    if name == "FacForm" and plain_teacher:
+        # Check authored values before a non-expression answer can take the false branch.
+        if not options.strip():
+            raise Unsupported("FacForm requires a polynomial variable option")
+        variable = _option(options, env, assumptions)
+        if not isinstance(variable, sp.Symbol):
+            raise Unsupported("FacForm requires a single polynomial variable")
+        try:
+            _facform_polynomial(teacher_value, variable)
+        except Undecided as exc:
+            raise Unsupported(f"The teacher's answer: {exc}") from exc   # an error of the author, not of the answer
     if name == "SameType":
-        if any(is_logical(x) for x in (student_value, teacher_value)):
-            raise Unsupported("SameType supports scalar expressions and collections")
-        from .collections import same_type
-        return {**_result(True, same_type(student_value, teacher_value)), "cas_valid": True}
+        # STACK's ATSameTypefun: AlgEquiv is applicable to the pair (the types of S-10's validation).
+        from .collections import type_mismatch
+        return {**_result(True, type_mismatch(student_value, teacher_value) is None), "cas_valid": True}
+    if (name in {"FacForm", "SingleFrac"} or name == "EqualComAss" and is_logical(student_value)) \
+            and not is_collection(teacher_value) and not is_logical(teacher_value) and not isinstance(teacher_value, MatrixValue) \
+            and (is_collection(student_value) or is_logical(student_value) or isinstance(student_value, MatrixValue)):
+        # STACK: the answer is not an expression (S-11); the test is false, the tree takes its false branch.
+        from .collections import SA_NOT_EXPRESSION, TA_NOT_EQUATION
+        if name == "EqualComAss":
+            equation = isinstance(student_value, Equation)
+            return _not_applicable(("ATAlgEquiv_TA_not_equation" if equation else "ATAlgEquiv_SA_not_expression",
+                                    TA_NOT_EQUATION if equation else SA_NOT_EXPRESSION))
+        return _not_applicable((f"AT{name}_SA_not_expression", SA_NOT_EXPRESSION))
+    if any(isinstance(value, MatrixValue) for value in (student_value, teacher_value)) and name not in {"AlgEquiv", "SameType", "EqualComAss"}:
+        raise not_compared("Matrices require AlgEquiv, SameType or EqualComAss")
     if name == "Sets":
         from .collections import collection_test
         return collection_test(name, student_value, teacher_value, None)
     if any(is_collection(x) for x in (student_value, teacher_value)):
         if name not in {"AlgEquiv", "EqualComAss"}:
-            raise Unsupported("Collections require AlgEquiv, Sets, SameType or EqualComAss")
+            raise not_compared("Collections require AlgEquiv, Sets, SameType or EqualComAss")
         result = _algebraic(student_value, teacher_value, student_ast, teacher_ast)
         if name == "AlgEquiv":
             return result
@@ -423,11 +475,15 @@ def answer_test(name: str, student: Node | str, teacher: str, options: str = "",
         return {**_result(True, canonical_form(student_ast, env, assumptions) == canonical_form(teacher_ast, env, assumptions)), "cas_valid": True}
 
     from .logic import validate_logic
-    for value in (student_value, teacher_value):
-        if is_logical(value):
-            validate_logic(value)
+    if is_logical(teacher_value):
+        try:
+            validate_logic(teacher_value)
+        except Undecided as exc:
+            raise Unsupported(f"The teacher's answer: {exc}") from exc   # an error of the author, not of the answer
+    if is_logical(student_value):
+        validate_logic(student_value)
     if name != "AlgEquiv" and any(is_logical(x) for x in (student_value, teacher_value)):
-        raise Unsupported("Logical answers require AlgEquiv")
+        raise not_compared("Logical answers require AlgEquiv")
 
     if name == "AlgEquiv":
         return _algebraic(student_value, teacher_value, student_ast, teacher_ast)
@@ -457,14 +513,8 @@ def answer_test(name: str, student: Node | str, teacher: str, options: str = "",
         return {**_result(True, correct), "cas_valid": True}
 
     if name == "FacForm":
-        if not options.strip():
-            raise Unsupported("FacForm requires a polynomial variable option")
-        variable = _option(options, env, assumptions)
-        if not isinstance(variable, sp.Symbol):
-            raise Unsupported("FacForm requires a single polynomial variable")
         _facform_preflight(student_ast, env, assumptions)
         _facform_polynomial(student_value, variable)
-        _facform_polynomial(teacher_value, variable)
         factored = _facform_factored(student_ast, env, assumptions, variable)
         if student_value.is_Integer:
             return _result(True, student_value == teacher_value)
@@ -480,36 +530,52 @@ def answer_test(name: str, student: Node | str, teacher: str, options: str = "",
             else:
                 correct = difference <= abs(teacher_number * tolerance * (1 + sp.Rational(1, 10**9)))
             return _result(True, bool(correct))
+        # Check the authored values before a student-side numerical bound can
+        # take the false branch. Keep the exact Rational path above unchanged.
+        try:
+            ta = _decimal(teacher_number)
+            tol = _decimal(tolerance)
+            with localcontext() as ctx:
+                ctx.prec = 200
+                threshold = (abs(tol) + Decimal("1e-9") if name == "NumAbsolute"
+                             else abs(ta * tol * (1 + Decimal("1e-9"))))
+        except (OverflowError, DecimalException) as exc:
+            raise Unsupported(f"Numerical teacher answer or tolerance exceeds supported bounds: {exc}") from exc
         sa = _decimal(student_number)
-        ta = _decimal(teacher_number)
-        tol = _decimal(tolerance)
         with localcontext() as ctx:
             ctx.prec = 200
             difference = abs(sa - ta)
             if name == "NumAbsolute":
                 # STACK numericaltest.mac: strict inequality, 10E-10 guard.
-                correct = difference < abs(tol) + Decimal("1e-9")
+                correct = difference < threshold
             else:
                 # Inclusive equality supports the 0/0 zero-tolerance case.
-                correct = difference <= abs(ta * tol * (1 + Decimal("1e-9")))
+                correct = difference <= threshold
         return _result(True, correct)
 
     required = option
+    # Validate the authored target before student formatting can return a
+    # verdict. A numeric teacher outside these bounds remains an author error.
+    teacher_error = None
+    try:
+        teacher_decimal = _decimal(_number(teacher_value, "Teacher answer"))
+        with localcontext() as ctx:
+            ctx.prec = 230
+            quantum = Decimal(1).scaleb(-int(required))
+            expected = teacher_decimal.quantize(quantum, rounding=ROUND_HALF_EVEN)
+    except (OverflowError, DecimalException) as exc:
+        raise Unsupported(f"Numerical teacher answer exceeds supported bounds: {exc}") from exc
+    except InvalidAnswer as exc:
+        teacher_error = str(exc)
     try:
         written, places = _decimal_places(raw if raw is not None else student if isinstance(student, str) else "")
     except InvalidAnswer:
         # STACK: the answer must be a float (`3`, `1/2`, `sqrt(2)` are not); a decimal literal with its
         # trailing zeros is what this engine reads the places from.
         return _not_applicable(_NOT_A_NUMBER[name])
-    try:
-        teacher_decimal = _decimal(_number(teacher_value, "Teacher answer"))
-    except InvalidAnswer as exc:
-        return _result(False, False, "invalid", str(exc))
+    if teacher_error is not None:
+        return _result(False, False, "invalid", teacher_error)
     if places != int(required):
         return _result(True, False, "wrong_decimal_places", "Incorrect number of decimal places")
-    with localcontext() as ctx:
-        ctx.prec = 230
-        quantum = Decimal(1).scaleb(-int(required))
-        expected = teacher_decimal.quantize(quantum, rounding=ROUND_HALF_EVEN)
-        correct = written == expected
+    correct = written == expected
     return _result(True, correct, "" if correct else "wrong_value")

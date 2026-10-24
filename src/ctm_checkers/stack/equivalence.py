@@ -6,7 +6,7 @@ cannot establish equivalence. Failed or singular probes are inconclusive.
 import sympy as sp
 from fractions import Fraction
 import math
-from .expressions import Unsupported
+from .expressions import Undecided, Unsupported
 
 ELEMENTARY = (sp.sin, sp.cos, sp.tan, sp.sec, sp.csc, sp.cot,
               sp.sinh, sp.cosh, sp.tanh, sp.sech, sp.csch, sp.coth)
@@ -121,7 +121,7 @@ def _rewrite_budget(expr):
     else:
         size = 1
     if size > 2048:
-        raise Unsupported("Elementary equivalence exceeds expansion bound")
+        raise Undecided("Elementary equivalence exceeds expansion bound")
     return size
 
 
@@ -167,17 +167,17 @@ def elementary_equivalent(left, right):
                 pass  # A skipped optional proof does not enlarge the contract.
         if difference.has(*ELEMENTARY):
             if sp.count_ops(difference) > 180:
-                raise Unsupported("Elementary equivalence exceeds rewrite bound")
+                raise Undecided("Elementary equivalence exceeds rewrite bound")
             # Explicit exponentialization mirrors STACK, without force=True
             # logarithm or power rewrites that can change complex branches.
             rewritten = difference.rewrite(sp.exp)
             if sp.count_ops(rewritten) > 700:
-                raise Unsupported("Elementary equivalence exceeds rewrite bound")
+                raise Undecided("Elementary equivalence exceeds rewrite bound")
             _rewrite_budget(rewritten)
             if sp.cancel(rewritten) == 0:
                 return True
         if difference.has(*NEW_FUNCTIONS):
-            raise Unsupported("Elementary equivalence is inconclusive")
+            raise Undecided("Elementary equivalence is inconclusive")
         return False
     except (TypeError, ValueError, ZeroDivisionError, NotImplementedError) as exc:
         if isinstance(exc, Unsupported):

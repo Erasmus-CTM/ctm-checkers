@@ -392,7 +392,8 @@ PROBE_ANSWERS = {
     'examples/stack/probes/quiet.xml': [{'ans1': '(x+2)*(x-1)'}, {'ans1': 'x^2+x-2'}],
     'examples/stack/probes/thirds.xml': [{'a': '1', 'b': '2', 'c': '3'}],
     'examples/stack/probes/physics-I.xml': [{'ans1': '-R'}],
-    'examples/stack/probes/numabs-branch.xml': [{'ans1': '45*x'}, {'ans1': '0.785'}, {'ans1': 'exp(exp(exp(exp(10))))'}],
+    'examples/stack/probes/numabs-branch.xml': [{'ans1': '45*x'}, {'ans1': '0.785'}, {'ans1': 'exp(exp(exp(exp(10))))'},
+                                                {'ans1': 'exp(exp(100))'}],
     # S-02 (0.5.0): I is a variable, as in STACK; these answers wrote the
     # imaginary unit I, as the code before it printed it.
     'examples/stack/probes/options.xml': [{'ans1': '3+4*j'}, {'ans1': '3,5'}, {'ans1': '3 + 4*I'}],
@@ -422,8 +423,10 @@ PROBE_ANSWERS = {
             'matrix([1,2],[3,4])', 'matrix([1,2])')],
     'examples/stack/probes/twoparts.xml': [{'ans1': '2', 'ans2': ''}],
     'examples/stack/probes/eqtype.xml': [{'ans1': '2*x+1'}],
+    # S-11 (0.10.0): the answers that are not expressions (STACK: false branch of the first node) and the bounded hyperbolic one.
     'examples/stack/probes/crash.xml': [{'ans1': 'x+1'}, {'ans1': 'x=1'}, {'ans1': 'a and b'},
-                                       {'ans1': 'cosh(x)^20-((exp(x)+exp(-x))/2)^20+x+1'}],
+                                       {'ans1': 'cosh(x)^20-((exp(x)+exp(-x))/2)^20+x+1'}, {'ans1': 'x=1 or x=2'},
+                                       {'ans1': '[1,2]'}, {'ans1': '{1}'}, {'ans1': 'matrix([1,2])'}, {'ans1': 'true'}],
     'examples/stack/polynomial-expansion.xml': [{'ans': 'ta'}],
     'examples/stack/rational-equivalence.xml': [{'ans': 'ta'}],
     'examples/stack/numerical-measurement.xml': [{'perimeter': 'ta_perimeter', 'area': 'ta_area', 'area2': 'ta_area'}],
@@ -549,6 +552,21 @@ SUPPLEMENT = [
     ('NumDecPlaces', '[0.5]', '0.5', '1'), ('NumDecPlaces', 'matrix([0.5])', '0.5', '1'), ('NumDecPlaces', '3+4*%i', '0.5', '1'),
     ('NumDecPlaces', 'sqrt(2)', '0.5', '1'), ('NumDecPlaces', '0.5+0.25', '0.75', '2'), ('NumDecPlaces', '2.5*10^-1', '0.25', '2'),
     ('NumDecPlaces', '0.785', 'pi/4', '3'),
+    # S-11 (0.10.0): a valid answer that a test does not compare or cannot decide is false, not an error of the author.
+    # SameType, EqualComAss, FacForm and SingleFrac give STACK's verdicts and notes (tools/stack_native/dual.py, STACK 10d3233);
+    # LowestTerms is false here (STACK: true); `*_undecided` are this engine's.
+    ('SameType', 'x=1', 'x+1', ''), ('SameType', 'a and b', 'x+1', ''), ('SameType', 'x=1 or x=2', 'x+1', ''),
+    ('SameType', '[1,2]', 'x+1', ''), ('SameType', 'x+1', 'x=1', ''), ('SameType', 'true', 'a and b', ''),
+    ('SameType', 'x=1', 'y=2', ''), ('SameType', 'x+2', 'x+1', ''),
+    ('EqualComAss', 'x=1', 'x+1', ''), ('EqualComAss', 'a and b', 'x+1', ''), ('EqualComAss', 'x=1 or x=2', 'x+1', ''),
+    ('FacForm', 'x=1', 'x+1', 'x'), ('FacForm', '[1,2]', 'x+1', 'x'), ('FacForm', 'a and b', 'x+1', 'x'),
+    ('FacForm', 'matrix([1,2])', 'x+1', 'x'),
+    ('SingleFrac', 'x=1', 'x+1', ''), ('SingleFrac', '[1,2]', 'x+1', ''), ('SingleFrac', 'a and b', 'x+1', ''),
+    ('LowestTerms', 'x=1', 'x+1', ''), ('LowestTerms', '[1,2]', 'x+1', ''), ('LowestTerms', 'a and b', 'x+1', ''),
+    ('FacForm', '(x+1)^100*(x+1)^100', '1', 'x'), ('FacForm', 'x/x', '1', 'x'), ('FacForm', 'x^2-1+0*x^(-1)', 'x^2-1', 'x'),
+    ('AlgEquiv', 'cosh(x)^20-((exp(x)+exp(-x))/2)^20+x+1', 'x+1', ''), ('EqualComAss', 'cosh(x)^20-((exp(x)+exp(-x))/2)^20+x+1', 'x+1', ''),
+    ('NumAbsolute', 'exp(exp(exp(exp(10))))', 'pi/4', '0.01'),
+    ('NumAbsolute', 'exp(exp(100))', 'pi/4', '0.01'), ('NumDecPlaces', 'exp(exp(100))', 'pi/4', '2'),
 ]
 
 
