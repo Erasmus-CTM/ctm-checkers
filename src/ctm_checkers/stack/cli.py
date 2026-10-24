@@ -10,6 +10,7 @@ import sys
 
 from .engine import instantiate, run_question_tests
 from .importer import UnsupportedQuestion, import_xml
+from .names import preflight_names
 from .stack_data import STACK_COMMIT
 
 
@@ -20,6 +21,7 @@ def _question_variants(path, question_name, count, seed, python_checkers):
     if len(matches) != 1:
         raise UnsupportedQuestion(question_name, "name", f"expected exactly one question, found {len(matches)}")
     question = matches[0]
+    preflight_names(question, source=path)
     variants = [instantiate(question, seed + offset) for offset in range(count)]
     from .checkers import preflight
     preflight(question, variants)

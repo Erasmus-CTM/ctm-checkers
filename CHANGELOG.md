@@ -8,6 +8,10 @@ diff (docs/goldens.md).
 
 ## 0.11.0 (Unreleased)
 
+- **Authoring:** reject cross-scope question/input/feedback names before STACK
+  production preparation, with source and scope diagnostics; legacy grading
+  and explicit inert diagnostic previews remain unchanged.
+
 - **C6 / step 6:** additive API 1.1, a JSON-only `stack.cli prepare`
   interface for the Lua-owned card shell, origin-aware author envelopes and
   structured presentation messages. API-1 math consumers remain compatible.
