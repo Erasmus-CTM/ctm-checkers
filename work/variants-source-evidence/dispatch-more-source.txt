@@ -1,0 +1,5 @@
+$ python -m unittest tests.test_variants_dispatch_more tests.test_variants_producer tests.test_variants_review -q
+----------------------------------------------------------------------
+Ran 19 tests in 0.093s
+
+OK

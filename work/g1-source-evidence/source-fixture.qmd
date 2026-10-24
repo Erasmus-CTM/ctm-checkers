@@ -1,0 +1,14 @@
+```{math-exercise}
+#| label: q
+#| variables: |
+#|   a = pick([2,4])
+#| note: a={#a#}
+#| field-labels: Answer
+Find _[{@a/2@}].
+#| solution
+Answer {#a/2#}.
+#| lang: nb
+Finn _[{@a/2@}].
+#| solution
+Svar {#a/2#}.
+```

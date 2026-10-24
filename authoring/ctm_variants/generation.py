@@ -39,6 +39,10 @@ class Rejected(GenerationError):
     """The selected values do not satisfy require(); do not resample here."""
 
 
+class ReplayUnavailable(GenerationError):
+    """A retained tape no longer belongs to the current finite choice tree."""
+
+
 def _source(source):
     if not isinstance(source, str) or len(source.encode("utf-8")) > MAX_SOURCE:
         raise GenerationError("variables source exceeds byte limit")
@@ -283,7 +287,7 @@ def _run(source, variables, seed, replay, progress, choose=None):
                         value = domain.at(int.from_bytes(digest, "big") % domain.size)
                     else:
                         if index >= len(replay) or not domain.contains(replay[index]):
-                            raise GenerationError("replayed choice is absent from current domain")
+                            raise ReplayUnavailable("replayed choice is absent from current domain")
                         value = replay[index]
                     tape.append(value)
                     name = "_ctm_choice_" + str(index)
@@ -332,7 +336,7 @@ def _run(source, variables, seed, replay, progress, choose=None):
         except Exception as error:
             raise type(error)("line {}: {}".format(node.lineno, error)) from error
     if replay is not None and len(tape) != len(replay):
-        raise GenerationError("replay has unused choices")
+        raise ReplayUnavailable("replay has unused choices")
     return {"variables": {key: value for key, value in variables.items() if not key.startswith("_ctm_choice_")},
             "choices": tape}
 
@@ -436,15 +440,17 @@ def execute(source, *, variables=None, seed="", replay=None, file="<variables>",
                     result["locator"] = json.dumps(encode(result["choices"]), sort_keys=True,
                                                     ensure_ascii=True, separators=(",", ":"))
                     return result
-                elif set(message) == {"error", "rejected"}:
-                    if not isinstance(message["error"], str) or type(message["rejected"]) is not bool:
+                elif set(message) in ({"error", "rejected"}, {"error", "rejected", "unavailable"}):
+                    if (not isinstance(message["error"], str) or type(message["rejected"]) is not bool
+                            or type(message.get("unavailable", False)) is not bool
+                            or message["rejected"] and message.get("unavailable", False)):
                         raise GenerationError("invalid worker error shape")
-                    error = Rejected if message["rejected"] else GenerationError
+                    error = Rejected if message["rejected"] else ReplayUnavailable if message.get("unavailable", False) else GenerationError
                     raise error(message["error"])
                 else:
                     raise GenerationError(message.get("protocol_error", "unexpected worker protocol"))
         except Exception as error:
-            kind = Rejected if isinstance(error, Rejected) else GenerationError
+            kind = Rejected if isinstance(error, Rejected) else ReplayUnavailable if isinstance(error, ReplayUnavailable) else GenerationError
             detail = str(error)
             if not detail.startswith("line "):
                 detail = "line {}: {}".format(line, detail)
@@ -478,7 +484,8 @@ def _worker(request_path):
                       lambda index, line: emit({"statement": index, "line": line}))
         emit({"result": encode(result)})
     except Exception as error:
-        emit({"error": str(error)[:4096], "rejected": isinstance(error, Rejected)})
+        emit({"error": str(error)[:4096], "rejected": isinstance(error, Rejected),
+              "unavailable": isinstance(error, ReplayUnavailable)})
 
 
 if __name__ == "__main__":

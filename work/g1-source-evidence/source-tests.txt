@@ -1,0 +1,16 @@
+Captured focused source/module tool stdout before final literal-plus compatibility adjustment:
+$ python -m unittest tests.test_variants_preview_assets tests.test_variants_preview_export tests.test_variants_producer tests.test_variants_review tests.test_variants_github_bot -q
+----------------------------------------------------------------------
+Ran 34 tests in 0.129s
+
+OK
+
+After the real generated-path adjustment and positive regression control:
+$ python -m unittest tests.test_variants_preview_assets -q
+----------------------------------------------------------------------
+Ran 7 tests in 0.032s
+
+OK
+
+Both checks used source/fake transports only. Actual component export and local
+browser checks are separately owned; the native roundtrip reuses that output.

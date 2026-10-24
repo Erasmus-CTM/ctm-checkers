@@ -1,0 +1,22 @@
+{
+  "exactSourceSHA256": "8c15b952ee3a70003513b7bbde6726b92adb54a9b06309af83a76412323704e4",
+  "manifestStillAbsent": true,
+  "sourceUnchanged": true,
+  "currentRows": 2,
+  "languages": [
+    "default",
+    "nb"
+  ],
+  "generatedFiles": 64,
+  "completeInventoriedFiles": 65,
+  "generatedBytes": 2408029,
+  "completeBytes": 2428451,
+  "copiedFilesMatchEveryByte": true,
+  "fakeApiMutations": 0,
+  "export": {
+    "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "pullRequest": 7,
+    "destination": "previews/variants-7",
+    "publish": true
+  }
+}

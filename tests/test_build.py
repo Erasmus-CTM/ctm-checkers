@@ -16,7 +16,7 @@ import zipfile
 import pytest
 
 import build
-from conftest import ROOT
+from tests.conftest import ROOT
 
 
 def test_the_committed_folder_is_current():

@@ -14,7 +14,7 @@ import sys
 
 import pytest
 
-from conftest import ROOT
+from tests.conftest import ROOT
 
 # The tables captured from math-exercise's examples (export/ of the umbrella's harness).
 EXPORTED = r'^math_exercise/(requests|custom-probes|authored)-math-exercise\.jsonl$'
