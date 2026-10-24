@@ -110,7 +110,10 @@ jobs:
         run: echo "key=$(python tools/stack_native/prepare_native_image.py --stack-source .stack-upstream-reference --key-only)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v6
         with:
-          path: .native-stack-image
+          path: |
+            .native-stack-image/stack-gcl
+            .native-stack-image/manifest.json
+            .native-stack-image/cache-status.json
           key: native-stack-gcl-${{ steps.native-image.outputs.key }}
       - name: Build or validate pristine STACK image
         run: python tools/stack_native/prepare_native_image.py --stack-source .stack-upstream-reference
@@ -141,7 +144,6 @@ jobs:
           path: |
             test-results/compliance/native-image-benchmark.json
             .native-stack-image/manifest.json
-            .native-stack-image/build.log
           if-no-files-found: warn
 
   reference:
@@ -238,7 +240,10 @@ jobs:
         run: echo "key=$(python tools/stack_native/prepare_native_image.py --stack-source .stack-upstream-reference --key-only)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v6
         with:
-          path: .native-stack-image
+          path: |
+            .native-stack-image/stack-gcl
+            .native-stack-image/manifest.json
+            .native-stack-image/cache-status.json
           key: native-stack-gcl-${{ steps.native-image.outputs.key }}
       - name: Build or validate pristine STACK image
         run: python tools/stack_native/prepare_native_image.py --stack-source .stack-upstream-reference
@@ -404,4 +409,3 @@ jobs:
             test-results/compliance/native-image-benchmark.json
             test-results/compliance/native-image-cache-validation.json
             .native-stack-image/manifest.json
-            .native-stack-image/build.log
