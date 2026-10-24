@@ -414,6 +414,12 @@ PROBE_ANSWERS = {
     'examples/stack/supplement/numerical-applicability.xml': [{'ans1': text} for text in (
         'pi/4', '0.785', '0.79', '0.7850', '1', '1/2', 'x', '45*x', '3+4*%i', '[1,2]', '{1}', 'matrix([1,2],[3,4])', 'x=1',
         'a and b', '0.5+0.285', '-0.785', '2.5*10^-1', 'sqrt(2)', 'inf')],
+    # S-10 (0.9.0): every input has checkanswertype and another type of teacher's answer (expression, equation, list, set, matrix,
+    # disjunction of equations, logical expression, nested list); each answer is entered in all of them.
+    'examples/stack/supplement/checkanswertype.xml': [
+        {f'in_{kind}': text for kind in ('expr', 'eq', 'list', 'set', 'mat', 'disj', 'logic', 'nest')} for text in (
+            '2*x+1', 'x', 'y=2*x+1', 'x=1 or x=2', 'a and b', 'true', '[1,2]', '[1,2,3]', '[1,[2,3]]', '{1,2}', '{1,2,3}',
+            'matrix([1,2],[3,4])', 'matrix([1,2])')],
     'examples/stack/probes/twoparts.xml': [{'ans1': '2', 'ans2': ''}],
     'examples/stack/probes/eqtype.xml': [{'ans1': '2*x+1'}],
     'examples/stack/probes/crash.xml': [{'ans1': 'x+1'}, {'ans1': 'x=1'}, {'ans1': 'a and b'},

@@ -20,3 +20,7 @@ Since ctm-checkers 0.8.0 (S-05) the answer `45*x` of `numabs-branch.xml`
 takes the false branch of its first response node (NumAbsolute cannot be
 applied to an answer that is not a number) and reaches the second node, so
 the question's three question tests pass.
+
+Since ctm-checkers 0.9.0 (S-10) the answer `2*x+1` of `eqtype.xml`
+(`checkanswertype`, the teacher's answer is the equation `y=2*x+1`) is
+invalid: "Your answer should be an equation, but is not."
