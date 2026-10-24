@@ -1,0 +1,25 @@
+{
+ "format": 1,
+ "tables": {
+  "stack/compliance.jsonl": {
+   "bytes": 1373238,
+   "rows": 2303,
+   "sha256": "044dc22b43cbfc418151b2892feaf67d4a6d35199f107bfb121876b459c9f55a"
+  },
+  "stack/questions-library.jsonl": {
+   "bytes": 1185060,
+   "rows": 1049,
+   "sha256": "b156f4e5bd28cc7f77cecebe07abd29312bb8ccebeb7fb4e7e7cb46830fe45fc"
+  },
+  "stack/questions-project.jsonl": {
+   "bytes": 2590065,
+   "rows": 1180,
+   "sha256": "bd070fab164c8ed70b01866988c446665a86cfba32784b07ae4b2c890912e70f"
+  },
+  "stack/supplement.jsonl": {
+   "bytes": 876784,
+   "rows": 541,
+   "sha256": "23aba6be9785f233d468275f0426a09686f09950c7ef8d9a5561be61a4c4e4a9"
+  }
+ }
+}

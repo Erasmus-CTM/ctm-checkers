@@ -6,7 +6,29 @@ release. Every grading change is listed under "Grading changes" with the
 finding or decision it implements, its test and the summary of its golden
 diff (docs/goldens.md).
 
-## 0.10.1 (Unreleased)
+## 0.11.0 (Unreleased)
+
+- **C6 / step 6:** additive API 1.1, a JSON-only `stack.cli prepare`
+  interface for the Lua-owned card shell, origin-aware author envelopes and
+  structured presentation messages. API-1 math consumers remain compatible.
+  The previous `render` command stays for the documentation-site transition.
+  Its string error remains intact; typed metadata is additive `errorDetail`.
+  Prepared-plan types and teacher/frozen-environment domains are checked before
+  learner parsing, and unexpected parser faults remain runtime exceptions.
+  Ordered `feedbackParts` separates authored CASText from localizable stock
+  messages without searching or changing legacy feedback text.
+
+### Grading changes
+
+- **C6:** no verdict, validity, score, branch or answer-note change. Golden
+  outputs record additive message data and the S-20 presentation correction:
+  answer-test feedback is escaped, and collection elements render as LaTeX
+  instead of Python syntax. Original English fallback text is retained.
+  Changed rows (none added/removed): compliance 7, probe-questions 30, probes 2,
+  questions-course 52, questions-helm 44, questions-library 93,
+  questions-project 422, regressions 8, supplement 35 (693 total).
+
+## 0.10.1 (previous unreleased development)
 
 STACK: a valid answer that an answer test does not compare or cannot decide
 is not an error of the question: the test is false and the response tree

@@ -149,12 +149,12 @@ finally:
 def package_info():
     text = (SRC / 'ctm_checkers' / '__init__.py').read_text(encoding='utf-8')
     version = re.search(r'^__version__ = "([^"]+)"$', text, re.M)
-    api = re.search(r'^API = (\d+)$', text, re.M)
+    api = re.search(r'^API = (?:"(\d+\.\d+)"|(\d+))$', text, re.M)
     if not version or not api:
-        raise SystemExit('src/ctm_checkers/__init__.py must set __version__ = "..." and API = <int>')
+        raise SystemExit('src/ctm_checkers/__init__.py must set __version__ = "..." and API = <major[.minor]>')
     if not re.fullmatch(r'\d+\.\d+\.\d+(\.dev\d+|(a|b|rc)\d+)?', version[1]):
         raise SystemExit('Unsupported version ' + version[1] + ' (X.Y.Z, X.Y.Z.devN, X.Y.ZaN/bN/rcN)')
-    return version[1], int(api[1])
+    return version[1], api[1] if api[1] else int(api[2])
 
 
 def semver(version):
@@ -274,7 +274,7 @@ def base_script(version, api, data):
   var checkers = {{
     name: 'ctm-checkers',
     version: {json.dumps(version)},
-    api: {api},
+    api: {json.dumps(api)},
     dependency: {json.dumps(dependency)},
     wheel: {json.dumps(wheel_name(version))},
     sha256: {json.dumps(sha)},
@@ -328,7 +328,7 @@ def part_script(version, api, data, part):
     name: {json.dumps(distribution)},
     part: {json.dumps(part)},
     version: {json.dumps(version)},
-    api: {api},
+    api: {json.dumps(api)},
     dependency: {json.dumps(dependency)},
     wheel: {json.dumps(wheel_name(version, part))},
     sha256: {json.dumps(sha)},
@@ -385,7 +385,7 @@ def generated(version, api, datas):
         'contributes:',
         '  metadata:',
         '    ctm-checkers:',
-        f'      api: {api}',
+        f'      api: {json.dumps(api)}',
     ]) + '\n'
     files = {'_extension.yml': extension.encode('utf-8'),
              'checkers.json': (json.dumps(manifest, indent=1) + '\n').encode('utf-8')}

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import html
 import math
 import random
 import re
@@ -15,6 +14,7 @@ from .assessment import answer_test
 from .expressions import (InvalidAnswer, Node, Unsupported, assignment_statements, assignments, canonical_form, evaluate, form_latex, parse,
                           source_text)
 from .importer import UnsupportedQuestion
+from .messages import feedback_html, message
 from .expressions import (MatrixValue, is_logical, is_collection, validate_collection, collection_items,
                           AUTHOR_COLLECTION_FUNCTIONS, SCALAR_FUNCTIONS, FUNCTION_ALIASES,
                           decimal_set, contains_decimal, transformed_decimal_collection)
@@ -30,11 +30,37 @@ def _assumptions(question):
 
 def _environment(question, variant):
     if not variant:
-        raise ValueError("A frozen question variant is required")
-    definitions = _definitions(question)
-    return {name: evaluate(value, assumptions=_assumptions(question),
-                           simplify=not bool(re.search(r"\bfactor\s*\(", definitions.get(name, ""))))
-            for name, value in variant["env"].items()}
+        raise UnsupportedQuestion(question["name"], "variant", "A frozen question variant is required")
+    try:
+        definitions = _definitions(question)
+        return {name: evaluate(value, assumptions=_assumptions(question),
+                               simplify=not bool(re.search(r"\bfactor\s*\(", definitions.get(name, ""))))
+                for name, value in variant["env"].items()}
+    except (Unsupported, InvalidAnswer, TypeError, ValueError, ZeroDivisionError, OverflowError) as exc:
+        # This stage reads author-owned frozen values only, before any learner
+        # expression is parsed. Its domain failure cannot invalidate an answer.
+        raise UnsupportedQuestion(question["name"], "variant/env", str(exc)) from exc
+
+
+def _author_teachers(question, env):
+    """Validate teacher domains before the learner-input exception boundary."""
+    assumptions = _assumptions(question)
+    for inp in question["inputs"]:
+        where = f"input[{inp['name']}]/tans"
+        try:
+            teacher = evaluate(inp["teacher"], env, assumptions=assumptions)
+            validate_collection(teacher)
+            _teacher_answer_names(question, inp["name"], teacher, env)
+            if is_logical(teacher):
+                validate_logic(teacher)
+            if inp["type"] == "numerical" and getattr(teacher, "is_number", None) is not True:
+                raise InvalidAnswer("numerical answer requires a number")
+            if inp["type"] == "matrix":
+                _matrix_input_shape(inp, teacher, teacher)
+        except UnsupportedQuestion:
+            raise
+        except (Unsupported, InvalidAnswer, TypeError, ValueError, ZeroDivisionError, OverflowError) as exc:
+            raise UnsupportedQuestion(question["name"], where, str(exc)) from exc
 
 
 def _source(s):
@@ -464,7 +490,7 @@ def _input_validation(inp, raw, env, assumptions, question=None):
         if inp["type"] == "numerical" and getattr(value, "is_number", None) is not True:
             raise InvalidAnswer("Enter a numerical answer")
         return {"valid": True, "latex": form_latex(tree, env), "feedback": ""}, value, tree
-    except (InvalidAnswer, TypeError, ValueError, ZeroDivisionError) as exc:
+    except (InvalidAnswer, Unsupported) as exc:
         return {"valid": False, "latex": "", "feedback": str(exc)}, None, None
     except OverflowError:
         # A number too large to evaluate (S-11): the answer is refused, with no traceback.
@@ -604,6 +630,7 @@ def validate(question: dict, answers: Mapping[str, str], seed: int = 1, *, varia
     """Preview each parsed answer; no PRT, score or correctness is evaluated."""
     variant = instantiate(question, seed) if variant is None else variant
     env = _environment(question, variant)
+    _author_teachers(question, env)
     inputs = {inp["name"]: _input_validation(inp, answers.get(inp["name"], ""), env, _assumptions(question), question)[0]
               for inp in question["inputs"]}
     valid = all(result["valid"] for result in inputs.values())
@@ -620,6 +647,7 @@ def grade(question: dict, answers: Mapping[str, str], seed: int = 1, *, variant:
     answer; it is validated before the answer that is graded."""
     variant = instantiate(question, seed) if variant is None else variant
     env = _environment(question, variant)
+    _author_teachers(question, env)
     assumptions = _assumptions(question)
     input_results = {}
     student_values = {}
@@ -647,7 +675,7 @@ def grade(question: dict, answers: Mapping[str, str], seed: int = 1, *, variant:
                 raise UnsupportedQuestion(question["name"], f"prt[{prt['name']}]/feedbackvariables", str(exc)) from exc
         nodes = {n["name"]: n for n in prt["nodes"]}
         current = "0"
-        score, notes, feedback, branches = 0.0, [], [], []
+        score, notes, feedback, branches, messages, feedback_parts = 0.0, [], [], [], [], []
         while current != "-1":
             node = nodes[current]
             # The student expression may be an input name or an author expression
@@ -671,7 +699,7 @@ def grade(question: dict, answers: Mapping[str, str], seed: int = 1, *, variant:
                 else:
                     result = answer_test(node["test"], tested_student, teacher, node["options"],
                                          env=penv, raw=raw_student or (tested_student if isinstance(tested_student, str) else ""), assumptions=assumptions)
-            except (InvalidAnswer, Unsupported, TypeError, ZeroDivisionError, OverflowError) as exc:
+            except (InvalidAnswer, Unsupported) as exc:
                 raise UnsupportedQuestion(question["name"], f"prt[{prt['name']}]/node[{current}]", str(exc)) from exc
             if not result["valid"]:
                 if node["test"] == "PythonChecker":
@@ -698,13 +726,22 @@ def grade(question: dict, answers: Mapping[str, str], seed: int = 1, *, variant:
                                           if not question.get("simplify", True) else None)
                 if rendered:
                     feedback.append(rendered)
+                    feedback_parts.append({"html": rendered})
                 if result["feedback"]:
-                    feedback.append(html.escape(result["feedback"]) if node["test"] == "PythonChecker" else result["feedback"])
+                    feedback.append(feedback_html(result))
+                    items = result.get("messages") or [message(result.get("note") or "stack_answer_feedback",
+                                                               result["feedback"], text=result["feedback"])]
+                    messages.extend(items)
+                    feedback_parts.extend({"message": item} for item in items)
             branches.append({"node": current, "branch": branch_name, "note": branch["note"]})
             current = str(branch["next"])
         prt_results[prt["name"]] = {"score": round(max(0.0, min(1.0, score)), 10),
                                      "feedback": " ".join(feedback), "notes": notes,
                                      "note": " | ".join(x for x in notes if x), "path": branches}
+        if messages:
+            prt_results[prt["name"]]["messages"] = messages
+        if feedback_parts:
+            prt_results[prt["name"]]["feedbackParts"] = feedback_parts
     total_weight = sum(p["value"] for p in question["prts"])
     if total_weight <= 0:
         raise UnsupportedQuestion(question["name"], "prts", "total PRT value must be positive")

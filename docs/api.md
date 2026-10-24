@@ -21,10 +21,11 @@ With both wheels on `sys.path`, `ctm_checkers/__init__.py` adds the second
 one's `ctm_checkers/` to the package (`pkgutil.extend_path`); installed with
 pip, both land in one folder. The two engines never import each other (H2).
 
-`ctm_checkers.__version__` is the package version, `ctm_checkers.API` (an
-integer, now 1) the level of the contracts below; it rises only for an
-incompatible change of `browser.call`, the request and result shapes or an
-author contract. Python 3.9 or later; SymPy 1.13 or later (the tables are
+`ctm_checkers.__version__` is the package version, `ctm_checkers.API` the
+contract level (now the string `"1.1"`). A major level marks an incompatible
+change; a minor level adds contracts. ctm-libs accepts an API-1 consumer
+with 1.1, while ctm-stack requires `ctm.checkers.require('ctm-stack', '1.1')`.
+Python 3.9 or later; SymPy 1.13 or later (the tables are
 recorded with 1.13.3, the version Pyodide ships); NetworkX for graph answers.
 
 ## In the page
@@ -153,6 +154,44 @@ their names without `_math_`:
 `checker`, `vars` and `response`.
 
 ## Python API
+
+### STACK preparation and presentation (API 1.1)
+
+`python -m ctm_checkers.stack.cli prepare --file questions.xml --question NAME
+--id ID --variants N --seed SEED` writes one JSON payload, version 2. It
+contains `common.inputs`, `common.qtests`, `common.checker` (null until H1),
+`backend.{id,planSchema,stackRevision,runtimeHash,question}` and
+`variants[].{n,id,hash,display,plan}`. Question-level response trees and
+variant plans are opaque to the card controller. The hash binds the canonical
+frozen plan; it does not approve a variant. V5 owns proposals and approved
+manifest selection. The component's Lua filter owns the card shell, labels,
+descriptor and safe JSON-script embedding. The old `render` command remains
+for one documentation-site transition release.
+
+`stack.validate`, `stack.grade` and `stack.tests` still return normal CAS
+results for invalid learner input. Unsupported questions and malformed
+prepared plans return `ok: false` with the existing string `error` and additive
+`errorDetail: {kind: 'author', code: 'stack_question_error', message,
+args: {question, location, reason}}`. Keeping the string preserves the retained
+`render` consumer's diagnostic. Unexpected exceptions propagate to the
+adapter as runtime failures. An author error never authorizes a restart.
+
+Messages have `{code, args, text}`; `text` is the English fallback.
+Validation adds `message`; response-tree output can add `messages`.
+Response-tree `feedbackParts` preserves the exact ordered presentation boundary:
+each part is either `{html: authoredCASTextHTML}` or `{message: {code,args,text}}`.
+The controller localizes only message parts and keeps authored HTML in place,
+even when authored text is identical to a stock message. Joining the original
+English parts with spaces reproduces the retained `feedback` HTML exactly;
+localization never searches or replaces substrings in that legacy HTML.
+Existing STACK answer-note keys are reused where available. Unknown keys
+retain the English fallback. `ATSets_wrongentries` and
+`ATSets_missingentries` carry `args.elements: [{text, latex}]` rather than
+interpolated Python representations. Presentation escapes argument text and
+LaTeX before inserting it into HTML. None of these fields changes a score,
+validity, response-tree branch or answer note. The S-20 display correction
+escapes answer-test feedback and renders collection values as LaTeX; authored
+CASText remains the separately validated HTML path.
 
 ```python
 ctm_checkers.math_exercise.check(request)          # typed answers: string, set, numeric, equivalent, exact; forms; reject

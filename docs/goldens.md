@@ -5,6 +5,22 @@ replaces, before any code moved (consolidation step 2, design §6 and §13 in
 [ctm-assessment `docs/consolidation/2026-10-step2.md`](https://github.com/Erasmus-CTM/ctm-assessment/blob/main/docs/consolidation/2026-10-step2.md)).
 A change that alters a verdict shows up as a diff of `tests/golden/`.
 
+Large static expected tables may be stored as `.jsonl.gz`. Their logical suite
+names, canonical JSONL bytes, row IDs, inputs, results and licences remain the
+same. Currently this applies only to STACK's `compliance`, `questions-library`,
+`questions-project` and `supplement` tables. `tests/golden/table-storage.json`
+records their independently reviewed raw SHA-256 hashes, sizes and row counts.
+The shared reader rejects missing/duplicate tables, corrupt gzip and raw hash
+mismatches. It does not generate expected answers from the checker.
+
+`verify`, `diff`, `record`, `update` and existing `--suite` regular expressions
+use logical `.jsonl` names. Git-base comparisons decode the historical revision's
+own bytes and storage metadata. Recording an intentional expected-data change
+writes gzip with no filename and mtime zero, then updates its raw identity.
+An unchanged raw table preserves its existing compressed bytes. Use `gzip -dc`
+to inspect a compressed table; source distribution and grading licences are
+unchanged. No logs or runtime evidence archives are stored in these files.
+
 ## The tables
 
 `tests/golden/math_exercise/`, recorded from math-exercise 0.10.0:

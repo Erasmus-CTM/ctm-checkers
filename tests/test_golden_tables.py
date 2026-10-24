@@ -13,7 +13,7 @@ PYTHONS_TESTED = ['3.9', '3.10', '3.11', '3.12', '3.13']   # every Python from t
 
 
 def tables():
-    return {path.relative_to(golden.GOLDEN).as_posix(): golden.read_rows(path) for path in golden.table_files()}
+    return {golden.table_name(path): golden.read_rows(path) for path in golden.table_files()}
 
 
 def test_rows_are_canonical_sorted_and_complete():
@@ -51,10 +51,10 @@ def test_only_math_exercise_examples_are_committed():
     manifest = golden.read_manifest()
     assert manifest['capture']['corpus']['repository'] == 'Erasmus-CTM/math-exercise'
     assert manifest['capture']['corpus']['export'] is True
-    for path in golden.GOLDEN.rglob('*.jsonl'):
-        name = path.name
+    for path in list(golden.GOLDEN.rglob('*.jsonl')) + list(golden.GOLDEN.rglob('*.jsonl.gz')):
+        name = golden.golden_storage.logical(path).name
         if path.parent.name == 'stack':
-            assert 'stack/' + path.stem in golden_stack.TABLES, name
+            assert 'stack/' + golden.golden_storage.logical(path).stem in golden_stack.TABLES, name
             continue
         if name.endswith('-math-exercise.jsonl'):
             continue
