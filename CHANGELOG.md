@@ -6,6 +6,183 @@ release. Every grading change is listed under "Grading changes" with the
 finding or decision it implements, its test and the summary of its golden
 diff (docs/goldens.md).
 
+## 0.9.1 (Unreleased)
+
+STACK: the input option `checkanswertype` refuses an answer of another type
+than the teacher's answer, with STACK's messages (S-10; step-2 design §9,
+order 6). A MINOR release (verdicts change); math-exercise's tables do not
+change (H2).
+
+### Grading changes
+
+- **S-10: `checkanswertype`.** Before, an input with `checkanswertype`
+  refused only a collection of another kind than the teacher's (a list, a
+  set or a matrix for a scalar or for another kind; the message "Use the
+  same collection type as the teacher answer"). The answer `2*x+1` for the
+  teacher's answer `y=2*x+1` was valid and graded 0; `x=1 or x=2` for an
+  expression was valid too. Now the input is invalid, with no score and with the
+  message of the type of the teacher's answer
+  (`collections.type_mismatch`, called by `engine._input_validation`):
+
+  | Teacher's answer | Answer | Message |
+  |---|---|---|
+  | an expression | an equation | "You have entered an equation, but an equation is not expected here. You may have typed something like "y=2*x+1" when you only needed to type "2*x+1"." |
+  | an expression | a list, a set, a matrix, a logical expression | "Your answer should be an expression, not an equation, inequality, list, set or matrix." |
+  | an equation | an expression, a list, a set, a matrix | "Your answer should be an equation, but is not." (an equation or a logical expression is valid) |
+  | a logical expression with equations (`x=1 or x=2`) | an expression, a list, a set, a matrix | "Your answer should be an equation, inequality or a logical combination of many of these, but is not." |
+  | a logical expression (`a and b`) | an expression, a list, a set, a matrix | "Your answer should be an inequality, but is not." |
+  | a logical expression | an equation | the first message of the table |
+  | a list, a set, a matrix | another type | "Your answer should be a list (a set, a matrix), but is not." with the syntax of a list or a set |
+
+  A list of the teacher's length whose entries are not of the teacher's
+  types is refused with the earlier message "Use the same collection type as
+  the teacher answer". An absent or false `checkanswertype` checks nothing,
+  as before. The answer test SameType does not change. Tests:
+  `tests/stack/test_checkanswertype.py` (13 answers in 8 types of teacher's
+  answer with the native verdicts and messages, the audit's `eqtype.xml`,
+  the option off, the question tests of the probe); mutations
+  (docs/goldens.md): the check removed (43 rows), five rules of the table
+  (14, 1, 1, 12 and 15 rows), the list message (19), the entries of a list
+  (2), and six messages that only the tests catch.
+  - **Native STACK** (STACK `10d3233` = 4.13.1 and 4.14.0 `3338304`, PHP and
+    Maxima 5.46): both versions give the same results. Validation, the
+    question `examples/stack/supplement/checkanswertype.xml` (8 inputs with
+    `checkanswertype`, one for each type of teacher's answer) with 13
+    answers in each, 104 pairs: the engine agrees on the verdict of every
+    pair and on the message of 102; the two others are lists whose entries
+    have another type than the teacher's (`[1,2]` for `[1,[2,3]]`, and
+    `[1,[2,3]]` for `[1,2]`), where STACK adds the entries underlined in red
+    and a display of the answer to the message. `eqtype.xml` (the audit's
+    probe), 6 answers: `2*x+1`, `x` and `[1,2]` are invalid with "Your
+    answer should be an equation, but is not." and no score; `y=2*x+1`
+    scores 1; `x=1 or x=2` is valid and scores 0 (answer note
+    `ATEquation_default`); the engine agrees on all; `{y=2*x+1}` (a set of
+    equations) is invalid in both, with another message here (the engine
+    does not support a set of equations).
+  - **Golden diff** (`tools/golden.py diff --base b3f7c5c`, with
+    `update --change S-10 --drop-stale`): 23 rows changed and 143 added:
+
+    | Table | Changed | Added | Removed |
+    |---|---|---|---|
+    | `stack/probe-questions.jsonl` | 2 | 0 | 0 |
+    | `stack/questions-library.jsonl` | 1 | 0 | 0 |
+    | `stack/questions-project.jsonl` | 20 | 0 | 0 |
+    | `stack/supplement.jsonl` | 0 | 143 | 0 |
+
+    - `probe-questions` (2): the answers `2*x+1` (the audit's) and `π` of
+      `eqtype.xml` (graded 0.0, now invalid: "Your answer should be an
+      equation, but is not.").
+    - `questions-project` (20): answers of the generated answer sets only.
+      4 were graded 0.0 and are invalid: `π` in `zero-product.xml` (an
+      equation is the teacher's answer; seeds 1 and 17) and in
+      `boolean-equivalence.xml` (a logical expression: "Your answer should
+      be an inequality, but is not."). 16 were invalid and have STACK's
+      message: `π` in an input with a list or a set as the teacher's answer
+      (`finite-collections.xml`, `finite-author-helpers.xml`,
+      `nested-collections.xml`, seeds 1 and 17).
+    - `questions-library` (1): `π` in `Complex_Convert_1.xml` (seed
+      817828831), invalid, the new message.
+    - `supplement` (143 added): the import, 3 variants, 3 question-test runs
+      and 136 answers of `checkanswertype.xml`; the teacher's answers of
+      its 8 inputs are valid.
+    No `stack.card`, `stack.tests`, `stack.instantiate` row or teacher's
+    answer of an example question changes (the teacher's answers and the
+    question tests of the example questions are valid); the math-exercise
+    tables do not change. The rows that differ from the legacy code name
+    S-10.
+
+
+The S-10 behaviour and AC decisions above are preserved while combining
+the current shared checker and native authoring foundations. Recorded
+release hashes remain unchanged; this combined payload is 0.9.1.dev0.
+
+
+## 0.9.0 (21 October 2026)
+
+STACK: the input option `checkanswertype` refuses an answer of another type
+than the teacher's answer, with STACK's messages (S-10; step-2 design §9,
+order 6). A MINOR release (verdicts change); math-exercise's tables do not
+change (H2).
+
+### Grading changes
+
+- **S-10: `checkanswertype`.** Before, an input with `checkanswertype`
+  refused only a collection of another kind than the teacher's (a list, a
+  set or a matrix for a scalar or for another kind; the message "Use the
+  same collection type as the teacher answer"). The answer `2*x+1` for the
+  teacher's answer `y=2*x+1` was valid and graded 0; `x=1 or x=2` for an
+  expression was valid too. Now the input is invalid, with no score and with the
+  message of the type of the teacher's answer
+  (`collections.type_mismatch`, called by `engine._input_validation`):
+
+  | Teacher's answer | Answer | Message |
+  |---|---|---|
+  | an expression | an equation | "You have entered an equation, but an equation is not expected here. You may have typed something like "y=2*x+1" when you only needed to type "2*x+1"." |
+  | an expression | a list, a set, a matrix, a logical expression | "Your answer should be an expression, not an equation, inequality, list, set or matrix." |
+  | an equation | an expression, a list, a set, a matrix | "Your answer should be an equation, but is not." (an equation or a logical expression is valid) |
+  | a logical expression with equations (`x=1 or x=2`) | an expression, a list, a set, a matrix | "Your answer should be an equation, inequality or a logical combination of many of these, but is not." |
+  | a logical expression (`a and b`) | an expression, a list, a set, a matrix | "Your answer should be an inequality, but is not." |
+  | a logical expression | an equation | the first message of the table |
+  | a list, a set, a matrix | another type | "Your answer should be a list (a set, a matrix), but is not." with the syntax of a list or a set |
+
+  A list of the teacher's length whose entries are not of the teacher's
+  types is refused with the earlier message "Use the same collection type as
+  the teacher answer". An absent or false `checkanswertype` checks nothing,
+  as before. The answer test SameType does not change. Tests:
+  `tests/stack/test_checkanswertype.py` (13 answers in 8 types of teacher's
+  answer with the native verdicts and messages, the audit's `eqtype.xml`,
+  the option off, the question tests of the probe); mutations
+  (docs/goldens.md): the check removed (43 rows), five rules of the table
+  (14, 1, 1, 12 and 15 rows), the list message (19), the entries of a list
+  (2), and six messages that only the tests catch.
+  - **Native STACK** (STACK `10d3233` = 4.13.1 and 4.14.0 `3338304`, PHP and
+    Maxima 5.46): both versions give the same results. Validation, the
+    question `examples/stack/supplement/checkanswertype.xml` (8 inputs with
+    `checkanswertype`, one for each type of teacher's answer) with 13
+    answers in each, 104 pairs: the engine agrees on the verdict of every
+    pair and on the message of 102; the two others are lists whose entries
+    have another type than the teacher's (`[1,2]` for `[1,[2,3]]`, and
+    `[1,[2,3]]` for `[1,2]`), where STACK adds the entries underlined in red
+    and a display of the answer to the message. `eqtype.xml` (the audit's
+    probe), 6 answers: `2*x+1`, `x` and `[1,2]` are invalid with "Your
+    answer should be an equation, but is not." and no score; `y=2*x+1`
+    scores 1; `x=1 or x=2` is valid and scores 0 (answer note
+    `ATEquation_default`); the engine agrees on all; `{y=2*x+1}` (a set of
+    equations) is invalid in both, with another message here (the engine
+    does not support a set of equations).
+  - **Golden diff** (`tools/golden.py diff --base b3f7c5c`, with
+    `update --change S-10 --drop-stale`): 23 rows changed and 143 added:
+
+    | Table | Changed | Added | Removed |
+    |---|---|---|---|
+    | `stack/probe-questions.jsonl` | 2 | 0 | 0 |
+    | `stack/questions-library.jsonl` | 1 | 0 | 0 |
+    | `stack/questions-project.jsonl` | 20 | 0 | 0 |
+    | `stack/supplement.jsonl` | 0 | 143 | 0 |
+
+    - `probe-questions` (2): the answers `2*x+1` (the audit's) and `π` of
+      `eqtype.xml` (graded 0.0, now invalid: "Your answer should be an
+      equation, but is not.").
+    - `questions-project` (20): answers of the generated answer sets only.
+      4 were graded 0.0 and are invalid: `π` in `zero-product.xml` (an
+      equation is the teacher's answer; seeds 1 and 17) and in
+      `boolean-equivalence.xml` (a logical expression: "Your answer should
+      be an inequality, but is not."). 16 were invalid and have STACK's
+      message: `π` in an input with a list or a set as the teacher's answer
+      (`finite-collections.xml`, `finite-author-helpers.xml`,
+      `nested-collections.xml`, seeds 1 and 17).
+    - `questions-library` (1): `π` in `Complex_Convert_1.xml` (seed
+      817828831), invalid, the new message.
+    - `supplement` (143 added): the import, 3 variants, 3 question-test runs
+      and 136 answers of `checkanswertype.xml`; the teacher's answers of
+      its 8 inputs are valid.
+    No `stack.card`, `stack.tests`, `stack.instantiate` row or teacher's
+    answer of an example question changes (the teacher's answers and the
+    question tests of the example questions are valid); the math-exercise
+    tables do not change. The rows that differ from the legacy code name
+    S-10.
+
+
 ## 0.8.1 (Unreleased)
 
 STACK: a numerical answer test that cannot be applied to an answer because

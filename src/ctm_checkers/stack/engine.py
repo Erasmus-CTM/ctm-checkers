@@ -18,7 +18,7 @@ from .importer import UnsupportedQuestion
 from .expressions import (MatrixValue, is_logical, is_collection, validate_collection, collection_items,
                           AUTHOR_COLLECTION_FUNCTIONS, SCALAR_FUNCTIONS, FUNCTION_ALIASES,
                           decimal_set, contains_decimal, transformed_decimal_collection)
-from .collections import normalized_value, same_type
+from .collections import normalized_value, type_mismatch
 from .logic import validate_logic
 from .rendering import render_castext
 from .student_input import FORBIDDEN_VARIABLE as _FORBIDDEN_VARIABLE, identifier_messages, space_messages, student_text
@@ -456,8 +456,9 @@ def _input_validation(inp, raw, env, assumptions, question=None):
                 raise InvalidAnswer("Decimal author aliases in collection answers lose literal precision; use exact fractions")
         if inp.get("checkanswertype"):
             teacher = evaluate(inp["teacher"], env, assumptions=assumptions)
-            if (is_collection(value) or is_collection(teacher)) and not same_type(value, teacher):
-                raise InvalidAnswer("Use the same collection type as the teacher answer")
+            mismatch = type_mismatch(value, teacher)
+            if mismatch:
+                raise InvalidAnswer(mismatch)
         if is_logical(value):
             validate_logic(value)
         if inp["type"] == "numerical" and getattr(value, "is_number", None) is not True:

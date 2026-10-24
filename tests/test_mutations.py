@@ -172,6 +172,16 @@ MUTATIONS = {
     'stack-s05-decplaces-note': ('stack/assessment.py', '"NumDecPlaces": ("ATNumDecPlaces_SA_Not_num",', '"NumDecPlaces": ("ATNumDecPlaces_SA_Not_a_num",', 1, (STACK,)),
     'stack-s05-decplaces-integer': ('stack/assessment.py', '        return _not_applicable(_NOT_A_NUMBER[name])\n    try:\n        teacher_decimal',
                                     '        return _result(False, False, "invalid", "")\n    try:\n        teacher_decimal', 1, (STACK,)),
+    # S-10 (0.9.0): checkanswertype refuses an answer of another type than the teacher's (examples/stack/supplement/checkanswertype.xml
+    # has an input for each type of teacher's answer; examples/stack/probes/eqtype.xml).
+    'stack-s10-check-removed': ('stack/engine.py', '            if mismatch:\n                raise InvalidAnswer(mismatch)\n', '            pass\n', 1, (STACK,)),
+    'stack-s10-equation-teacher': ('stack/collections.py', "        return None if s in {'equation', 'logic'} else SA_NOT_EQUATION\n", '        return None\n', 1, (STACK,)),
+    'stack-s10-equation-answer': ('stack/collections.py', "        return TA_NOT_EQUATION if s == 'equation' else SA_NOT_EXPRESSION\n", '        return SA_NOT_EXPRESSION\n', 1, (STACK,)),
+    'stack-s10-logic-teacher-equation': ('stack/collections.py', "    if s == 'equation':\n        return TA_NOT_EQUATION\n    from .logic", '    from .logic', 1, (STACK,)),
+    'stack-s10-inequality-message': ('stack/collections.py', 'return SA_NOT_LOGIC if _has_equation(teacher) else SA_NOT_INEQUALITY', 'return SA_NOT_LOGIC', 1, (STACK,)),
+    'stack-s10-logic-answer': ('stack/collections.py', "        return None if s in {'equation', 'logic'} else SA_NOT_EQUATION\n", "        return None if s == 'equation' else SA_NOT_EQUATION\n", 1, (STACK,)),
+    'stack-s10-list-message': ('stack/collections.py', 'SA_NOT_LIST = ("Your answer should be a list, but is not. Note', 'SA_NOT_LIST = ("Your answer must be a list, but is not. Note', 1, (STACK,)),
+    'stack-s10-entries': ('stack/collections.py', 'return None if same_type(student, teacher) else ENTRIES_NOT_SAME_TYPE', 'return None', 1, (STACK,)),
 }
 
 # Mutations that no golden row reaches and that tests/ catch: the pytest files of the test column must fail on the
@@ -219,6 +229,19 @@ TESTS = {
                                ('tests/stack/test_numerical_applicability.py',)),
     'stack-s05-collection-teacher': ('stack/assessment.py', 'and not isinstance(teacher_value, MatrixValue) and not is_collection(teacher_value) \\\n            and not is_logical(teacher_value):',
                                      ':', 1, ('tests/stack/test_numerical_applicability.py',)),
+    # S-10 (0.9.0): the other messages of the types (tests/stack/test_checkanswertype.py).
+    'stack-s10-matrix-message': ('stack/collections.py', 'SA_NOT_MATRIX = "Your answer should be a matrix', 'SA_NOT_MATRIX = "Your answer must be a matrix', 1,
+                                 ('tests/stack/test_checkanswertype.py',)),
+    'stack-s10-set-message': ('stack/collections.py', 'SA_NOT_SET = ("Your answer should be a set', 'SA_NOT_SET = ("Your answer must be a set', 1,
+                              ('tests/stack/test_checkanswertype.py',)),
+    'stack-s10-equation-message': ('stack/collections.py', 'SA_NOT_EQUATION = "Your answer should be an equation', 'SA_NOT_EQUATION = "Your answer must be an equation', 1,
+                                   ('tests/stack/test_checkanswertype.py',)),
+    'stack-s10-expression-message': ('stack/collections.py', 'SA_NOT_EXPRESSION = "Your answer should be an expression', 'SA_NOT_EXPRESSION = "Your answer must be an expression', 1,
+                                     ('tests/stack/test_checkanswertype.py',)),
+    'stack-s10-logic-message': ('stack/collections.py', 'SA_NOT_LOGIC = "Your answer should be an equation', 'SA_NOT_LOGIC = "Your answer must be an equation', 1,
+                                ('tests/stack/test_checkanswertype.py',)),
+    'stack-s10-entered-equation-message': ('stack/collections.py', 'TA_NOT_EQUATION = ("You have entered an equation', 'TA_NOT_EQUATION = ("You entered an equation', 1,
+                                           ('tests/stack/test_checkanswertype.py',)),
 }
 
 # A few minutes: CI runs them in a step of their own (CTM_MUTATION_TESTS=1).

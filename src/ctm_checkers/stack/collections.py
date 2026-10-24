@@ -69,6 +69,56 @@ def same_type(student, teacher):
     return True
 
 
+# STACK's messages (lang/en/qtype_stack.php) for an answer that AlgEquiv cannot be applied to because its type is
+# not the teacher's answer's; `checkanswertype` shows them as the validation error (S-10).
+SA_NOT_MATRIX = "Your answer should be a matrix, but is not."
+SA_NOT_LIST = ("Your answer should be a list, but is not. Note that the syntax to enter a list is to enclose the comma "
+               "separated values with square brackets.")
+SA_NOT_SET = ("Your answer should be a set, but is not. Note that the syntax to enter a set is to enclose the comma "
+              "separated values with curly brackets.")
+SA_NOT_EQUATION = "Your answer should be an equation, but is not."
+SA_NOT_EXPRESSION = "Your answer should be an expression, not an equation, inequality, list, set or matrix."
+SA_NOT_LOGIC = "Your answer should be an equation, inequality or a logical combination of many of these, but is not."
+SA_NOT_INEQUALITY = "Your answer should be an inequality, but is not."
+TA_NOT_EQUATION = ("You have entered an equation, but an equation is not expected here. You may have typed something "
+                   'like "y=2*x+1" when you only needed to type "2*x+1".')
+# Entries of a list that differ in type from the teacher's: STACK underlines them in red in a display of the answer;
+# the engine gives this text only.
+ENTRIES_NOT_SAME_TYPE = "Use the same collection type as the teacher answer"
+
+
+def _type_kind(value):
+    from .expressions import Equation, is_logical
+    kind = collection_kind(value)
+    if kind != 'scalar':
+        return kind
+    if isinstance(value, Equation):
+        return 'equation'
+    return 'logic' if is_logical(value) else 'expression'
+
+
+def type_mismatch(student, teacher):
+    """None when STACK's ATSameTypefun (validator.mac:52: AlgEquiv applicable to the pair) accepts the student's
+    answer for the teacher's, else the message it gives (S-10)."""
+    s, t = _type_kind(student), _type_kind(teacher)
+    if t in {'matrix', 'list', 'set'}:
+        if s != t:
+            return {'matrix': SA_NOT_MATRIX, 'list': SA_NOT_LIST, 'set': SA_NOT_SET}[t]
+        return None if same_type(student, teacher) else ENTRIES_NOT_SAME_TYPE
+    if t == 'expression':
+        if s == 'expression':
+            return None
+        return TA_NOT_EQUATION if s == 'equation' else SA_NOT_EXPRESSION
+    if t == 'equation':
+        return None if s in {'equation', 'logic'} else SA_NOT_EQUATION
+    if s == 'logic':
+        return None
+    if s == 'equation':
+        return TA_NOT_EQUATION
+    from .logic import _has_equation
+    return SA_NOT_LOGIC if _has_equation(teacher) else SA_NOT_INEQUALITY
+
+
 def collection_test(name, student, teacher, compare):
     for value in (student, teacher):
         validate_collection(value)

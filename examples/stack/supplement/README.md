@@ -26,4 +26,9 @@ number, a list, a set, a matrix, an equation, a logical expression, `inf`)
 take the false branch of each tree, a decimal literal is graded by the
 number of places (its answers: `PROBE_ANSWERS` in tools/golden_stack.py;
 the answer-test rows: `SUPPLEMENT`).
+From 0.9.0 (S-10): `checkanswertype.xml` has eight inputs with
+`checkanswertype`, one for each type of teacher's answer (an expression,
+an equation, a list, a set, a matrix, a disjunction of equations, a logical
+expression, a nested list); its answers enter one answer in all of them
+(`PROBE_ANSWERS`).
 AGPL-3.0-or-later.
