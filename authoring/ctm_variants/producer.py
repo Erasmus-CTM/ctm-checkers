@@ -62,11 +62,10 @@ def discover(project, patterns, parse_source, *, ast=_ast):
         if isinstance(node, dict):
             if node.get("t") == "CodeBlock":
                 classes, raw = node["c"][0][1], node["c"][1]
-                if "{stack-question}" in classes:
-                    raise VariantError(file + ": native STACK records producer is not implemented")
-                if "{math-exercise}" in classes:
+                stack = any(name.strip('{}.') == 'stack-question' for name in classes)
+                if "{math-exercise}" in classes or stack:
                     options, question = parse_source(raw)
-                    if "variables" not in options and options.get("pool") not in (True, "true"):
+                    if not stack and "variables" not in options and options.get("pool") not in (True, "true"):
                         return
                     label = options.get("label")
                     if not isinstance(label, str) or not LABEL.fullmatch(label) or ".." in label or label in labels:
@@ -74,6 +73,8 @@ def discover(project, patterns, parse_source, *, ast=_ast):
                     labels.add(label)
                     found.append({"file": file, "label": label, "source": raw.rstrip("\r\n"),
                                   "options": options, "question": question})
+                    if stack:
+                        found[-1]['component'] = 'ctm-stack'
                     if len(found) > 250:
                         raise VariantError("source discovery question budget exceeded")
             else:
@@ -101,7 +102,7 @@ def produce(project, context, config, *, definitions, resolve, github_context=No
     if generate_more is not None:
         if (context["event"] != "workflow_dispatch" or not isinstance(generate_more, str)
                 or not LABEL.fullmatch(generate_more) or ".." in generate_more
-                or sum(item["label"] == generate_more and "variables" in item["options"] for item in definitions) != 1):
+                or sum(item["label"] == generate_more and ('variables' in item['options'] or item.get('component') == 'ctm-stack') for item in definitions) != 1):
             raise VariantError("generate_more must name one discovered native variable question in an exact-head dispatch")
     preview = config["previewBase"].replace("{pullRequest}", str(context["pullRequest"])).replace("{headSha}", context["headSha"])
     _url(preview)
