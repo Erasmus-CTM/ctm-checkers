@@ -72,7 +72,7 @@ def seed_record(question, seed):
     full_test=next((case for case in question.get('qtests',[])
         if prt_names <= case.get('expected',{}).keys()
         and all(case['expected'][name].get('score')==1 for name in prt_names)),None)
-    tested_teacher=({name:_qtest_answer(question,source,env,preserve_form=True)
+    tested_teacher=({name:_qtest_answer(question,source,env,preserve_form=_input_uses_written_form(question,name))
         for name,source in full_test['inputs'].items()} if full_test else teacher)
     teacher_grade = grade(question, tested_teacher, variant=variant)
     if (teacher_grade['status'] != 'graded' or teacher_grade['score'] != 1

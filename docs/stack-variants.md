@@ -1,14 +1,12 @@
 # STACK variants (V5)
 
 `ctm_checkers.stack.variants` is the SymPy backend's native seed producer.
-`seed_record(question, seed)` runs the real XML qtests and requires the model
-answers to score one on every response tree. Its neutral record carries
+`seed_record(question, seed)` runs the real XML qtests and requires a full-mark vector on every response tree: the XML’s authored vector when supplied, otherwise the model answers. Required decimal syntax is preserved. Its neutral record carries
 `seed=N`, a 16-character content hash, resolved question note, compact approval
 snapshot, opaque frozen plan and actual test results. Browser grading imports
 no native authoring code.
 
-`propose` visits increasing positive seeds, excludes failed tests and repeated
-question notes, and returns the tested records and a bounded diagnostic list.
+`propose` visits increasing positive seeds, deduplicates question notes, and returns tested records with bounded diagnostics. Grading and authored-test failures stop generation with the question and seed (binding variants amendment 21). Literal finite random choices provide a conservative exhaustion bound; dynamic bounds retain the time and attempt limits. Wrong-answer probes retain their actual verdicts and flag accepted answers for review.
 Seeds from Moodle's `deployedseeds` are not imported or approved. Maxima owns
 its generator, reference version and eventual Moodle import contract.
 
