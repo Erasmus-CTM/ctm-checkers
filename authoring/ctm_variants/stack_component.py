@@ -53,7 +53,7 @@ def parse_source(source):
             if active in options:raise VariantError('duplicate STACK option: '+active)
             options[active]=value
         elif active and body.startswith(' '):
-            options[active]=('' if options[active]=='|' else options[active]+'\n')+body.removeprefix('  ')
+            options[active]=('' if options[active] in ('|','') else options[active]+'\n')+body.removeprefix('  ')
         elif body.strip():raise VariantError('invalid STACK option')
     return options,''
 
@@ -159,4 +159,5 @@ def request(payload):
         if fresh['source']!=payload['source']:raise VariantError('STACK source changed before saving')
         token=history.write(path,value,base_hash=payload['baseHash'])
     return {'version':1,'manifest':value,'baseHash':token,'records':output,'deployableIds':selected['ids'],
-        'warnings':selected['warnings'],'counters':counters,'payload':payload_data}
+        'warnings':selected['warnings'],'counters':counters,'payload':payload_data,
+        'payloadJSON':json.dumps(payload_data,ensure_ascii=True)}

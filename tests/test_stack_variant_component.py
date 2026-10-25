@@ -29,6 +29,7 @@ def test_required_default_review_generation_approval_and_fresh_prose(tmp_path):
     p=payload(tmp_path)
     with pytest.raises(ValueError,match='at least one current approved'):request(p)
     review=request(dict(p,renderMode='review'))
+    assert json.loads(review['payloadJSON'])==review['payload']
     assert review['records'] and all(v['proposal'] for v in review['payload']['variants'])
     assert not (tmp_path/p['manifest']).exists()
     generated=request(dict(p,action='generate',baseHash=None,renderMode='review'))
