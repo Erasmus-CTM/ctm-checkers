@@ -475,3 +475,14 @@ import.
   see them; ctm-checkers does not reproduce them (design §2.3).
 - What a checker prints, timing, and the interpreter guard of ctm-libs
   (`_ctm_guard`), which protects the page around each call.
+
+### Concrete native authored rows
+
+The umbrella records native variant assertions as `authored_native` rows with
+exact resolved `options`, encoded `context`, and literal `teacherInputs`. Each
+concrete context has its own row ID; distinct questions cannot collapse to an
+empty options object. Replay decodes the context, rebuilds the mandatory raw
+teacher vector, and runs the existing authored runner and recorder. It does not
+generate variants or substitute grading rules. The legacy math-exercise adapter
+cannot replay these native-context rows. A page `check_custom` request may also
+carry the existing `question_context` field.
