@@ -398,7 +398,8 @@ class Legacy:
 REQUEST_FIELDS = {'_math_student': 'student', '_math_correct': 'correct', '_math_vars': 'vars', '_math_mode': 'mode',
                   '_math_reject': 'reject', '_math_tolerance': 'tolerance', '_math_decplaces': 'decplaces',
                   '_math_sigfigs': 'sigfigs', '_math_form': 'form', '_math_partial_credit': 'partial_credit',
-                  '_math_form_credit': 'form_credit', '_math_response_json': 'response', '_math_checker': 'checker'}
+                  '_math_form_credit': 'form_credit', '_math_response_json': 'response', '_math_checker': 'checker',
+                  'question_context': 'question_context'}
 
 
 def default_wheels():
@@ -517,6 +518,35 @@ def make_adapter(options):
 # Running rows
 # ---------------------------------------------------------------------------
 
+def native_authored_output(adapter, value, sources, base):
+    """Replay a concrete native variant through the unchanged authored runner."""
+    if not hasattr(adapter, 'authored'):
+        raise ValueError('native authored rows require the ctm-checkers adapter')
+    from ctm_checkers.variants import decode_context
+    from ctm_checkers.testing import Raw, _expect
+    if set(value) != {'options', 'context', 'teacherInputs'}:
+        raise ValueError('native authored input requires options, context and teacherInputs')
+    fields, variables, teacher, identity = decode_context(value['context'])
+    inputs = value['teacherInputs']
+    if (not isinstance(inputs, dict) or set(inputs) != set(fields)
+            or any(not isinstance(text, str) for text in inputs.values())):
+        raise ValueError('native teacher inputs must map every field to a literal string')
+    options = {key: resolve(item, sources) for key, item in value['options'].items()}
+    tests = options.get('tests', [])
+    if not isinstance(tests, list):
+        raise ValueError('native authored rows require declarative tests')
+    automatic = {'name': 'teacher answers', 'answers': {field: Raw(inputs[field]) for field in fields}, 'expect': 'correct'}
+
+    def run(resolved, folder):
+        reports = adapter.authored.run_question(resolved, Path(folder),
+            variables=variables, teacher=teacher, variant=identity)
+        for field, actual in reports[0]['actual'].get('fields', {}).items():
+            _expect(actual, 'correct', 'native teacher answers/' + str(field))
+        return reports
+
+    return authored_output(run, dict(options, tests=[automatic] + tests), base)
+
+
 # Rounding calls and their arguments, in order.
 NUMERIC = {'round_places': ('x', 'd'), 'sigfigs_round': ('x', 'n'),
            'variants.round_half_up': ('x', 'digits'), 'variants.sigfig': ('x', 'n')}
@@ -535,6 +565,8 @@ def run_row(adapter, row, sources):
     if call == 'authored':
         options = {key: resolve(item, sources) for key, item in value['options'].items()}
         return authored_output(adapter.run_question, options, GOLDEN / 'math_exercise' / 'files')
+    if call == 'authored_native':
+        return native_authored_output(adapter, value, sources, GOLDEN / 'math_exercise' / 'files')
     if call in NUMERIC:
         args = [python_value(value[key]) for key in NUMERIC[call]]
         try:
