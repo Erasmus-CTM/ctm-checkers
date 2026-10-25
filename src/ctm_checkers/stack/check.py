@@ -180,11 +180,11 @@ def check(request):
         raise CheckerError('STACK checker failed (' + type(error).__name__ + '): ' + str(error)) from error
 
 
-def wire_request(question, variant, answers, *, node=None, env=None):
+def wire_request(question, variant, answers, *, node=None):
     """SymPy adapter: canonical comes from the engine's written AST form."""
     from .engine import _assumptions, _environment, _source
     from .student_input import student_text
-    env = _environment(question, variant) if env is None else env
+    env = _environment(question, variant)
     assumptions = _assumptions(question)
     # The engine admits text first. Re-print that parsed tree without algebraic
     # simplification: identity factors, decimals and input order remain visible.
@@ -203,7 +203,7 @@ def invoke_node(question, variant, answers, node, env):
     from .engine import _source, evaluate, _assumptions
     name, options = checker_spec(node['options'])
     if name == 'check':
-        request = wire_request(question, variant, answers, env=env,
+        request = wire_request(question, variant, answers,
             node={'sans': _source(evaluate(node['student'], env, assumptions=_assumptions(question))),
                   'tans': _source(evaluate(node['teacher'], env, assumptions=_assumptions(question))), 'options': options})
         result = check(request)

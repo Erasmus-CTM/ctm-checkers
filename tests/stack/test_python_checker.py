@@ -50,6 +50,7 @@ def test_weighted_checker_score_feedback_slot_and_xml_penalty():
 def test_node_uses_complete_response_and_partial_is_false_predicate():
     q=question('''def check(response, symbols):
     if "node" in response:
+        assert "ans" not in response["variables"]
         assert response["node"]["sans"] == response["answers"]["ans"]
         assert response["node"]["tans"] == response["variables"]["d"]
         assert response["node"]["options"] == {"label":"__import__('os')"}
