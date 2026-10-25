@@ -60,7 +60,9 @@ def parse_source(source):
 
 def current_source(payload):
     root=Path(payload['projectRoot']).resolve()
-    file=inside(root,payload.get('sourceFile',payload.get('file','')))
+    name=Path(payload.get('sourceFile',payload.get('file','')))
+    if name.is_absolute():name=name.relative_to(root)
+    file=inside(root,name.as_posix())
     if file.stat().st_size>1024*1024:raise VariantError('STACK source exceeds 1 MiB')
     parsed=subprocess.run([os.environ.get('CTM_VARIANTS_QUARTO','quarto'),'pandoc','--from','commonmark_x','--to','json'],
         input=file.read_text(),text=True,capture_output=True,timeout=15,check=True)
@@ -79,7 +81,7 @@ def current_source(payload):
     walk(json.loads(parsed.stdout).get('blocks',[]))
     if len(found)!=1:raise VariantError('sourceFile must contain one current STACK block with this label')
     source,options,question=found[0]
-    return dict(payload,source=source,options=options,question=question)
+    return dict(payload,file=name.as_posix(),sourceFile=name.as_posix(),source=source,options=options,question=question)
 
 
 def request(payload):
@@ -99,7 +101,10 @@ def request(payload):
     if 'seed' in options:raise VariantError('STACK seed: was removed; generate and review variants instead')
     if options.get('cas',payload.get('backend','sympy'))!='sympy':raise VariantError('the Maxima variant generator is not available yet; Moodle seeds are backend-owned')
     root=Path(payload['projectRoot']).resolve()
-    source_file=payload.get('sourceFile',payload.get('file',''))
+    source_file=Path(payload.get('sourceFile',payload.get('file','')))
+    if source_file.is_absolute():source_file=source_file.relative_to(root)
+    source_file=source_file.as_posix()
+    payload=dict(payload,file=source_file,sourceFile=source_file)
     source_path=inside(root,source_file)
     source_bytes=source_path.read_bytes()
     xml=inside(root,os.path.normpath(str(Path(source_file).parent/options['file'])))

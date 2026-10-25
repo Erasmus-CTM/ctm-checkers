@@ -10,7 +10,7 @@ import pytest
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'authoring'))
 
 from ctm_variants import history
-from ctm_variants.stack_component import parse_source,request,supervised_seed
+from ctm_variants.stack_component import current_source,parse_source,request,supervised_seed
 from ctm_checkers.stack.importer import import_xml
 
 XML=Path(__file__).resolve().parents[1]/'examples/stack/polynomial-expansion.xml'
@@ -60,3 +60,14 @@ def test_legacy_seed_and_unavailable_backend_are_explicit_errors(tmp_path):
 def test_candidate_deadline_is_a_build_failure(tmp_path):
     q=import_xml(XML)[0]
     with pytest.raises(ValueError,match='time budget'):supervised_seed(q,1,timeout=.001)
+
+
+def test_quarto_absolute_source_stays_inside_project(tmp_path):
+    p=payload(tmp_path)
+    absolute=dict(p,sourceFile=str(tmp_path/'page.qmd'))
+    fresh=current_source(absolute)
+    assert fresh['file']==fresh['sourceFile']=='page.qmd'
+    assert request(dict(absolute,renderMode='review'))['payload']['variants']
+    outside=tmp_path.parent/'outside.qmd'
+    with pytest.raises(ValueError):current_source(dict(p,sourceFile=str(outside)))
+    with pytest.raises(ValueError):request(dict(p,sourceFile=str(outside),renderMode='review'))
