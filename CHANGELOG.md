@@ -17,6 +17,8 @@ diff (docs/goldens.md).
   `PythonChecker` nodes call `check` as a predicate or a shared matrix library
   predicate. The API-v1 registry and value module retire without aliases.
   Declarative tests run through the real grader for every variant.
+  Publication rechecks the assigned `n`, `id` and `hash` under the same
+  per-seed deadline before writing review decisions.
   Tests: `tests/stack/test_python_checker.py`, `test_python_basis.py`,
   `tests/test_custom_core.py` and the source-bound variant tests.
   Golden diff against C6v: **59 rows changed, none added or removed; no

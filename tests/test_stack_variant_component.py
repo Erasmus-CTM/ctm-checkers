@@ -120,3 +120,28 @@ def test_h1_rejects_registry_option_and_invalid_weight_before_generation(tmp_pat
     p['options'],p['question']=parse_source(p['source'])
     with pytest.raises(ValueError,match='positive finite'):
         request(dict(p,renderMode='review'))
+
+
+def test_approval_rechecks_assigned_checker_identity_before_saving(tmp_path):
+    p=payload(tmp_path)
+    p['source']+='\n#| checker: |\n#|   def check(response, symbols):\n#|       return response["variant"]["n"] is None\n'
+    p['options'],p['question']=parse_source(p['source'])
+    (tmp_path/'page.qmd').write_text('```{.stack-question}\n'+p['source']+'\n```\n')
+    generated=request(dict(p,action='generate',baseHash=None,renderMode='review'))
+    row=generated['records'][0]
+    path=tmp_path/p['manifest'];before=path.read_bytes()
+    with pytest.raises(ValueError,match='teacher answers must score 1'):
+        request(dict(p,action='decide',baseHash=generated['baseHash'],
+            decision={'id':row['id'],'hash':row['hash'],'status':'approved'}))
+    assert path.read_bytes()==before
+
+
+def test_assigned_identity_checker_keeps_the_per_seed_deadline():
+    q=import_xml(XML,checker='''def check(response,symbols):
+    if response["variant"]["n"] is not None:
+        while True:
+            pass
+    return True
+''')[0]
+    with pytest.raises(ValueError,match='time budget'):
+        supervised_seed(q,1,timeout=.05,identity={'n':1,'id':'seed=1','hash':'0'*16})

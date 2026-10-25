@@ -55,12 +55,18 @@ def _math(source, env):
     return [_source(evaluate(match, env)) for match in re.findall(r"\{@(.*?)@\}", source, re.S)]
 
 
-def seed_record(question, seed):
+def seed_record(question, seed, *, identity=None):
     """Resolve and test a seed using the actual STACK engine, never a surrogate."""
     from ctm_variants.model import candidate, snapshot
     if type(seed) is not int or seed < 1 or seed > 2147483647:
         raise ValueError("STACK seed must be an integer from 1 to 2147483647")
     variant = instantiate(question, seed)
+    if identity is not None:
+        if (set(identity)!={'n','id','hash'} or identity['id']!='seed='+str(seed)
+                or not re.fullmatch('[0-9a-f]{16}',identity['hash'])
+                or identity['n'] is not None and (type(identity['n']) is not int or identity['n']<1)):
+            raise ValueError('Invalid assigned STACK checker identity')
+        variant.update(identity)
     from .check import preflight
     preflight(question, [variant])
     env = _environment(question, variant)
@@ -155,7 +161,7 @@ def propose(question, count=25, *, start=1, retained=(), attempt_limit=5000, ela
     return {'records':records,'skipped':skipped,'nextSeed':seed+1}
 
 
-def card_data(question, records, entries, *, identifier, review=False):
+def card_data(question, records, entries, *, identifier, review=False, identity_verifier=None):
     """One backend contract; numbering is shared review history's decision."""
     from ctm_variants.model import classify,digest
     rows=classify(entries,records)['entries']
@@ -166,7 +172,15 @@ def card_data(question, records, entries, *, identifier, review=False):
         approved=row is not None and row['state'] in ('current','moved') and row['entry']['status']=='approved'
         plan=copy.deepcopy(record['data']['plan'])
         if question.get('checker'):
-            plan.update(n=row['entry']['n'] if approved else None, id=record['id'], hash=record['hash'])
+            identity=dict(n=row['entry']['n'] if approved else None, id=record['id'], hash=record['hash'])
+            plan.update(identity)
+            # Publication and proposal previews use the exact identity the
+            # checker will receive. Author tests and the teacher vector must
+            # still pass after the shared history assigns a number/hash.
+            verified=(identity_verifier(question,plan['seed'],identity) if identity_verifier else
+                      seed_record(question,plan['seed'],identity=identity))
+            if verified['hash']!=record['hash'] or verified['data']['plan']!=plan:
+                raise ValueError('Assigned STACK checker identity changed its frozen candidate')
         variants.append({'n':row['entry']['n'] if approved else None,'id':record['id'],'hash':record['hash'],
             'proposal':not approved,'reviewKey':digest([record['id'],record['hash']]),
             'display':{k:v for k,v in plan.items() if k.endswith('_html')},'plan':plan})
