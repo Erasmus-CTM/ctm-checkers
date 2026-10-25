@@ -24,6 +24,8 @@ except ImportError:  # native Python (build time) has no page to protect
 # name: (handler, admission rule or None), each "module:function". STACK's
 # grammar never evaluates learner text as Python: its calls need no admission rule.
 CALLS = {
+    "math_exercise.compute_key": ("ctm_checkers.math_exercise.keys:compute_key", None),
+    "math_exercise.admit_generated": ("ctm_checkers.math_exercise.generated:admit_generated", None),
     "math_exercise.check": ("ctm_checkers.math_exercise.checks:check", "ctm_checkers.math_exercise.inputs:admit"),
     "math_exercise.check_custom": ("ctm_checkers.math_exercise.custom:check_custom", "ctm_checkers.math_exercise.inputs:admit"),
     "stack.validate": ("ctm_checkers.stack.page:validate", None),
