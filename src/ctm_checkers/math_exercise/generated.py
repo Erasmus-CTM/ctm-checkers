@@ -5,6 +5,8 @@ It is also used before the legacy checker parses model-derived answer strings.
 """
 import ast
 import math
+import io
+import tokenize
 import re
 
 import sympy as sp
@@ -12,7 +14,7 @@ import sympy as sp
 from .parsing import split_top
 
 _FUNCTIONS = {name: getattr(sp, name) for name in (
-    'sin cos tan asin acos atan atan2 sinh cosh tanh asinh acosh atanh '
+    'sin cos tan cot sec csc asin acos atan acot asec acsc atan2 sinh cosh tanh asinh acosh atanh '
     'exp log sqrt Abs sign floor ceiling factorial binomial gamma erf '
     'conjugate re im Min Max Eq Rational Matrix').split()}
 _CONSTANTS = {'pi': sp.pi, 'E': sp.E, 'I': sp.I, 'oo': sp.oo, 'inf': sp.oo}
@@ -95,6 +97,34 @@ def parse_math(text, variables=''):
         raise ValueError('Invalid generated mathematics') from error
 
 
+def admit_learner(text, variables=''):
+    """Admit learner notation, then let the original checker transformations parse it.
+
+    This token inspection never evaluates text. Model keys/recipes use parse_math.
+    """
+    if not isinstance(text, str) or not text.strip() or len(text) > 4096 or '__' in text:
+        raise ValueError('Unsupported learner mathematics')
+    local = symbols(variables)
+    names = set(local) | set(_FUNCTIONS) | set(_CONSTANTS)
+    names |= {name for name in dir(sp) if isinstance(getattr(sp, name), sp.FunctionClass)}
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(text).readline))
+    except (tokenize.TokenError, IndentationError) as error:
+        raise ValueError('Unsupported learner mathematics') from error
+    if len(tokens) > 512: raise ValueError('Learner expression is too large')
+    for token in tokens:
+        if token.type == tokenize.NAME:
+            if token.string not in names and not all(char in local for char in token.string):
+                raise ValueError('Unsupported mathematical name')
+        elif token.type == tokenize.OP:
+            if token.string not in ('+', '-', '*', '/', '**', '^', '(', ')', '[', ']', ',', '!'):
+                raise ValueError('Unsupported learner syntax')
+        elif token.type == tokenize.ERRORTOKEN and token.string == '!':
+            continue
+        elif token.type not in (tokenize.NUMBER, tokenize.NL, tokenize.NEWLINE, tokenize.ENDMARKER):
+            raise ValueError('Unsupported learner syntax')
+
+
 def admit_generated_check(request):
     """Validate both sides before the existing checker uses parse_expr."""
     variables = request.get('vars', '')
@@ -108,7 +138,7 @@ def admit_generated_check(request):
             raise ValueError('Invalid generated answer')
         if mode not in ('string', 'string_ci'):
             for part in split_top(text) if mode == 'set' else [text]:
-                parse_math(part, variables)
+                (admit_learner if key == 'student' and request.get('learner') is True else parse_math)(part, variables)
     # Saved options are data too: the legacy reject rule also parses mathematics.
     if mode not in ('string', 'string_ci') and request.get('reject'):
         parse_math(request['reject'], variables)
@@ -127,5 +157,5 @@ def admit_generated(request):
     if not isinstance(raw, list) or not 1 <= len(raw) <= 64:
         raise ValueError('Invalid generated response fields')
     for text in raw:
-        parse_math(text, request.get('vars', ''))
+        (admit_learner if request.get('learner') is True else parse_math)(text, request.get('vars', ''))
     return {'status': 'admitted'}

@@ -91,3 +91,33 @@ def test_native_and_browser_dispatch_share_recipe_admission_and_json_result():
     caller = {'_ctm_request':json.dumps({**request,'answer':'x.subs(x,1)'})}
     with pytest.raises(ValueError): call('math_exercise.compute_key',caller)
     assert caller == {}
+
+@pytest.mark.parametrize('text,key,variables', [('21x','21*x','x'), ('2(x+1)','2*x+2','x'), ('(x+1)(x-1)','x**2-1','x'), ('2sin(x)','2*sin(x)','x'), ('sin x','sin(x)','x'), ('xy','x*y','x y'), ('cot x','cot(x)','x'), ('3!','6','')])
+def test_generated_learner_notation_matches_original(text,key,variables):
+    request=dict(student=text,correct=key,vars=variables,mode='equivalent',reject='',tolerance='',decplaces='',sigfigs='',form='',partial_credit=False,form_credit=.5)
+    assert check(request)['status'] == 'correct'
+    assert check({**request,'generated':True,'learner':True}) == check(request)
+
+@pytest.mark.parametrize('text', ['2__import__("os")', '2(x.__class__)', '2open("file")', '2eval(x)', 'x.subs(x,1)', '2x # comment'])
+def test_learner_route_still_rejects_python_syntax(text):
+    from ctm_checkers.math_exercise.generated import admit_learner
+    with pytest.raises(ValueError): admit_learner(text,'x')
+
+def test_learner_route_never_relaxes_model_key_admission():
+    from ctm_checkers.math_exercise.generated import admit_generated_check
+    with pytest.raises(ValueError):
+        admit_generated_check(dict(student='21x',correct='__import__("os")',vars='x',generated=True,learner=True))
+
+@pytest.mark.parametrize('changes', [
+    {'mode':'exact','student':'2/4','correct':'1/2'},
+    {'form':'lowest_terms','student':'2/4','correct':'1/2'},
+    {'mode':'numeric','student':'1.01','correct':'1','tolerance':'0.02'},
+    {'mode':'numeric','student':'1.01','correct':'1','decplaces':'1'},
+    {'mode':'numeric','student':'1.01','correct':'1','sigfigs':'1'},
+    {'student':'x+x','correct':'2*x','reject':'2*x'},
+    {'mode':'set','student':'1,3','correct':'1,2','partial_credit':True},
+])
+def test_generated_learner_grading_options_match_original(changes):
+    request=dict(student='1',correct='1',vars='x',mode='equivalent',reject='',tolerance='',decplaces='',sigfigs='',form='',partial_credit=False,form_credit=.5)
+    request.update(changes)
+    assert check({**request,'generated':True,'learner':True}) == check(request)

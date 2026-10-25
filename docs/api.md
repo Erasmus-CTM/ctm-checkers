@@ -363,3 +363,12 @@ e.g. `["matrix", 0, 1]` for an rref entry, `[0, "multiplicity"]` for an eigenval
 multiplicity, or `[0, "x"]` for a solve component. A flat list may supply `set` mode.
 Selection of a witness does not establish uniqueness: use a compatible trusted
 authored checker when alternative answers are mathematically valid.
+
+Generated-practice Check requests from the learner UI carry `learner: true`
+alongside `generated: true`. Their learner response uses the original checker's
+notation transformations (implicit multiplication/function application, powers,
+and factorial notation) after token admission. Model keys and saved rejection
+expressions still pass strict mathematical AST admission; model/candidate/key
+computation requests never set the learner flag. Python names, strings, dunders
+and attribute access remain excluded. The same grading options determine both
+original and generated results.
