@@ -15,10 +15,38 @@ import sympy as sp
 from .engine import (_environment, _input_uses_written_form, _qtest_answer,
                      _source, assignments, evaluate, grade, instantiate, run_question_tests)
 from .stack_data import STACK_COMMIT
+from .expressions import parse
+from .engine import _definitions
 
 
 class SeedRejected(ValueError):
     """A supported seed fails its actual authored or mandatory teacher tests."""
+
+
+def finite_random_bound(question):
+    """A conservative upper bound for independent literal random choices.
+
+    This only establishes exhaustion, never changes seed generation. Dynamic
+    bounds remain unknown and retain the normal attempt/time diagnostics.
+    """
+    total=1
+    def visit(node):
+        nonlocal total
+        if node.kind=='call' and node.value in ('rand','rand_with_step'):
+            def literal(child):
+                if child.kind not in ('number','list','unary'):raise ValueError()
+                for nested in child.children:literal(nested)
+            for child in node.children:literal(child)
+            args=[evaluate(child) for child in node.children]
+            if node.value=='rand':size=len(args[0]) if isinstance(args[0],list) else int(args[0])
+            else:size=len(range(int(args[0]),int(args[1])+1,int(args[2])))
+            if size<1:raise ValueError()
+            total*=size
+        for child in node.children:visit(child)
+    try:
+        for source in _definitions(question).values():visit(parse(source))
+    except (ValueError,TypeError,OverflowError):return None
+    return total
 
 
 def _math(source, env):
@@ -78,13 +106,21 @@ def seed_record(question, seed):
             item['nodes'].append(resolved)
         grading['prts'].append(item)
     note=html.unescape(re.sub('<[^>]*>','',variant.get('questionnote_html',''))).strip()
+    probes=[]
+    for inp in question['inputs']:
+        if inp.get('type')!='algebraic':continue
+        for answer in ('0','1'):
+            if answer==teacher[inp['name']]:continue
+            result=grade(question,{**tested_teacher,inp['name']:answer},variant=variant)
+            probes.append({'input':inp['name'],'answer':answer,'result':result,
+                'warning':result.get('score')==1})
     return candidate(f'seed={seed}',snapshot(segments,teacher,grading,variant['env']),note=note,
         data={'backend':'sympy','plan':variant,'teacherInputs':teacher},
-        tests={'passed':True,'qtests':tests,'teacher':teacher_grade})
+        tests={'passed':True,'qtests':tests,'teacher':teacher_grade,'wrongProbes':probes})
 
 
 def propose(question, count=25, *, start=1, retained=(), attempt_limit=5000, elapsed_limit=120, resolve_seed=seed_record):
-    """Propose increasing seeds, excluding repeated notes and failing qtests."""
+    """Propose increasing seeds, deduplicating notes; test failures are fatal."""
     if type(count) is not int or not 1 <= count <= 100:
         raise ValueError('STACK variant batch must be between 1 and 100')
     if type(start) is not int or start < 1:
@@ -93,6 +129,9 @@ def propose(question, count=25, *, start=1, retained=(), attempt_limit=5000, ela
     records,skipped=[],[]
     notes={row['note'] for row in retained}
     known={row['id'] for row in retained}
+    bound=finite_random_bound(question)
+    target=min(count,max(0,bound-len(notes))) if bound is not None else count
+    if target==0:return {'records':[],'skipped':[],'nextSeed':start}
     if notes and '{@' not in question.get('questionnote','') and '[[' not in question.get('questionnote',''):
         return {'records':[],'skipped':[],'nextSeed':start}
     for seed in range(start,start+attempt_limit):
@@ -101,13 +140,11 @@ def propose(question, count=25, *, start=1, retained=(), attempt_limit=5000, ela
         if f'seed={seed}' in known:continue
         try:row=resolve_seed(question,seed)
         except SeedRejected as error:
-            skipped.append({'id':f'seed={seed}','reason':str(error)})
-            if not re.search(r'\brand(?:_|\s*\()',question.get('variables','')):break
-            continue
+            raise SeedRejected(f"{question['name']}: {error}") from error
         if row['note'] in notes:
             skipped.append({'id':row['id'],'reason':'repeated question note'});continue
         records.append(row);notes.add(row['note'])
-        if len(records)==count:break
+        if len(records)==target:break
         if '{@' not in question.get('questionnote','') and '[[' not in question.get('questionnote',''):break
         # A deterministic question with no random source has just one variant.
         if not re.search(r'\brand(?:_|\s*\()',question.get('variables','')):break

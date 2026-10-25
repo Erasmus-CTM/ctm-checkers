@@ -68,11 +68,17 @@ def test_proposals_start_at_one_deduplicate_notes_and_never_import_moodle_seeds(
     assert len(propose(constant)['records'])==1
 
 
-def test_failed_question_tests_are_skipped_and_cannot_become_proof_records():
+def test_failed_question_tests_stop_generation_with_question_and_seed():
     q=question();q['qtests'][0]['expected']['prt1']['score']=0
     with pytest.raises(ValueError,match='question tests failed'):seed_record(q,1)
-    batch=propose(q,2,attempt_limit=3)
-    assert batch['records']==[] and len(batch['skipped'])==3
+    with pytest.raises(ValueError,match='Expand a product.*seed=1.*question tests failed'):
+        propose(q,2,attempt_limit=3)
+
+
+def test_small_literal_random_space_can_exhaust_before_default_batch():
+    q=question();q['variables']=q['variables'].replace('rand(4)','rand(2)').replace('rand(3)','rand(1)')
+    batch=propose(q,25,attempt_limit=100)
+    assert len(batch['records'])==2
 
 
 def test_content_first_seed_swap_retains_numbers_and_history():
