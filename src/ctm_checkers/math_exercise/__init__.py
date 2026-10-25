@@ -4,6 +4,8 @@ loads its module when it is first used (PEP 562)."""
 
 _EXPORTS = {
     'check': 'checks',
+    'compute_key': 'keys',
+    'admit_generated': 'generated',
     'check_custom': 'custom',
     'namespace': 'custom',
     'symbols': 'custom',

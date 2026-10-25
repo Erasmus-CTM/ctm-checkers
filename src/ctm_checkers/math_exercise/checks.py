@@ -29,6 +29,9 @@ def num_equal(sv, cv, request):
 
 
 def check(request):
+    if request.get("generated") is True:
+        from .generated import admit_generated_check
+        admit_generated_check(request)
     try:
         mode = request["mode"]
         if mode in ("string", "string_ci"):
