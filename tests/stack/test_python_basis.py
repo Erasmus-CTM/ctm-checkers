@@ -8,7 +8,7 @@ import pytest
 import sympy as sp
 
 from ctm_checkers.stack.assessment import answer_test
-from ctm_checkers.stack.checkers import preflight, source_descriptor
+from ctm_checkers.stack.check import preflight
 from ctm_checkers.stack.engine import grade, instantiate, run_question_tests, validate
 from ctm_checkers.stack.expressions import Unsupported
 from ctm_checkers.stack.expressions import evaluate, InvalidAnswer
@@ -29,17 +29,15 @@ def config(name, **options):
 
 
 def basis_test(student, teacher, space="nullspace"):
-    return answer_test("PythonChecker", student, teacher, config("basis", space=space),
-                       python_checkers=source_descriptor(MODULE))
+    return answer_test("PythonChecker", student, teacher, config("basis", space=space))
 
 
 def property_test(student, teacher, name):
-    return answer_test("PythonChecker", student, teacher, config("matrix_property", property=name),
-                       python_checkers=source_descriptor(MODULE))
+    return answer_test("PythonChecker", student, teacher, config("matrix_property", property=name))
 
 
 def matrix_questions(source):
-    return import_xml(source, python_checkers=MODULE)
+    return import_xml(source)
 
 
 @pytest.mark.parametrize("candidate,correct,statuses", [
@@ -58,8 +56,8 @@ def test_basis_predicate_and_vector_diagnostics(candidate, correct, statuses):
     assert result["valid"]
     assert result["correct"] is correct
     assert result["assessment"]["columns"] == statuses
-    assert result["implementation"] == "python-checker-v1"
-    assert "score" not in result
+    assert result["implementation"] == "python-checker-h1"
+    assert result["score"] == int(correct)
 
 
 def test_statuses_and_correctness_are_permutation_invariant():
@@ -241,11 +239,11 @@ def test_source_provenance_and_independent_nullspace_mathematics():
     # One copy of assess_basis (ctm_checkers.matrix): the example checker file
     # imports it; it is the function that stack-sympy vendored from
     # math-exercise 5945f8f (vendor/basis-helper-provenance.json: function_sha256).
-    assert "from ctm_checkers.matrix import assess_basis" in (ROOT / "examples/stack/matrix-checkers.py").read_text()
+    assert not (ROOT / "src/ctm_checkers/stack/checkers.py").exists()
     import ctm_checkers.matrix
     module = Path(ctm_checkers.matrix.__file__)
     module = module.read_bytes() if module.is_file() else __import__("pkgutil").get_data("ctm_checkers", "matrix.py")
-    function = module[module.index(b"def assess_basis"):]
+    function = module[module.index(b"def assess_basis"):module.index(b"\n\n# STACK library predicates")]
     assert hashlib.sha256(function).hexdigest() == "761a028366bfc3de7264d24beef0d6dfd85331977e489c8d8a8260120ab72e53"
 
 
@@ -267,7 +265,7 @@ def test_large_matrix_entries_fail_the_supplied_checker_domain():
 def test_exact_matrix_properties(candidate, teacher, property_name, correct):
     result = property_test(candidate, teacher, property_name)
     assert result["valid"] and result["correct"] is correct
-    assert "assessment" not in result  # no inferred cell grading
+    assert not result["assessment"]  # no inferred cell grading
 
 
 @pytest.mark.parametrize("teacher,option", [

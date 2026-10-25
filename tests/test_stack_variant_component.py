@@ -71,3 +71,52 @@ def test_quarto_absolute_source_stays_inside_project(tmp_path):
     outside=tmp_path.parent/'outside.qmd'
     with pytest.raises(ValueError):current_source(dict(p,sourceFile=str(outside)))
     with pytest.raises(ValueError):request(dict(p,sourceFile=str(outside),renderMode='review'))
+
+
+def h1_payload(tmp_path):
+    p=payload(tmp_path)
+    p['source']+='''
+#| checker: |
+#|   def check(response, symbols):
+#|       return 1 if response["answers"]["ans"] == response["teacher"]["ans"] else 0.5
+#| checker-value: 2
+#| tests:
+#|   - name: teacher
+#|     answers: {ans: 'expand(ta)'}
+#|     expect: correct
+#|   - name: weighted wrong answer
+#|     answers: {ans: 'raw("0")'}
+#|     expect: partial
+#|     score: 0.3333333333
+'''
+    p['options'],p['question']=parse_source(p['source'])
+    (tmp_path/'page.qmd').write_text('```{.stack-question}\n'+p['source']+'\n```\n')
+    return p
+
+
+def test_h1_native_proof_runs_declarative_tests_and_binds_runtime_identity(tmp_path):
+    p=h1_payload(tmp_path)
+    result=request(dict(p,renderMode='review'))
+    card=result['payload'];variant=card['variants'][0]
+    assert card['common']['checker']['value']==2
+    assert 'def check(response, symbols)' in card['common']['checker']['source']
+    assert {key:variant['plan'][key] for key in ('n','id','hash')}=={key:variant[key] for key in ('n','id','hash')}
+    tests=result['records'][0]['tests']['qtests']['results']
+    assert {'teacher','weighted wrong answer'} <= {row['testcase'] for row in tests}
+    # A changed assertion must fail actual grading instead of changing approval
+    # content or silently dropping the seed.
+    p['source']=p['source'].replace('score: 0.3333333333','score: 1')
+    p['options'],p['question']=parse_source(p['source'])
+    with pytest.raises(ValueError,match='weighted wrong answer'):
+        request(dict(p,renderMode='review'))
+
+
+def test_h1_rejects_registry_option_and_invalid_weight_before_generation(tmp_path):
+    p=payload(tmp_path);p['source']+='\n#| python-checkers: old.py'
+    p['options'],p['question']=parse_source(p['source'])
+    with pytest.raises(ValueError,match='python-checkers: was removed'):
+        request(dict(p,renderMode='review'))
+    p=h1_payload(tmp_path);p['source']=p['source'].replace('checker-value: 2','checker-value: 0')
+    p['options'],p['question']=parse_source(p['source'])
+    with pytest.raises(ValueError,match='positive finite'):
+        request(dict(p,renderMode='review'))

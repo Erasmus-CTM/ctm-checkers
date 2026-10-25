@@ -61,6 +61,8 @@ def seed_record(question, seed):
     if type(seed) is not int or seed < 1 or seed > 2147483647:
         raise ValueError("STACK seed must be an integer from 1 to 2147483647")
     variant = instantiate(question, seed)
+    from .check import preflight
+    preflight(question, [variant])
     env = _environment(question, variant)
     teacher = {i['name']: _qtest_answer(question, i['teacher'], env,
         preserve_form=_input_uses_written_form(question, i['name'])) for i in question['inputs']}
@@ -86,7 +88,7 @@ def seed_record(question, seed):
     # Question-note prose is presentation; generated values across the CASText
     # and all answer-test branches are the approval content.
     grading = {key: copy.deepcopy(value) for key, value in question.items()
-        if key not in {'name','variables','questiontext','generalfeedback','specificfeedback','questionnote','deployedseeds','inputs','prts','qtests'}}
+        if key not in {'name','variables','questiontext','generalfeedback','specificfeedback','questionnote','deployedseeds','inputs','prts','qtests','authored_tests'}}
     grading.update(component='ctm-stack', backend='sympy', stackRevision=STACK_COMMIT)
     grading['inputs'] = []
     for inp in question['inputs']:
@@ -163,9 +165,12 @@ def card_data(question, records, entries, *, identifier, review=False):
         row=by_id.get(record['id'])
         approved=row is not None and row['state'] in ('current','moved') and row['entry']['status']=='approved'
         plan=copy.deepcopy(record['data']['plan'])
+        if question.get('checker'):
+            plan.update(n=row['entry']['n'] if approved else None, id=record['id'], hash=record['hash'])
         variants.append({'n':row['entry']['n'] if approved else None,'id':record['id'],'hash':record['hash'],
             'proposal':not approved,'reviewKey':digest([record['id'],record['hash']]),
             'display':{k:v for k,v in plan.items() if k.endswith('_html')},'plan':plan})
-    return {'version':2,'id':identifier,'common':{'inputs':question['inputs'],'qtests':question.get('qtests',[]),'checker':None},
+    return {'version':2,'id':identifier,'common':{'inputs':question['inputs'],'qtests':question.get('qtests',[]),
+        'checker':({'source':question['checker'],'value':question.get('checker_value',1)} if question.get('checker') else None)},
         'backend':{'id':'sympy','planSchema':1,'stackRevision':STACK_COMMIT,'runtimeHash':None,'question':question},
         'variants':variants,'review':review}

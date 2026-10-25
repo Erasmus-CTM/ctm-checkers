@@ -429,6 +429,27 @@ def parse(text: str, *, insertstars: int = 0) -> Node:
     return node
 
 
+def written_text(node: Node) -> str:
+    """Print the parsed operation tree without evaluating or simplifying it."""
+    if node.kind in {'number', 'name', 'boolean'}:
+        return node.value
+    if node.kind in {'list', 'set'}:
+        opening, closing = ('[', ']') if node.kind == 'list' else ('{', '}')
+        return opening + ','.join(written_text(c) for c in node.children) + closing
+    if node.kind == 'call':
+        return node.value + '(' + ','.join(written_text(c) for c in node.children) + ')'
+    if node.kind == 'unary':
+        return '(' + node.value + written_text(node.children[0]) + ')'
+    if node.kind == 'logical' and node.value == 'not':
+        return '(not ' + written_text(node.children[0]) + ')'
+    if node.kind in {'binary', 'equation', 'logical'}:
+        operator = '^' if node.value == '**' else node.value
+        if node.kind == 'logical':
+            operator = ' ' + operator + ' '
+        return '(' + operator.join(written_text(c) for c in node.children) + ')'
+    raise Unsupported('Cannot print written expression: ' + node.kind)
+
+
 def form_latex(node: Node, env: Mapping[str, Any] | None = None) -> str:
     """Print the submitted tree without SymPy's automatic term collection.
 

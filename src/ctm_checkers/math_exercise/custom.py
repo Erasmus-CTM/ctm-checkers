@@ -11,6 +11,7 @@ import re
 from sympy import Matrix, Symbol
 
 from ..core.custom import execute_checker
+from ..core.namespace import public_names
 from ..core.result import normalize_result
 from ..graph import graph_from_response
 from ..matrix import assess_basis
@@ -90,13 +91,7 @@ _SHARED = None
 def _shared():
     global _SHARED
     if _SHARED is None:
-        import sympy
-        names = {name: getattr(sympy, name) for name in sympy.__all__}   # from sympy import *
-        names.update(parse_expr=parse_expr, standard_transformations=standard_transformations,
-                     implicit_multiplication_application=implicit_multiplication_application, convert_xor=convert_xor)
-        # math's log10, floor and gcd, which shadow SymPy's floor and gcd there.
-        names.update(log10=math.log10, floor=math.floor, gcd=math.gcd)
-        names.update(graph_from_response=graph_from_response, assess_basis=assess_basis)
+        names = public_names()
         # Private helpers under their old names (not part of the contract).
         names.update(_math_tf=TRANSFORMATIONS, _mj=json, _mre=re, _FRAC_RE=_FRAC_RE,
                      _numeric_not_reduced=numeric_not_reduced, _split_top=split_top, _round_places=round_places,

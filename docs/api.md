@@ -217,30 +217,53 @@ ctm_checkers.graph.graph_from_response(response, *, directed=False)
 ctm_checkers.testing.run_tests(check, symbols, tests, *, namespace, base)   # check=None: the namespace's check after the tests ran
 ```
 
-The STACK engine, moved as it was (its modules and names are stack-sympy's
-`stack_sympy` at `f450bcd` under `ctm_checkers.stack`):
+The STACK engine and H1 custom checker contract:
 
 ```python
-ctm_checkers.stack: InvalidAnswer, Node, Unsupported, assignments, canonical_form, evaluate, parse, answer_test
-ctm_checkers.stack.importer: import_xml(source, *, python_checkers=None), UnsupportedQuestion
+ctm_checkers.stack.importer: import_xml(source, *, checker=None, checker_value=1, tests=None)
 ctm_checkers.stack.engine: instantiate(question, seed=1), validate(question, answers, seed=1, *, variant=None),
     grade(question, answers, seed=1, *, variant=None), run_question_tests(question, seeds=(1,), variants=None)
-ctm_checkers.stack.assessment: answer_test(name, student, teacher, options="", *, env=None, raw=None, assumptions=None, python_checkers=None)
-ctm_checkers.stack.expressions: parse, evaluate, form_latex, canonical_form, ...   # the bounded STACK grammar
-ctm_checkers.stack.checkers, ctm_checkers.stack.checker_api                          # PythonChecker API 1 (author checker files)
-ctm_checkers.stack.cli: render(path, question, identifier, count=3, seed=1, review=False, diagnostics=False,
-    python_checkers=None) -> the card's HTML; main(argv)
-ctm_checkers.stack.page: validate(request), grade(request), tests(request)        # the page's stack.* calls
-python -m ctm_checkers.stack.cli render --file F --question NAME --id ID [--variants N] [--seed S] [--review] [--diagnostics] [--python-checkers P]
-python -m ctm_checkers.stack.cli test --file F [--question NAME] [--seed S ...] [--python-checkers P]
+ctm_checkers.stack.check: check(request), preflight(question, variants)
+ctm_checkers.stack.page: validate(request), grade(request), tests(request), check(request)
+ctm_checkers.stack.cli: prepare(..., checker=None), render(..., checker=None), main(argv)
+python -m ctm_checkers.stack.cli prepare --file F --question NAME --id ID [--checker SOURCE_FILE]
+python -m ctm_checkers.stack.cli test --file F [--question NAME] [--seed S ...] [--checker SOURCE_FILE]
 ```
 
-`ctm_checkers.stack.cli` still writes the card's HTML (stack-sympy's
-`cli.py`): moving the card's shell into stack-sympy's Lua is left for step 6
-(design §13, "Cut"). Author checker files import the shared helpers from
-`ctm_checkers.matrix` (`assess_basis`) and the value vocabulary from
-`ctm_checkers.stack.checker_api` (stack-sympy: `stack_sympy.basis_helper`,
-`stack_sympy.checker_api`).
+`ctm-stack` owns the card shell in Lua. `prepare` returns its payload; `render`
+remains for the documentation-site transition. Block `checker:` source defines
+`check(response, symbols)` and uses the shared `core.custom.execute_checker`,
+math-exercise namespace and score normalizer. An implicit `checker` response
+tree has weight `checker-value` (default 1). XML `PythonChecker` nodes with
+`{"checker":"check"}` use the same function as a predicate, true only at
+normalized status `correct`; node values are available in `response["node"]`.
+Other supported names select `ctm_checkers.matrix` library predicates.
+
+`stack.check` accepts a text-only backend request: `checker`, ordered `inputs`
+with `type`, `raw`, `canonical`; `variables`, `teacher`, `assumptions`, `variant`
+(`n`, `id`, `hash`) and optional `node` (`sans`, `tans`, JSON `options`). Inputs
+must already be validated by the backend. SymPy prints `canonical` from its
+parsed written operation tree, before the planned shared JS admission.
+CTM STACK's author parser decodes exact values, including matrices. Teacher
+answers and variables named by the source must decode; an unused unsupported
+Maxima variable may remain text. This is a contract for Maxima's continuation,
+not a Maxima backend implementation.
+
+The checker receives `kind`, positional `raw` and `expressions`, named `answers`,
+`teacher`, `variables`, `inputs` and `variant`. Matrix inputs include `rows`,
+`cols`, `expressions` and a SymPy `matrix`. Results accept bool, a score in
+[0,1], or the math-exercise result dictionary. `valid: false` denotes an invalid
+attempt with feedback and no score or assessment. Valid matrix assessments are
+keyed by input name. Exceptions are author errors and retain the worker session.
+The browser entry returns the same `{ok,result}` / author-error envelope as
+other STACK calls. No runtime is restarted by this handler.
+
+`python-checkers:`, the `CHECKERS` registry, `stack.checkers` and
+`stack.checker_api` are removed without aliases. Frozen golden-row metadata
+retains its original fixture names solely to compare the old and new engines.
+Declarative `tests:` uses `ctm_checkers.testing.run_declarative` and the real
+STACK grader for every generated/replayed variant; failures name the question
+and test and stop publication.
 
 Importing `ctm_checkers` or `ctm_checkers.math_exercise` imports no SymPy;
 the names of `math_exercise` load their module on first use, and

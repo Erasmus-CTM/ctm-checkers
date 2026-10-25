@@ -171,7 +171,10 @@ def test_a_relative_umbrella_folder_is_relative_to_where_golden_py_runs(tmp_path
 
 
 def stack_files(value):
-    return [value[key] for key in ('file', 'python_checkers') if key in value]
+    # The frozen capture records its retired API-v1 fixture name. Its matrix
+    # implementation now lives in ctm_checkers.matrix, without a source alias.
+    return [value[key] for key in ('file', 'python_checkers') if key in value
+            and value[key] != 'examples/stack/matrix-checkers.py']
 
 
 def test_stack_rows_name_files_here_and_course_material_only_in_its_table():
