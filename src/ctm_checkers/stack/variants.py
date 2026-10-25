@@ -30,11 +30,13 @@ def finite_random_bound(question):
     bounds remain unknown and retain the normal attempt/time diagnostics.
     """
     total=1
+    definitions=_definitions(question)
     def visit(node):
         nonlocal total
         if node.kind=='call' and node.value in ('rand','rand_with_step'):
             def literal(child):
-                if child.kind not in ('number','list','unary'):raise ValueError()
+                if child.kind not in ('number','list','unary','name'):raise ValueError()
+                if child.kind=='name' and child.value in definitions:raise ValueError()
                 for nested in child.children:literal(nested)
             for child in node.children:literal(child)
             args=[evaluate(child) for child in node.children]
@@ -44,7 +46,7 @@ def finite_random_bound(question):
             total*=size
         for child in node.children:visit(child)
     try:
-        for source in _definitions(question).values():visit(parse(source))
+        for source in definitions.values():visit(parse(source))
     except (ValueError,TypeError,OverflowError):return None
     return total
 

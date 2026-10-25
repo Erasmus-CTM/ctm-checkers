@@ -17,8 +17,44 @@ from ctm_variants.producer import inside
 from ctm_variants.review import apply_decisions
 
 
+def _seed_child(question,seed,connection):
+    """A fresh fork inherits verified imports, never another checker's globals."""
+    os.setsid()
+    from ctm_checkers.stack.variants import seed_record,SeedRejected
+    try:
+        try:result={'record':seed_record(question,seed)}
+        except SeedRejected as error:result={'rejected':str(error)}
+        except Exception as error:result={'error':type(error).__name__+': '+str(error)}
+        raw=json.dumps(result).encode()
+        if len(raw)>16*1024*1024:raw=json.dumps({'error':'STACK candidate exceeds its output budget'}).encode()
+        connection.send_bytes(raw)
+    finally:connection.close()
+
+
 def supervised_seed(question,seed,timeout=30):
     """Bound the real engine per seed, including trusted custom checker code."""
+    if os.name=='posix':
+        # Keep the candidate process boundary without reimporting SymPy for
+        # every seed. Each fork still receives a private namespace and deadline.
+        import multiprocessing
+        context=multiprocessing.get_context('fork')
+        receiver,sender=context.Pipe(duplex=False)
+        child=context.Process(target=_seed_child,args=(question,seed,sender))
+        child.start();sender.close()
+        try:
+            if not receiver.poll(timeout):raise VariantError(f'seed={seed}: STACK candidate exceeded its time budget')
+            result=json.loads(receiver.recv_bytes(16*1024*1024))
+            if 'error' in result:raise VariantError(f"seed={seed}: {result['error']}")
+            if 'rejected' in result:
+                from ctm_checkers.stack.variants import SeedRejected
+                raise SeedRejected(result['rejected'])
+            return result['record']
+        finally:
+            receiver.close()
+            try:os.killpg(child.pid,signal.SIGKILL)
+            except ProcessLookupError:pass
+            if child.is_alive():child.kill()
+            child.join(timeout=1)
     import tempfile
     code="import json,sys\np=json.load(sys.stdin); sys.path[:0]=p['paths']\nfrom ctm_checkers.stack.variants import seed_record,SeedRejected\ntry: result={'record':seed_record(p['question'],p['seed'])}\nexcept SeedRejected as error: result={'rejected':str(error)}\nprint(json.dumps(result))"
     with tempfile.TemporaryFile() as out,tempfile.TemporaryFile() as err:
