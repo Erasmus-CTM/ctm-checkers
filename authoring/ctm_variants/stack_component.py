@@ -145,6 +145,12 @@ def request(payload):
         selections=[payload.get('decision')] if action=='decide' else payload.get('decisions')
         value=apply_decisions(value,records,selections)
     selected=history.publication(value['decisions'],records,approval=approval,render_mode=mode,target=count)
+    review_candidate=payload.get('reviewCandidate')
+    review_catalog=payload.get('reviewCatalog',False)
+    if review_candidate is not None or review_catalog:
+        if mode!='review':raise VariantError('internal candidate selection requires explicit review mode')
+        selected=dict(selected,ids=[r['id'] for r in records if review_catalog or r['id']==review_candidate])
+        if not selected['ids']:raise VariantError('review candidate is no longer current')
     rows=classify(value['decisions'],records)['entries']
     by_id={r['candidate']['id']:r for r in rows if r['candidate'] is not None}
     output=[]
@@ -156,6 +162,8 @@ def request(payload):
             'reviewKey':digest([record['id'],record['hash']])})
     payload_data=card_data(question,[r for r in records if r['id'] in selected['ids']],value['decisions'],identifier=label,
         review=options.get('review')=='true' or mode=='review')
+    payload_data['common']['reviewCatalog']=bool(review_catalog)
+    payload_data['common']['renderMode']=mode
     mutation=action in ('generate','decide','decide-many')
     if (source_path.read_bytes()!=source_bytes or xml.read_bytes()!=xml_bytes or checker and checker.read_bytes()!=checker_bytes):
         raise VariantError('STACK source/XML/checker changed during resolution')

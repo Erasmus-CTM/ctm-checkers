@@ -31,6 +31,14 @@ def test_records_bind_real_question_tests_and_teacher_vectors():
     assert dict(row['snapshot']['teacher'])==row['data']['teacherInputs']
 
 
+def test_authored_full_mark_vector_keeps_required_decimal_syntax():
+    q=import_xml(XML.with_name('numerical-measurement.xml'))[0]
+    row=seed_record(q,1)
+    assert row['tests']['teacher']['score']==1
+    assert row['data']['teacherInputs']['reported']=='35/2'
+    assert row['tests']['qtests']['passed']
+
+
 def test_prose_unused_helpers_and_variable_renames_preserve_approval_content():
     q=question();before=seed_record(q,17)
     changed=copy.deepcopy(q);changed['questiontext']='Typo fixed. '+changed['questiontext']

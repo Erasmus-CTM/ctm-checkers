@@ -37,7 +37,16 @@ def seed_record(question, seed):
     tests = run_question_tests(question, variants=[variant])
     if not tests['passed']:
         raise SeedRejected(f"seed={seed}: XML question tests failed")
-    teacher_grade = grade(question, teacher, variant=variant)
+    # An authored all-PRT full-mark vector can carry required written syntax
+    # (for example 17.50 rather than the equal rational 35/2). The design adds
+    # the synthetic teacher vector only when XML supplies no such test.
+    prt_names={p['name'] for p in question['prts']}
+    full_test=next((case for case in question.get('qtests',[])
+        if prt_names <= case.get('expected',{}).keys()
+        and all(case['expected'][name].get('score')==1 for name in prt_names)),None)
+    tested_teacher=({name:_qtest_answer(question,source,env,preserve_form=True)
+        for name,source in full_test['inputs'].items()} if full_test else teacher)
+    teacher_grade = grade(question, tested_teacher, variant=variant)
     if (teacher_grade['status'] != 'graded' or teacher_grade['score'] != 1
             or any(p['score'] != 1 for p in teacher_grade['prts'].values())):
         raise SeedRejected(f"seed={seed}: teacher answers must score 1 on every response tree")
@@ -92,7 +101,9 @@ def propose(question, count=25, *, start=1, retained=(), attempt_limit=5000, ela
         if f'seed={seed}' in known:continue
         try:row=resolve_seed(question,seed)
         except SeedRejected as error:
-            skipped.append({'id':f'seed={seed}','reason':str(error)});continue
+            skipped.append({'id':f'seed={seed}','reason':str(error)})
+            if not re.search(r'\brand(?:_|\s*\()',question.get('variables','')):break
+            continue
         if row['note'] in notes:
             skipped.append({'id':row['id'],'reason':'repeated question note'});continue
         records.append(row);notes.add(row['note'])
@@ -105,7 +116,7 @@ def propose(question, count=25, *, start=1, retained=(), attempt_limit=5000, ela
 
 def card_data(question, records, entries, *, identifier, review=False):
     """One backend contract; numbering is shared review history's decision."""
-    from ctm_variants.model import classify
+    from ctm_variants.model import classify,digest
     rows=classify(entries,records)['entries']
     by_id={r['candidate']['id']:r for r in rows if r['candidate'] is not None}
     variants=[]
@@ -114,7 +125,8 @@ def card_data(question, records, entries, *, identifier, review=False):
         approved=row is not None and row['state'] in ('current','moved') and row['entry']['status']=='approved'
         plan=copy.deepcopy(record['data']['plan'])
         variants.append({'n':row['entry']['n'] if approved else None,'id':record['id'],'hash':record['hash'],
-            'proposal':not approved,'display':{k:v for k,v in plan.items() if k.endswith('_html')},'plan':plan})
+            'proposal':not approved,'reviewKey':digest([record['id'],record['hash']]),
+            'display':{k:v for k,v in plan.items() if k.endswith('_html')},'plan':plan})
     return {'version':2,'id':identifier,'common':{'inputs':question['inputs'],'qtests':question.get('qtests',[]),'checker':None},
         'backend':{'id':'sympy','planSchema':1,'stackRevision':STACK_COMMIT,'runtimeHash':None,'question':question},
         'variants':variants,'review':review}
