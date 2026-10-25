@@ -3,6 +3,7 @@ import unittest
 from unittest.mock import patch
 
 import sympy as sp
+import pytest
 
 from ctm_checkers.stack import InvalidAnswer, Unsupported, assignments, canonical_form, evaluate, parse
 from ctm_checkers.stack.expressions import MAX_TOKENS, MAX_RATIONAL_BITS, form_latex
@@ -167,3 +168,15 @@ class ExpressionsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@pytest.mark.parametrize('text', [
+    'x+x+x', 'x+(x+x)', '(x^2)^3', 'x^2^3', '-x^2', '(-x)^2',
+    'x^-2', 'x/(y/z)', '(x/y)/z', 'not x=1 and y=2',
+    'x=1 implies (y=2 implies z=3)', '(x=1 implies y=2) implies z=3',
+    '{x,x,1.00}', '[x+1,2*(x+1)]', 'matrix([1,0],[0,1])',
+])
+def test_written_text_roundtrips_exact_tree_with_precedence(text):
+    from ctm_checkers.stack.expressions import written_text
+    tree = parse(text)
+    assert parse(written_text(tree)) == tree

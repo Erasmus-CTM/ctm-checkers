@@ -61,7 +61,7 @@ def checker_spec(spec):
     return name, config.get('options', {})
 
 
-def value(source, assumptions=None):
+def value(source, assumptions=None, *, canonical=False):
     """Decode trusted CTM STACK author vocabulary; never sympify text."""
     if not isinstance(source, str):
         raise CheckerError('STACK checker values must be written strings')
@@ -72,7 +72,7 @@ def value(source, assumptions=None):
             return [convert(x) for x in (item.args if isinstance(item, HeldList) else item)]
         # Held sets/relations keep their CTM structure, including repetitions.
         return item
-    return convert(evaluate(parse(source), assumptions=assumptions))
+    return convert(evaluate(parse(source, _written=canonical), assumptions=assumptions))
 
 
 def _referenced(source, names):
@@ -89,10 +89,10 @@ def _referenced(source, names):
     return set(names) & used
 
 
-def context(request):
+def context(request, *, library=False):
     source = request['checker']
     assumptions = request.get('assumptions', {})
-    required = _referenced(source, request.get('variables', {}))
+    required = set() if library else _referenced(source, request.get('variables', {}))
     variables = {}
     for name, text in request.get('variables', {}).items():
         try:
@@ -134,11 +134,13 @@ def _assessment(result, inputs):
 def check(request):
     """Text-only backend entry; author exceptions propagate as CheckerError."""
     try:
-        variables, teacher = context(request)
+        node = request.get('node')
+        checker_name, options = checker_spec(json.dumps(node['options'])) if node is not None else ('check', {})
+        variables, teacher = context(request, library=checker_name != 'check')
         inputs, answers, raw = {}, {}, []
         assumptions = request.get('assumptions', {})
         for name, inp in request['inputs'].items():
-            answer = value(inp['canonical'], assumptions)
+            answer = value(inp['canonical'], assumptions, canonical=True)
             answers[name] = answer
             raw.append(inp['raw'])
             item = dict(inp)
@@ -151,10 +153,18 @@ def check(request):
         response = dict(kind='expressions', raw=raw, expressions=list(answers.values()),
                         answers=answers, inputs=inputs, variables=variables, teacher=teacher,
                         variant=dict(request.get('variant', {})))
-        node = request.get('node')
         if node is not None:
-            response['node'] = dict(sans=value(node['sans'], assumptions),
-                                    tans=value(node['tans'], assumptions), options=node.get('options', {}))
+            if node['sans'] not in answers:
+                raise CheckerError('PythonChecker sans must name a validated input')
+            response['node'] = dict(sans=answers[node['sans']],
+                                    tans=value(node['tans'], assumptions), options=options)
+        if checker_name != 'check':
+            result = library_test(json.dumps(node['options']), response['node']['sans'], response['node']['tans'])
+            result = {key: item for key, item in result.items() if key not in ('correct', 'note', 'implementation')}
+            if result.get('assessment'):
+                result['assessment'] = {node['sans']: result['assessment']}
+            _assessment(result, inputs)
+            return result
         symbols = {}
         def collect(item):
             if isinstance(item, dict):
@@ -201,20 +211,12 @@ def wire_request(question, variant, answers, *, node=None):
 
 def invoke_node(question, variant, answers, node, env):
     from .engine import _source, evaluate, _assumptions
-    name, options = checker_spec(node['options'])
-    if name == 'check':
-        request = wire_request(question, variant, answers,
-            node={'sans': _source(evaluate(node['student'], env, assumptions=_assumptions(question))),
-                  'tans': _source(evaluate(node['teacher'], env, assumptions=_assumptions(question))), 'options': options})
-        result = check(request)
-        return dict(result, correct=result.get('status') == 'correct', note='', implementation='python-checker-h1')
-    student = value(_source(evaluate(node['student'], env, assumptions=_assumptions(question))), _assumptions(question))
-    teacher = value(_source(evaluate(node['teacher'], env, assumptions=_assumptions(question))), _assumptions(question))
-    result = library_test(node['options'], student, teacher)
-    assessment = result.get('assessment', {})
-    if assessment:
-        result['assessment'] = {node['student']: assessment}
-    return result
+    request = wire_request(question, variant, answers,
+        node={'sans': node['student'],
+              'tans': _source(evaluate(node['teacher'], env, assumptions=_assumptions(question))),
+              'options': json.loads(node['options'])})
+    result = check(request)
+    return dict(result, correct=result.get('status') == 'correct', note='', implementation='python-checker-h1')
 
 
 def library_test(spec, student, teacher):

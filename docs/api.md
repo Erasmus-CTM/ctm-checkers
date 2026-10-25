@@ -242,8 +242,17 @@ Other supported names select `ctm_checkers.matrix` library predicates.
 `stack.check` accepts a text-only backend request: `checker`, ordered `inputs`
 with `type`, `raw`, `canonical`; `variables`, `teacher`, `assumptions`, `variant`
 (`n`, `id`, `hash`) and optional `node` (`sans`, `tans`, JSON `options`). Inputs
+use their admitted names. A node carries that input name in `sans`, evaluated
+author text in `tans`, and the complete XML testoptions object in `options`
+(`checker` and optional inner `options`). Both custom and library predicates
+enter through this call. The author function receives the decoded `sans` and
+`tans` values and only the inner literal options object.
+Inputs
 must already be validated by the backend. SymPy prints `canonical` from its
 parsed written operation tree, before the planned shared JS admission.
+The printer preserves precedence without adding depth to flat expressions;
+canonical decoding allows bounded expansion for inserted multiplication
+symbols. Learner admission retains its original size, token and depth limits.
 CTM STACK's author parser decodes exact values, including matrices. Teacher
 answers and variables named by the source must decode; an unused unsupported
 Maxima variable may remain text. This is a contract for Maxima's continuation,

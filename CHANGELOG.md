@@ -19,6 +19,9 @@ diff (docs/goldens.md).
   Declarative tests run through the real grader for every variant.
   Publication rechecks the assigned `n`, `id` and `hash` under the same
   per-seed deadline before writing review decisions.
+  Library predicates use the same text-only continuation, including named
+  matrix assessments. Canonical printing preserves admitted flat expressions
+  without widening learner admission limits.
   Tests: `tests/stack/test_python_checker.py`, `test_python_basis.py`,
   `tests/test_custom_core.py` and the source-bound variant tests.
   Golden diff against C6v: **59 rows changed, none added or removed; no

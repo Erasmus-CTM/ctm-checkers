@@ -67,7 +67,7 @@ def test_wire_keeps_written_tree_and_raw_separately_and_decodes_exact_context():
     q=question('''def check(response, symbols):
     assert response["kind"] == "expressions"
     assert response["raw"] == [" 2(x + 1) "]
-    assert response["inputs"]["ans"]["canonical"] == "(2*(x+1))"
+    assert response["inputs"]["ans"]["canonical"] == "2*(x+1)"
     assert response["answers"]["ans"] == 2*symbols["x"]+2
     assert response["expressions"] == [response["answers"]["ans"]]
     assert response["teacher"]["ans"] == 3
@@ -279,3 +279,49 @@ def test_prt_composition_awards_separate_marks_and_feedback(answer, symmetric, p
     assert result['prts']['positivity']['score'] == int(positive)
     assert result['prts']['symmetry']['feedback']
     assert result['prts']['positivity']['feedback']
+
+
+@pytest.mark.parametrize('term,count,multiplier', [('x', 41, 41), ('2x', 40, 80)])
+def test_canonical_reprinting_keeps_long_admitted_sums_valid(term, count, multiplier):
+    q = question(source(f'response["answers"]["ans"] == {multiplier}*symbols["x"]'))
+    q['inputs'][0].update(insertstars=1, checkanswertype=False)
+    answer = '+'.join([term] * count)
+    frozen = instantiate(q)
+    assert validate(q, {'ans': answer}, variant=frozen)['status'] == 'valid'
+    assert grade(q, {'ans': answer}, variant=frozen)['score'] == 1
+
+
+def test_canonical_decoder_allows_inserted_stars_without_widening_admission():
+    q = question(source('all(item == 12*symbols["x"] for item in response["answers"]["ans"])'))
+    q['qtests'] = []
+    q['inputs'][0].update(type='matrix', insertstars=1, checkanswertype=False,
+        teacher='matrix([1,1,1,1],[1,1,1,1],[1,1,1,1],[1,1,1,1])')
+    entry = '+'.join(['2x'] * 6)
+    answer = 'matrix(' + ','.join('[' + ','.join([entry]*4) + ']' for _ in range(4)) + ')'
+    frozen = instantiate(q)
+    assert validate(q, {'ans': answer}, variant=frozen)['status'] == 'valid'
+    assert grade(q, {'ans': answer}, variant=frozen)['score'] == 1
+    # The 298-token admitted input becomes 394 tokens after explicit stars.
+    from ctm_checkers.stack.expressions import parse, InvalidAnswer
+    with pytest.raises(InvalidAnswer, match='Too many tokens'):
+        parse(answer.replace('2x', '2*x'))
+
+
+def test_maxima_library_continuation_uses_same_entry_and_named_assessment():
+    from ctm_checkers.browser import call
+    request = {'backend': 'maxima', 'checker': '',
+        'inputs': {'ans': {'type': 'matrix', 'raw': 'matrix([-2,-3],[1,0],[0,1])',
+                          'canonical': 'matrix([-2,-3],[1,0],[0,1])'}},
+        'teacher': {'ans': 'matrix([-2,-3],[1,0],[0,1])'},
+        'variables': {'unused': 'maxima_only(2)'},
+        'node': {'sans': 'ans', 'tans': 'matrix([1,2,3],[2,4,6])',
+                 'options': {'checker': 'basis', 'options': {'space': 'nullspace'}}}}
+    response = json.loads(call('stack.check', {'_ctm_request': json.dumps(request)}))
+    result = response['result']
+    assert response['ok'] and result['valid'] and result['status'] == 'correct'
+    assert result['score'] == 1
+    assert result['assessment'] == {'ans': {'columns': ['correct', 'correct']}}
+    assert not set(result) & {'implementation', 'note', 'correct'}
+    request['node']['sans'] = 'missing'
+    response = json.loads(call('stack.check', {'_ctm_request': json.dumps(request)}))
+    assert not response['ok'] and response['errorDetail']['kind'] == 'author'
