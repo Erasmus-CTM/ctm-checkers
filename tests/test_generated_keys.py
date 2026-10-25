@@ -78,7 +78,7 @@ def test_disagreement_never_becomes_an_unverified_key():
 
 def test_generated_admission_covers_both_sides_and_variables_without_changing_authored_strings():
     request = dict(student='1',correct='1',vars='',mode='equivalent',reject='',tolerance='',decplaces='',sigfigs='',form='',partial_credit=False,form_credit=.5,generated=True)
-    for changed in ({'student':'x.subs(x,1)'},{'correct':'__import__("os")'},{'vars':'__builtins__'}):
+    for changed in ({'student':'x.subs(x,1)'},{'correct':'__import__("os")'},{'vars':'__builtins__'},{'reject':'x.subs(x,1)'}):
         with pytest.raises(ValueError): check({**request,**changed})
     assert check({**request,'mode':'string','student':'__text__','correct':'__text__'})['status']=='correct'
 

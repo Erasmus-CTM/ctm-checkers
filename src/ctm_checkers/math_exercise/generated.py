@@ -109,7 +109,9 @@ def admit_generated_check(request):
         if mode not in ('string', 'string_ci'):
             for part in split_top(text) if mode == 'set' else [text]:
                 parse_math(part, variables)
-    # Generated mode options are inherited from trusted authored settings.
+    # Saved options are data too: the legacy reject rule also parses mathematics.
+    if mode not in ('string', 'string_ci') and request.get('reject'):
+        parse_math(request['reject'], variables)
     return {'status': 'admitted'}
 
 

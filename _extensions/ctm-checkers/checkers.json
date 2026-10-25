@@ -2,9 +2,9 @@
  "name": "ctm-checkers",
  "version": "0.11.0.dev0",
  "api": "1.1",
- "dependency": "0.11.0.dev0+e7cbc9d6",
+ "dependency": "0.11.0.dev0+faa9c705",
  "wheel": "ctm_checkers-0.11.0.dev0-py3-none-any.whl",
- "sha256": "e7cbc9d65a74f3bd80a067bcb533e0fb190a615a88fe66e426a4a3c7b520f1f0",
+ "sha256": "faa9c705099f034faac19a6d34a82b8811c4d8b72e009060ed84566b0307ca40",
  "script": "ctm-checkers.js",
  "parts": {
   "stack": {
