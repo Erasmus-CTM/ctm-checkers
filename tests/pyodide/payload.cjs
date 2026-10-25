@@ -84,6 +84,16 @@ const DAMAGE = text => text.replace(/data: '([A-Za-z0-9+\/]{24})/, (match, start
   assert.deepEqual(JSON.parse(await call()), {status: 'correct', score: 1.0});
   assert.deepEqual(names(), before);
 
+  // Generated mathematics uses the same admission in native and Pyodide calls.
+  const keyCall = async request => {
+    await proxy.globals.set('_ctm_request', JSON.stringify(request));
+    return proxy.runPythonAsync('__import__("ctm_checkers.browser", fromlist=["call"]).call("math_exercise.compute_key", globals())');
+  };
+  assert.deepEqual(JSON.parse(await keyCall({recipe:{op:'diff',expr:'x^2',var:'x'},answer:'2*x',vars:'x'})), {key:'2*x',computed:true});
+  await assert.rejects(keyCall({recipe:{op:'value',expr:'x.subs(x,1)'},answer:'1',vars:'x'}), /Unsupported generated/);
+  await assert.rejects(keyCall({recipe:{op:'value',expr:'1'},answer:'__import__("os")',vars:''}), /Unsupported generated/);
+  assert.deepEqual(names(), before);
+
   // Learner code removes the library: the call fails before it reaches
   // browser.call (the request is still there, which tells ctm-libs to install
   // again); installing again repairs it.

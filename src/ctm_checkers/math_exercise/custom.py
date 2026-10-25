@@ -24,6 +24,9 @@ from .parsing import (
 
 
 def check_custom(request):
+    if request.get("generated") is True:
+        from .generated import admit_generated
+        admit_generated(request)
     try:
         if not request["checker"].strip():
             raise ValueError("mode custom requires a checker")

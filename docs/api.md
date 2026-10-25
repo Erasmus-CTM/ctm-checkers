@@ -359,3 +359,48 @@ Versions follow semantic versioning; while `0.x`, a release that changes a
 verdict (a golden row) or the API is a MINOR release (CHANGELOG.md). Courses
 get ctm-checkers through CTM Assessment, which pins a ctm-checkers commit
 like every component.
+
+## Generated practice keys
+
+`math_exercise.compute_key(request)` (also the browser call of that name) accepts
+`{recipe, answer, vars, mode}` and returns `{key, computed: true}`. It raises on
+an invalid recipe, a missing component or disagreement with the model answer.
+Comparison uses the existing `math_exercise.check`; authored grading is unchanged.
+`math_exercise.admit_generated` and `generated: true` on `check`/`check_custom`
+apply the same restricted mathematical admission to model-derived answers.
+
+Arguments are explicit SymPy mathematical text (`2*x`, `sin(x)`), interpreted
+with a positive AST grammar. Declared variables and a curated set of mathematical
+functions/constants are admitted; Python source, attributes, strings, arbitrary
+calls, dunders, imports and comprehensions are rejected. Inputs, powers, orders,
+matrices and selectors are bounded. This is not a route for generated checker code.
+
+| Operation | Recipe arguments besides `op` and optional `select` |
+|---|---|
+| value, simplify, expand, factor | `expr` |
+| diff | `expr`, declared `var`, optional integer `order` (1–12) |
+| integrate | `expr`, `var`; optional `lower` and `upper` together |
+| limit | `expr`, `var`, `point`, optional `direction` (`+`, `-`, `+-`) |
+| series | `expr`, `var`, optional `point` (0) and `order` (6); returns the polynomial without the Order term |
+| solve | `expr` (equation, zero expression or list), `var` or `variables` |
+| det, inv, transpose, rank, rref, nullspace, eigenvals, norm | matrix `expr` |
+| matmul, dot, cross | matrix `left` and `right` |
+
+`select` is a list of bounded array indices or dictionary keys, never an attribute
+path or Python expression. Matrices become row arrays; rref is `{matrix, pivots}`;
+eigenvalues are sorted `{value, multiplicity}` records; solve returns solutions
+sorted by the declared variable order, with variable-name keys. Nullspace returns
+SymPy's ordered column vectors. Select one scalar for each existing answer field,
+e.g. `["matrix", 0, 1]` for an rref entry, `[0, "multiplicity"]` for an eigenvalue's
+multiplicity, or `[0, "x"]` for a solve component. A flat list may supply `set` mode.
+Selection of a witness does not establish uniqueness: use a compatible trusted
+authored checker when alternative answers are mathematically valid.
+
+Generated-practice Check requests from the learner UI carry `learner: true`
+alongside `generated: true`. Their learner response uses the original checker's
+notation transformations (implicit multiplication/function application, powers,
+and factorial notation) after token admission. Model keys and saved rejection
+expressions still pass strict mathematical AST admission; model/candidate/key
+computation requests never set the learner flag. Python names, strings, dunders
+and attribute access remain excluded. The same grading options determine both
+original and generated results.
