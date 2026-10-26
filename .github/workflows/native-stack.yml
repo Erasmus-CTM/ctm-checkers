@@ -60,7 +60,7 @@ jobs:
       # 15 s a case: since S-13 (0.6.0) the inverse trigonometric functions bring STACK's
       # fixture row with nested acos and atan into scope, which takes about 3 s alone.
       - run: python tools/stack_native/run_compliance_python.py --jobs 4 --timeout 15
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: compliance-python
@@ -99,7 +99,7 @@ jobs:
         run: python tools/stack_native/stack_input_data.py --stack-source .stack-upstream-reference --check
       - name: The golden answers against STACK's own input validation (S-01, S-13; PHP, no Maxima)
         run: python tools/stack_native/check_validation.py --stack-source .stack-upstream-reference --out test-results/compliance/validation.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: native-validation
@@ -121,7 +121,7 @@ jobs:
         run: python tools/stack_native/import_stack_fixtures.py --upstream .stack-upstream-reference --check
       - name: Probe standalone official Maxima loader
         run: python tools/stack_native/run_compliance_maxima.py --stack-source .stack-upstream-reference --image .native-stack-image --probe-only
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: maxima-loader-probe
@@ -130,13 +130,13 @@ jobs:
       - name: Check cold/image sentinel observations and timing
         run: python tools/stack_native/benchmark_native_image.py --stack-source .stack-upstream-reference --image .native-stack-image
       - run: python tools/stack_native/run_compliance_maxima.py --stack-source .stack-upstream-reference --image .native-stack-image
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: compliance-maxima
           path: test-results/compliance/maxima.json
           if-no-files-found: warn
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: native-image-diagnostics
@@ -158,17 +158,17 @@ jobs:
           ref: ${{ inputs.ctm-checkers-ref }}
           persist-credentials: false
       - name: Download this run's Python observations
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: compliance-python
           path: test-results/compliance
       - name: Download this run's Maxima observations
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: compliance-maxima
           path: test-results/compliance
       - run: python tools/stack_native/native_compliance/compatibility.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: compliance-reference
@@ -194,13 +194,13 @@ jobs:
           cache-dependency-path: ci/requirements.txt
       - run: python -m pip install -r ci/requirements.txt "playwright>=1.55,<2"
       - name: Download this run's Python observations
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: compliance-python
           path: test-results/compliance
       - run: python -m playwright install --with-deps chromium
       - run: python tools/stack_native/run_compliance_pyodide.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: compliance-pyodide
@@ -248,7 +248,7 @@ jobs:
       - name: Build or validate pristine STACK image
         run: python tools/stack_native/prepare_native_image.py --stack-source .stack-upstream-reference
       - run: python tools/stack_native/run_port_regressions.py --stack-source .stack-upstream-reference --image .native-stack-image
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: compliance-port-regressions
@@ -274,7 +274,7 @@ jobs:
         with:
           version: 1.8.27
       - name: Download only this workflow run's checker outputs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         continue-on-error: true
         with:
           pattern: compliance-*
@@ -284,7 +284,7 @@ jobs:
         run: python tools/stack_native/native_compliance/report.py
       - name: Render independent Quarto project
         run: quarto render reports/stack-compliance
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: native-compliance-json
@@ -292,7 +292,7 @@ jobs:
             reports/stack-compliance/report.json
             reports/stack-compliance/port-regressions.json
           if-no-files-found: warn
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: native-compliance-html
@@ -333,7 +333,7 @@ jobs:
           python -m pip install -r ci/requirements.txt
       - name: Compare against native STACK answer tests
         run: python tools/stack_native/compare_stack_maxima.py --stack-source .stack-upstream-reference
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: maxima-reference-results
@@ -400,7 +400,7 @@ jobs:
       - name: Compare all runnable fixture observations, notes and probes
         if: steps.changed.outputs.run == 'true'
         run: python tools/stack_native/benchmark_native_image.py --stack-source .stack-upstream-reference --image .native-stack-image --full
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always() && steps.changed.outputs.run == 'true'
         with:
           name: native-image-full-validation
