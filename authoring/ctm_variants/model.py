@@ -13,6 +13,12 @@ class VariantError(ValueError):
     pass
 
 
+def _stack_record(row):
+    return (isinstance(row, dict) and isinstance(row.get('snapshot'), dict)
+            and isinstance(row['snapshot'].get('grading'), dict)
+            and row['snapshot']['grading'].get('component') == 'ctm-stack')
+
+
 def canonical(value):
     def validate(item):
         if isinstance(item, dict):
@@ -103,6 +109,7 @@ def validate_entries(entries):
     if not isinstance(entries, list):
         raise VariantError("manifest entries must be a list")
     numbers, ids = set(), set()
+    stack = bool(entries) and all(_stack_record(e) for e in entries)
     allowed = {"n", "id", "hash", "status", "note", "snapshot", "by", "date", "reason"}
     for entry in entries:
         if not isinstance(entry, dict) or set(entry) - allowed:
@@ -112,10 +119,11 @@ def validate_entries(entries):
         n, locator = entry["n"], entry["id"]
         if type(n) is not int or n <= 0 or n in numbers:
             raise VariantError("variant numbers must be unique positive integers")
-        if not isinstance(locator, str) or not locator or locator in ids:
+        identity = (locator, entry.get('hash')) if stack else locator
+        if not isinstance(locator, str) or not locator or identity in ids:
             raise VariantError("variant locators must be unique nonempty strings")
         numbers.add(n)
-        ids.add(locator)
+        ids.add(identity)
         if entry["status"] not in ("approved", "rejected"):
             raise VariantError("manifest status must be approved or rejected")
         for name in ("note", "by", "date", "reason"):
@@ -144,14 +152,16 @@ def _candidates(items):
     return by_id, by_hash
 
 
-def classify(entries, candidates, *, hash_first=False):
+def classify(entries, candidates, *, hash_first=None):
     """Reserve exact identities, then move globally unambiguous content.
 
-    Math retains a changed existing locator. The hash_first option models
-    content-first classification only; STACK decision reconciliation is not
-    implemented by this checkpoint (see the implementation notes).
+    Math retains a changed existing locator. STACK records carry their backend
+    provenance in grading data and reserve unambiguous content before locators.
     """
     validate_entries(entries)
+    if hash_first is None:
+        rows = candidates or entries
+        hash_first = bool(rows) and all(_stack_record(row) for row in rows)
     by_id, by_hash = _candidates(candidates)
     old_hashes = {}
     for entry in entries:
@@ -190,7 +200,7 @@ def classify(entries, candidates, *, hash_first=False):
 
 
 def decide(entries, candidates, locator, status, *, by="", date="", reason=""):
-    """Update one math decision from all candidates; never recycle a number."""
+    """Update one decision from all candidates; never recycle a number."""
     validate_entries(entries)
     by_id, unused = _candidates(candidates)
     if locator not in by_id:
@@ -201,7 +211,17 @@ def decide(entries, candidates, locator, status, *, by="", date="", reason=""):
         if not isinstance(value, str):
             raise VariantError("decision metadata must be text")
     item = by_id[locator]
-    previous = next((entry for entry in entries if entry["id"] == locator), None)
+    stack = item['snapshot']['grading'].get('component') == 'ctm-stack'
+    if stack:
+        rows = classify(entries, candidates)['entries']
+        # Carry the whole unambiguous mapping at once: seeds can exchange
+        # content. Stable numbers belong to approved content, not a reused seed.
+        entries = [dict(row['entry'], id=row['candidate']['id'])
+                   if row['state'] == 'moved' else copy.deepcopy(row['entry']) for row in rows]
+        matched = next((row for row in rows if row['candidate'] is not None and row['candidate']['id'] == locator), None)
+        previous = next((entry for entry in entries if matched and entry['n'] == matched['entry']['n']), None)
+    else:
+        previous = next((entry for entry in entries if entry["id"] == locator), None)
     if previous is None:
         rows = classify(entries, candidates)["entries"]
         previous = next((row["entry"] for row in rows

@@ -85,7 +85,7 @@ def retire(value, candidates, locator, content_hash, **metadata):
     from ctm_variants.model import classify
     validate(value)
     rows = classify(value["decisions"], candidates)["entries"]
-    row = next((row for row in rows if row["entry"]["id"] == locator), None)
+    row = next((row for row in rows if row["entry"]["id"] == locator and row['entry']['hash'] == content_hash), None)
     if (row is None or row["state"] != "gone" or row["entry"]["hash"] != content_hash
             or row["entry"]["status"] != "approved" or not isinstance(metadata.get("reason"), str)
             or not metadata["reason"].strip()):

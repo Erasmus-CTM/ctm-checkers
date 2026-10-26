@@ -71,6 +71,10 @@ jobs:
           cache: pip
           cache-dependency-path: ci/requirements.txt
       - run: python -m pip install -r ci/requirements.txt
+      - name: Quarto for native component source reconciliation
+        uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          version: 1.8.27
       - name: The generated extension folder matches src/; the releases of the base branch are unchanged
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}

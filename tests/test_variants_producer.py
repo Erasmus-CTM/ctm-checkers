@@ -69,7 +69,7 @@ class ProducerTests(unittest.TestCase):
                 self.assertEqual(len(calls),1)
                 self.assertFalse((Path(folder)/'_variants/q.yml').exists())
 
-    def test_discovery_covers_added_questions_and_refuses_unsupported_stack(self):
+    def test_discovery_covers_added_questions_and_selects_stack_component(self):
         def parse(raw):return {'label':raw,'variables':'not executed'},'question'
         def ast(text):return {'blocks':[{'t':'CodeBlock','c':[['',['{math-exercise}'],[]],text]}]}
         with tempfile.TemporaryDirectory() as folder:
@@ -79,8 +79,8 @@ class ProducerTests(unittest.TestCase):
             self.assertEqual({item['label'] for item in discover(root,['**/*.qmd'],parse,ast=ast)},{'one','two'})
             (root/'_extensions').mkdir();(root/'_extensions/example.qmd').write_text('excluded')
             self.assertEqual(len(discover(root,['**/*.qmd'],parse,ast=ast)),2)
-            with self.assertRaisesRegex(VariantError,'STACK'):
-                discover(root,['**/*.qmd'],parse,ast=lambda _: {'blocks':[{'t':'CodeBlock','c':[['',['{stack-question}'],[]],'stack']} ]})
+            stack=discover(root,['one.qmd'],parse,ast=lambda _: {'blocks':[{'t':'CodeBlock','c':[['',['{.stack-question}'],[]],'stack']} ]})
+            self.assertEqual(stack[0]['component'],'ctm-stack')
             (root/'duplicate.qmd').write_text('one')
             with self.assertRaisesRegex(VariantError,'distinct'):discover(root,['**/*.qmd'],parse,ast=ast)
             with self.assertRaises(VariantError):inside(root,'../escape')
