@@ -6,6 +6,35 @@ release. Every grading change is listed under "Grading changes" with the
 finding or decision it implements, its test and the summary of its golden
 diff (docs/goldens.md).
 
+## 0.12.0 (Unreleased)
+
+### Grading changes
+
+- **H1 / step 6:** STACK `checker:` uses `core/custom.py` and the common
+  `check(response, symbols)` contract, including scores, named matrix
+  assessment, explicit invalid attempts and author-error envelopes. Its
+  implicit response tree is weighted by `checker-value` (default 1).
+  `PythonChecker` nodes call `check` as a predicate or a shared matrix library
+  predicate. The API-v1 registry and value module retire without aliases.
+  Declarative tests run through the real grader for every variant.
+  Publication rechecks the assigned `n`, `id` and `hash` under the same
+  per-seed deadline before writing review decisions.
+  Library predicates use the same text-only continuation, including named
+  matrix assessments. Canonical printing preserves admitted flat expressions
+  without widening learner admission limits.
+  Tests: `tests/stack/test_python_checker.py`, `test_python_basis.py`,
+  `tests/test_custom_core.py` and the source-bound variant tests.
+  Golden diff against C6v: **59 rows changed, none added or removed; no
+  existing validation verdict or numeric score changes**. The changes remove
+  API-v1 source descriptors, add the implicit checker tree and its feedback,
+  and update the source-bound card hashes. Historical row identities remain
+  intact for direct comparison.
+
+  | Table | Changed | Added | Removed |
+  |---|---|---|---|
+  | `stack/questions-course.jsonl` | 4 | 0 | 0 |
+  | `stack/questions-project.jsonl` | 55 | 0 | 0 |
+
 ## 0.11.0 (Unreleased)
 
 - **Authoring:** reject cross-scope question/input/feedback names before STACK
@@ -23,6 +52,7 @@ diff (docs/goldens.md).
   messages without searching or changing legacy feedback text.
 
 ### Grading changes
+
 
 - **C6:** no verdict, validity, score, branch or answer-note change. Golden
   outputs record additive message data and the S-20 presentation correction:

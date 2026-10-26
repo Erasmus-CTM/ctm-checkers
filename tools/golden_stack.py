@@ -59,6 +59,21 @@ def jsonable(value):
     return json.loads(json.dumps(value, default=str))
 
 
+def checker_options(value):
+    """Translate the frozen capture metadata, not an authoring API alias.
+
+    Keep historical row identities for an auditable H1 before/after diff. The
+    capture's python_checkers field records the original API-v1 fixture; the
+    engine no longer accepts that option or loads a CHECKERS registry.
+    """
+    original = value.get('python_checkers')
+    if original == 'examples/stack/checkers.py':
+        return {'checker': (ROOT / original).read_text(encoding='utf-8')}
+    if original not in (None, 'examples/stack/matrix-checkers.py'):
+        raise ValueError('Unknown historical checker fixture: ' + repr(original))
+    return {}
+
+
 class Engine:
     """One STACK engine: its modules and the question cache of a run."""
 
@@ -79,7 +94,8 @@ class Engine:
         if key not in self._questions:
             checkers = value.get('python_checkers')
             try:
-                imported = self.importer.import_xml(ROOT / value['file'], python_checkers=ROOT / checkers if checkers else None)
+                source, options = self.import_arguments(value)
+                imported = self.importer.import_xml(source, **options)
                 self._questions[key] = (imported, None)
             except Exception as error:   # the import row reports it; the other rows raise it again
                 self._questions[key] = (None, error)
@@ -87,6 +103,21 @@ class Engine:
         if error is not None:
             raise error
         return imported
+
+    def import_arguments(self, value):
+        if self.name != 'legacy':
+            return ROOT / value['file'], checker_options(value)
+        original = value.get('python_checkers')
+        if not original:
+            return ROOT / value['file'], {}
+        # Only the pinned legacy engine uses its own retired author modules.
+        # They are neither shipped nor admitted by the current checker API.
+        folder = Path(self.description['stack-sympy'])
+        module = folder / 'questions' / Path(original).name
+        source = ROOT / value['file']
+        if value['file'] == 'examples/stack/python-checker.xml':
+            source = source.read_text(encoding='utf-8').replace('"checker": "check"', '"checker": "positive_multiple"')
+        return source, {'python_checkers': module}
 
     def question(self, value):
         matches = [q for q in self.questions(value) if q['name'] == value['question']]
@@ -122,9 +153,10 @@ def run(engine, call, value, raised=raised):
     if call == 'stack.instantiate':
         return engine.variant(value)
     if call == 'stack.card':
-        checkers = value.get('python_checkers')
-        text = engine.cli.render(str(ROOT / value['file']), value['question'], value['id'], value['variants'], value['seed'],
-                                 value['review'], value['diagnostics'], str(ROOT / checkers) if checkers else None)
+        source, options = engine.import_arguments(value)
+        checker = options.get('checker', options.get('python_checkers'))
+        text = engine.cli.render(str(source), value['question'], value['id'], value['variants'], value['seed'],
+                                 value['review'], value['diagnostics'], checker)
         data = text.encode('utf-8')
         return {'sha256': hashlib.sha256(data).hexdigest(), 'length': len(data)}
     if call == 'stack.tests':

@@ -82,8 +82,7 @@ def test_the_physics_probe():
 
 def test_complex_numbers_in_frozen_variants():
     # Complex_Convert_1's z1 and the questions that ask for %i keep their values.
-    q = import_xml(ROOT / "examples" / "stack" / "symmetric-positive-definite.xml",
-                   python_checkers=ROOT / "examples" / "stack" / "matrix-checkers.py")[0]
+    q = import_xml(ROOT / "examples" / "stack" / "symmetric-positive-definite.xml")[0]
     variant = instantiate(q, 1)
     assert grade(q, {"ansm": "matrix([2,%i],[-%i,2])"}, variant=variant)["score"] == 1.0
     assert grade(q, {"ansm": "matrix([2,i],[-i,2])"}, variant=variant)["score"] == 1.0

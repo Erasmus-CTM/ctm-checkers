@@ -171,7 +171,10 @@ def test_a_relative_umbrella_folder_is_relative_to_where_golden_py_runs(tmp_path
 
 
 def stack_files(value):
-    return [value[key] for key in ('file', 'python_checkers') if key in value]
+    # The frozen capture records its retired API-v1 fixture name. Its matrix
+    # implementation now lives in ctm_checkers.matrix, without a source alias.
+    return [value[key] for key in ('file', 'python_checkers') if key in value
+            and value[key] != 'examples/stack/matrix-checkers.py']
 
 
 def test_stack_rows_name_files_here_and_course_material_only_in_its_table():
@@ -234,9 +237,48 @@ def test_stack_inputs_are_stack_sympys():
             relative = path.relative_to(old)
             if relative.name == 'README.md':
                 continue
-            here = (new / relative).read_bytes()
             if relative.as_posix() == 'matrix-checkers.py':
-                here = here.replace(b'from ctm_checkers.matrix import assess_basis', b'from stack_sympy.basis_helper import assess_basis')
+                # H1 moves these predicates once into the shared library.
+                # Every function body is still exactly the pinned original.
+                import ast
+                assert not (new / relative).exists()
+                original = ast.parse(path.read_text())
+                shared = ast.parse((golden.ROOT / 'src/ctm_checkers/matrix.py').read_text())
+                functions = {n.name: ast.dump(n) for n in shared.body if isinstance(n, ast.FunctionDef)}
+                for node in original.body:
+                    if isinstance(node, ast.FunctionDef):
+                        assert functions[node.name] == ast.dump(node), node.name
+                continue
+            here = (new / relative).read_bytes()
+            if relative.as_posix() == 'checkers.py':
+                # H1's scalar example binds the same student/divisor from the
+                # common response, then keeps the original mathematical rule.
+                import ast
+                original = next(n for n in ast.parse(path.read_text()).body if isinstance(n, ast.FunctionDef))
+                current = next(n for n in ast.parse(here).body if isinstance(n, ast.FunctionDef))
+                assert [a.arg for a in current.args.args] == ['response', 'symbols']
+                expected = ast.parse('student = response["answers"]["ans"]\ndivisor = response["variables"]["d"]').body
+                assert [ast.dump(n) for n in current.body[:2]] == [ast.dump(n) for n in expected]
+                class CommonResult(ast.NodeTransformer):
+                    def visit_Name(self, node):
+                        if node.id == 'divisor':
+                            node.id = 'teacher'
+                        return node
+                    def visit_Dict(self, node):
+                        self.generic_visit(node)
+                        invalid = any(isinstance(k, ast.Constant) and k.value == 'valid'
+                                      and isinstance(v, ast.Constant) and v.value is False for k,v in zip(node.keys,node.values))
+                        pairs = [(k,v) for k,v in zip(node.keys,node.values) if not
+                                 (isinstance(k, ast.Constant) and (k.value == 'valid' and isinstance(v, ast.Constant) and v.value is True
+                                  or invalid and k.value == 'correct' and isinstance(v, ast.Constant) and v.value is False))]
+                        node.keys, node.values = [k for k,v in pairs], [v for k,v in pairs]
+                        return node
+                normalize = CommonResult()
+                assert [ast.dump(normalize.visit(n)) for n in current.body[2:]] == [ast.dump(normalize.visit(n)) for n in original.body]
+                continue
+            if relative.as_posix() == 'python-checker.xml':
+                assert here == path.read_bytes().replace(b'"checker": "positive_multiple"', b'"checker": "check"')
+                continue
             if relative.as_posix() == 'policy.json':
                 # S-13 (0.6.0) brought three of STACK's fixture rows into the compliance
                 # runner's scope (the inverse trigonometric functions): the pinned scope

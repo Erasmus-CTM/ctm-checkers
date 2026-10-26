@@ -101,7 +101,7 @@ MUTATIONS = {
     'stack-basis-zero-vector': ('matrix.py', 'zero = vector == zeros(*vector.shape)', 'zero = False', 1, (STACK,)),
     'stack-basis-coverage': ('matrix.py', 'coverage = min(rank, target_dimension) / target_dimension', 'coverage = 1.0', 1, (STACK,)),
     'stack-basis-model-space': ('stack/matrix_models.py', 'vectors = matrix.nullspace()', 'vectors = matrix.columnspace()', 1, (STACK,)),
-    'stack-checker-assessment': ('stack/checkers.py', 'result["assessment"] = {axis: list(statuses)}', 'pass', 1, (STACK,)),
+    'stack-checker-assessment': ('stack/engine.py', "input_results[name]['assessment'] = assessment", 'pass', 2, (STACK,)),
     # S-01 (0.3.0): the names of question and feedback variables in student answers
     # (the feedback variables, names inside expressions and two names in one answer:
     # only stack/supplement's forbidden-variables.xml reaches them).

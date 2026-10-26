@@ -19,7 +19,7 @@ from .expressions import (Equation, InvalidAnswer, Node, Undecided, Unsupported,
                           parse, is_logical, is_collection, validate_collection,
                           AUTHOR_COLLECTION_FUNCTIONS)
 
-from .checkers import invoke as invoke_checker
+from .check import library_test
 
 MAX_DECIMAL_PLACES = 50
 
@@ -367,8 +367,7 @@ UNDECIDED_FEEDBACK = "This answer could not be checked automatically."
 
 def answer_test(name: str, student: Node | str, teacher: str, options: str = "", *,
                 env: Mapping[str, Any] | None = None, raw: str | None = None,
-                assumptions: Mapping[str, bool] | None = None,
-                python_checkers: dict | None = None) -> dict:
+                assumptions: Mapping[str, bool] | None = None) -> dict:
     """Apply one answer test to a valid answer (see `_answer_test` for the tests).
 
     A test that cannot decide the answer (`Undecided`: a bound of the engine, a type of answer the test does not
@@ -376,16 +375,14 @@ def answer_test(name: str, student: Node | str, teacher: str, options: str = "",
     note `<test>_undecided`, so that the response tree takes its false branch (S-11). An error of the author
     (`Unsupported`: an option, a teacher's answer, a test the engine does not have) is still raised."""
     try:
-        return _answer_test(name, student, teacher, options, env=env, raw=raw, assumptions=assumptions,
-                            python_checkers=python_checkers)
+        return _answer_test(name, student, teacher, options, env=env, raw=raw, assumptions=assumptions)
     except (Undecided, OverflowError, DecimalException):
         return {**_result(True, False, f"{name}_undecided", UNDECIDED_FEEDBACK), "cas_valid": False}
 
 
 def _answer_test(name: str, student: Node | str, teacher: str, options: str = "", *,
                 env: Mapping[str, Any] | None = None, raw: str | None = None,
-                assumptions: Mapping[str, bool] | None = None,
-                python_checkers: dict | None = None) -> dict:
+                assumptions: Mapping[str, bool] | None = None) -> dict:
     """Evaluate one supported STACK test; return valid/correct/note/feedback.
 
     Supported: AlgEquiv, EqualComAss, FacForm, SingleFrac, LowestTerms,
@@ -415,7 +412,7 @@ def _answer_test(name: str, student: Node | str, teacher: str, options: str = ""
         raise Unsupported(f"Invalid teacher expression: {exc}") from exc
 
     if name == "PythonChecker":
-        return invoke_checker(python_checkers, options, student_value, teacher_value)
+        return library_test(options, student_value, teacher_value)
 
     from .expressions import MatrixValue
     if name in NUMERICAL_TESTS and not isinstance(teacher_value, MatrixValue) and not is_collection(teacher_value) \

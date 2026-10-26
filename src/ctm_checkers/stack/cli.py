@@ -7,6 +7,7 @@ import hashlib
 import html
 import json
 import sys
+from pathlib import Path
 
 from .engine import instantiate, run_question_tests
 from .importer import UnsupportedQuestion, import_xml
@@ -14,28 +15,28 @@ from .names import preflight_names
 from .stack_data import STACK_COMMIT
 
 
-def _question_variants(path, question_name, count, seed, python_checkers):
+def _question_variants(path, question_name, count, seed, checker):
     if not 1 <= count <= 100:
         raise ValueError("Variants must be between 1 and 100")
-    matches = [q for q in import_xml(path, python_checkers=python_checkers) if q["name"] == question_name]
+    matches = [q for q in import_xml(path, checker=checker) if q["name"] == question_name]
     if len(matches) != 1:
         raise UnsupportedQuestion(question_name, "name", f"expected exactly one question, found {len(matches)}")
     question = matches[0]
     preflight_names(question, source=path)
     variants = [instantiate(question, seed + offset) for offset in range(count)]
-    from .checkers import preflight
+    from .check import preflight
     preflight(question, variants)
     return question, variants
 
 
 def prepare(path: str, question_name: str, identifier: str, count: int = 3,
-            seed: int = 1, review: bool = False, python_checkers: str | None = None) -> dict:
+            seed: int = 1, review: bool = False, checker: str | None = None) -> dict:
     """Prepare data for the component's Lua-owned shell; emit no card markup.
 
     Identity here binds the frozen plan, not approval. V5 owns proposal and
     approved-manifest selection; this additive interface does not approve seeds.
     """
-    question, variants = _question_variants(path, question_name, count, seed, python_checkers)
+    question, variants = _question_variants(path, question_name, count, seed, checker)
     records = []
     for n, variant in enumerate(variants, 1):
         canonical = json.dumps(variant, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -44,7 +45,8 @@ def prepare(path: str, question_name: str, identifier: str, count: int = 3,
                         "display": {key: value for key, value in variant.items() if key.endswith("_html")},
                         "plan": variant})
     return {"version": 2, "id": identifier,
-            "common": {"inputs": question["inputs"], "qtests": question.get("qtests", []), "checker": None},
+            "common": {"inputs": question["inputs"], "qtests": question.get("qtests", []),
+                       "checker": {"source": question['checker'], "value": question.get('checker_value', 1)} if question.get('checker') else None},
             "backend": {"id": "sympy", "planSchema": 1, "stackRevision": STACK_COMMIT,
                         "runtimeHash": None, "question": question},
             "variants": records, "review": review}
@@ -58,12 +60,12 @@ def _json_script(value):
 
 def render(path: str, question_name: str, identifier: str, count: int = 3,
            seed: int = 1, review: bool = False, diagnostics: bool = False,
-           python_checkers: str | None = None) -> str:
+           checker: str | None = None) -> str:
     if not 1 <= count <= 100:
         raise ValueError("Variants must be between 1 and 100")
     safe_id = html.escape(identifier, quote=True)
     try:
-        question, variants = _question_variants(path, question_name, count, seed, python_checkers)
+        question, variants = _question_variants(path, question_name, count, seed, checker)
         data = {"version": 1, "id": identifier, "question": question,
                 "variants": variants, "review": review}
         choices = "".join(f'<option value="{index}">Variant {index + 1}</option>' for index in range(count))
@@ -104,18 +106,18 @@ def main(argv=None) -> int:
     prepare_parser.add_argument("--variants", type=int, default=3)
     prepare_parser.add_argument("--seed", type=int, default=1)
     prepare_parser.add_argument("--review", action="store_true")
-    prepare_parser.add_argument("--python-checkers", help="Trusted author checker source")
+    prepare_parser.add_argument("--checker", help="Trusted author checker source")
     test_parser = sub.add_parser("test", help="Run XML author tests against frozen seeds")
     test_parser.add_argument("--file", required=True)
     test_parser.add_argument("--question")
     test_parser.add_argument("--seed", type=int, action="append")
-    render_parser.add_argument("--python-checkers", help="Trusted author checker source (embedded in the public card)")
-    test_parser.add_argument("--python-checkers", help="Trusted author checker source")
+    render_parser.add_argument("--checker", help="Trusted author checker source (embedded in the public card)")
+    test_parser.add_argument("--checker", help="Trusted author checker source")
     args = parser.parse_args(argv)
     if args.command == "prepare":
         try:
             print(json.dumps(prepare(args.file, args.question, args.id, args.variants,
-                                     args.seed, args.review, args.python_checkers), ensure_ascii=False))
+                                     args.seed, args.review, Path(args.checker).read_text() if args.checker else None), ensure_ascii=False))
             return 0
         except Exception as exc:
             print(str(exc), file=sys.stderr)
@@ -123,7 +125,7 @@ def main(argv=None) -> int:
     if args.command == "render":
         try:
             sys.stdout.write(render(args.file, args.question, args.id, args.variants,
-                                    args.seed, args.review, args.diagnostics, args.python_checkers))
+                                    args.seed, args.review, args.diagnostics, Path(args.checker).read_text() if args.checker else None))
             return 0
         except Exception as exc:
             print(str(exc), file=sys.stderr)
@@ -132,12 +134,12 @@ def main(argv=None) -> int:
             return 2
     if args.command == "test":
         try:
-            questions = import_xml(args.file, python_checkers=args.python_checkers)
+            questions = import_xml(args.file, checker=Path(args.checker).read_text() if args.checker else None)
             if args.question:
                 questions = [q for q in questions if q["name"] == args.question]
                 if len(questions) != 1:
                     raise ValueError(f"Expected one question named {args.question!r}")
-            from .checkers import preflight
+            from .check import preflight
             results = []
             for q in questions:
                 variants = [instantiate(q, seed) for seed in (args.seed or [1])]

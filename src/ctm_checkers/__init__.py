@@ -2,7 +2,7 @@
 
 # The package root imports no SymPy, so a component can read the version
 # without loading it.
-__version__ = "0.11.0.dev0"
+__version__ = "0.12.0.dev0"
 # Major levels describe incompatibilities; a string preserves an additive
 # minor level exactly (1.10 must not become the floating-point number 1.1).
 API = "1.1"

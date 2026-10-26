@@ -59,7 +59,8 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.append(str(ROOT / 'src'))  # ctm_checkers from src/ unless one is importable (a wheel)
 sys.path.insert(0, str(ROOT / 'tools'))
-import golden  # noqa: E402
+import golden
+import golden_stack  # noqa: E402
 from ctm_checkers.stack import engine  # noqa: E402
 from ctm_checkers.stack.expressions import parse  # noqa: E402
 from ctm_checkers.stack.importer import import_xml  # noqa: E402
@@ -88,7 +89,7 @@ def cases():
             key = (value['file'], value.get('python_checkers'))
             if key not in questions:
                 checkers = value.get('python_checkers')
-                questions[key] = {q['name']: q for q in import_xml(ROOT / value['file'], python_checkers=ROOT / checkers if checkers else None)}
+                questions[key] = {q['name']: q for q in import_xml(ROOT / value['file'], **golden_stack.checker_options(value))}
             question = questions[key][value['question']]
             vkey = key + (value['question'], value['seed'])
             if vkey not in variants:
@@ -128,7 +129,7 @@ def all_cases():
             key = (value['file'], value.get('python_checkers'))
             if key not in questions:
                 checkers = value.get('python_checkers')
-                questions[key] = {q['name']: q for q in import_xml(ROOT / value['file'], python_checkers=ROOT / checkers if checkers else None)}
+                questions[key] = {q['name']: q for q in import_xml(ROOT / value['file'], **golden_stack.checker_options(value))}
             question = questions[key][value['question']]
             vkey = key + (value['question'], value['seed'])
             if vkey not in variants:

@@ -17,12 +17,12 @@ from ctm_variants.producer import inside
 from ctm_variants.review import apply_decisions
 
 
-def _seed_child(question,seed,connection):
+def _seed_child(question,seed,connection,identity=None):
     """A fresh fork inherits verified imports, never another checker's globals."""
     os.setsid()
     from ctm_checkers.stack.variants import seed_record,SeedRejected
     try:
-        try:result={'record':seed_record(question,seed)}
+        try:result={'record':seed_record(question,seed,identity=identity)}
         except SeedRejected as error:result={'rejected':str(error)}
         except Exception as error:result={'error':type(error).__name__+': '+str(error)}
         raw=json.dumps(result).encode()
@@ -31,7 +31,7 @@ def _seed_child(question,seed,connection):
     finally:connection.close()
 
 
-def supervised_seed(question,seed,timeout=30):
+def supervised_seed(question,seed,timeout=30,*,identity=None):
     """Bound the real engine per seed, including trusted custom checker code."""
     if os.name=='posix':
         # Keep the candidate process boundary without reimporting SymPy for
@@ -39,7 +39,7 @@ def supervised_seed(question,seed,timeout=30):
         import multiprocessing
         context=multiprocessing.get_context('fork')
         receiver,sender=context.Pipe(duplex=False)
-        child=context.Process(target=_seed_child,args=(question,seed,sender))
+        child=context.Process(target=_seed_child,args=(question,seed,sender,identity))
         child.start();sender.close()
         try:
             if not receiver.poll(timeout):raise VariantError(f'seed={seed}: STACK candidate exceeded its time budget')
@@ -56,11 +56,11 @@ def supervised_seed(question,seed,timeout=30):
             if child.is_alive():child.kill()
             child.join(timeout=1)
     import tempfile
-    code="import json,sys\np=json.load(sys.stdin); sys.path[:0]=p['paths']\nfrom ctm_checkers.stack.variants import seed_record,SeedRejected\ntry: result={'record':seed_record(p['question'],p['seed'])}\nexcept SeedRejected as error: result={'rejected':str(error)}\nprint(json.dumps(result))"
+    code="import json,sys\np=json.load(sys.stdin); sys.path[:0]=p['paths']\nfrom ctm_checkers.stack.variants import seed_record,SeedRejected\ntry: result={'record':seed_record(p['question'],p['seed'],identity=p.get('identity'))}\nexcept SeedRejected as error: result={'rejected':str(error)}\nprint(json.dumps(result))"
     with tempfile.TemporaryFile() as out,tempfile.TemporaryFile() as err:
         child=subprocess.Popen([sys.executable,'-I','-c',code],stdin=subprocess.PIPE,stdout=out,stderr=err,
             start_new_session=os.name!='nt')
-        try:child.communicate(json.dumps({'paths':sys.path,'question':question,'seed':seed}).encode(),timeout=timeout)
+        try:child.communicate(json.dumps({'paths':sys.path,'question':question,'seed':seed,'identity':identity}).encode(),timeout=timeout)
         except subprocess.TimeoutExpired as error:
             if os.name!='nt':os.killpg(child.pid,signal.SIGKILL)
             else:subprocess.run(['taskkill','/F','/T','/PID',str(child.pid)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,check=False)
@@ -146,9 +146,16 @@ def request(payload):
     xml=inside(root,os.path.normpath(str(Path(source_file).parent/options['file'])))
     xml_bytes=xml.read_bytes()
     if len(xml_bytes)>8*1024*1024:raise VariantError('STACK XML exceeds 8 MiB')
-    checker=inside(root,os.path.normpath(str(Path(source_file).parent/options['python-checkers']))) if options.get('python-checkers') else None
-    checker_bytes=checker.read_bytes() if checker else None
-    questions=[q for q in import_xml(xml,python_checkers=str(checker) if checker else None) if q['name']==options.get('question')]
+    if 'python-checkers' in options:
+        raise VariantError('python-checkers: was removed; use checker: with check(response, symbols)')
+    from ctm_checkers.math_exercise.authored import _tests
+    authored = _tests(options['tests']) if 'tests' in options else None
+    if 'tests' in options and (not isinstance(authored, list) or not authored):
+        raise VariantError('STACK tests: must be a nonempty declarative list')
+    if 'checker-value' in options and not options.get('checker'):
+        raise VariantError('checker-value requires checker:')
+    questions=[q for q in import_xml(xml,checker=options.get('checker'),
+        checker_value=float(options.get('checker-value',1)),tests=authored) if q['name']==options.get('question')]
     if len(questions)!=1:raise VariantError('STACK XML must contain exactly one selected question')
     question=questions[0]
     count=int(options.get('variants',25))
@@ -197,11 +204,12 @@ def request(payload):
             'state':row['state'] if row else 'new','status':entry['status'] if current else 'undecided',
             'reviewKey':digest([record['id'],record['hash']])})
     payload_data=card_data(question,[r for r in records if r['id'] in selected['ids']],value['decisions'],identifier=label,
-        review=options.get('review')=='true' or mode=='review')
+        review=options.get('review')=='true' or mode=='review',
+        identity_verifier=lambda q,s,i:supervised_seed(q,s,min(30,max(.01,deadline-time.monotonic())),identity=i))
     payload_data['common']['reviewCatalog']=bool(review_catalog)
     payload_data['common']['renderMode']=mode
     mutation=action in ('generate','decide','decide-many')
-    if (source_path.read_bytes()!=source_bytes or xml.read_bytes()!=xml_bytes or checker and checker.read_bytes()!=checker_bytes):
+    if (source_path.read_bytes()!=source_bytes or xml.read_bytes()!=xml_bytes):
         raise VariantError('STACK source/XML/checker changed during resolution')
     if mutation:
         fresh=current_source(payload)

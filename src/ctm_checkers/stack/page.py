@@ -55,3 +55,14 @@ def tests(request):
         question, variant = _plan(request)
         return run_question_tests(question, seeds=[variant["seed"]], variants=[variant])
     return _envelope(run)
+
+
+def check(request):
+    """The backend continuation uses the same author-error envelope."""
+    from .check import check as run_checker, CheckerError
+    def run():
+        try:
+            return run_checker(request)
+        except CheckerError as error:
+            raise UnsupportedQuestion(request.get('questionName', 'STACK checker'), 'checker', str(error)) from error
+    return _envelope(run)

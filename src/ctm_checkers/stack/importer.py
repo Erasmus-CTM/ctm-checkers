@@ -234,12 +234,12 @@ def _question(element):
     inputs = [_input(name, x) for x in element.findall("input")]
     prts = [_prt(name, x) for x in element.findall("prt")]
     _check(name, "inputs", bool(inputs) and len({x["name"] for x in inputs}) == len(inputs), "requires unique inputs")
-    _check(name, "prts", bool(prts) and len({x["name"] for x in prts}) == len(prts), "requires unique response trees")
+    _check(name, "prts", len({x["name"] for x in prts}) == len(prts), "requires unique response trees")
     for prt in prts:
         for node in prt["nodes"]:
             _check(name, f"prt[{prt['name']}]/node[{node['name']}]/sans", bool(node["student"]), "empty student expression")
             if node["test"] == "PythonChecker":
-                from .checkers import checker_spec
+                from .check import checker_spec
                 try:
                     checker_spec(node["options"])
                 except ValueError as exc:
@@ -275,7 +275,7 @@ def _question(element):
             "deployedseeds": [int(s.text) for s in element.findall("deployedseed") if s.text]}
 
 
-def import_xml(source: str | Path, *, python_checkers: str | Path | None = None) -> list[dict]:
+def import_xml(source: str | Path, *, checker: str | None = None, checker_value=1, tests=None) -> list[dict]:
     """Read a STACK Moodle XML path or XML string, omitting category entries.
 
     Description questions are omitted as presentational Moodle content. Every
@@ -287,14 +287,22 @@ def import_xml(source: str | Path, *, python_checkers: str | Path | None = None)
         root = ET.fromstring(source)
     if root.tag != "quiz":
         raise ValueError("STACK XML requires a <quiz> root")
-    from .checkers import source_descriptor
-    descriptor = source_descriptor(python_checkers) if python_checkers is not None else None
+    if checker is not None:
+        from .check import validate_source
+        validate_source(checker)
+        if type(checker_value) not in (int, float) or not math.isfinite(checker_value) or checker_value <= 0:
+            raise ValueError('checker-value must be a positive finite number')
     result = []
     for q in root.findall("question"):
         if q.get("type") in {"category", "description"}:
             continue
         question = _question(q)
-        if descriptor is not None:
-            question["python_checkers"] = dict(descriptor)
+        if checker is not None:
+            _check(question['name'], 'checker', not any(p['name'] == 'checker' for p in question['prts']),
+                   'The checker response-tree name is reserved when a block checker is present')
+            question.update(checker=checker, checker_value=checker_value)
+        _check(question['name'], 'prts', bool(question['prts']) or bool(checker), 'requires response trees or a block checker:')
+        if tests is not None:
+            question['authored_tests'] = tests
         result.append(question)
     return result

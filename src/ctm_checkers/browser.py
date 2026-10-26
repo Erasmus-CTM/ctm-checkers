@@ -31,6 +31,7 @@ CALLS = {
     "stack.validate": ("ctm_checkers.stack.page:validate", None),
     "stack.grade": ("ctm_checkers.stack.page:grade", None),
     "stack.tests": ("ctm_checkers.stack.page:tests", None),
+    "stack.check": ("ctm_checkers.stack.page:check", None),
 }
 
 

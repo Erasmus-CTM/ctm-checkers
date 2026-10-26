@@ -1,212 +1,193 @@
-"""Public custom checker contract, independent of native compatibility claims."""
+"""Shared H1 checker results, backend wire contract and library predicates."""
 from copy import deepcopy
 import json
 from pathlib import Path
-
 import pytest
 import sympy as sp
-
+from ctm_checkers.stack.check import check, CheckerError, checker_spec, preflight, wire_request
 from ctm_checkers.stack.assessment import answer_test
-from ctm_checkers.stack.checkers import CheckerError, invoke, preflight, source_descriptor
-from ctm_checkers.stack.cli import main, render
-from ctm_checkers.stack.engine import grade, instantiate, run_question_tests, validate
+from ctm_checkers.stack.engine import grade, instantiate, validate, run_question_tests
 from ctm_checkers.stack.importer import import_xml, UnsupportedQuestion
-
+from ctm_checkers.stack.page import grade as page_grade
 ROOT = Path(__file__).resolve().parents[2]
-XML = ROOT / "examples/stack/python-checker.xml"
-MODULE = ROOT / "examples/stack/checkers.py"
-
+XML = ROOT / 'examples/stack/python-checker.xml'
 
 def config(name, **options):
-    value = {"checker": name}
-    if options:
-        value["options"] = options
-    return json.dumps(value)
+    return json.dumps({'checker':name, 'options':options})
+
+def source(result):
+    return 'def check(response, symbols):\n    return ' + result + '\n'
+
+def question(code=None):
+    return import_xml(XML, checker=code or (ROOT/'examples/stack/checkers.py').read_text())[0]
 
 
-def descriptor(body):
-    return {"api_version": 1, "source": body}
+@pytest.mark.parametrize('value,status,score', [('True','correct',1),('False','wrong',0),
+    ('0.4','partial',0.4),("{'correct':True,'feedback':'yes'}",'correct',1),
+    ("{'score':0.5,'show_score':False}",'partial',0.5)])
+def test_shared_normalized_results_and_weighted_checker_tree(value, status, score):
+    q=question(source(value)); q['prts']=[]; q['questiontext']=q['questiontext'].replace('[[feedback:prt1]]','[[feedback:checker]]')
+    result=grade(q,{'ans':'3'})
+    assert result['status']=='graded' and result['score']==score
+    assert result['prts']['checker']['score']==score
+    assert check(wire_request(q,instantiate(q),{'ans':'3'}))['status']==status
 
 
-def module(expression):
-    return descriptor("def check(student, teacher, options):\n    return " + expression + "\nCHECKERS={'check':check}\n")
+def test_weighted_checker_score_feedback_slot_and_xml_penalty():
+    q=question(source('0.5'))
+    first=q['prts'][0];first['nodes'][0]['test']='AlgEquiv';first['nodes'][0]['teacher']='3'
+    first['name']='one';first['value']=1
+    second=deepcopy(first);second['name']='two';second['nodes'][0]['teacher']='4'
+    q['prts'].append(second);q['checker_value']=2
+    q['questiontext']=q['questiontext'].replace('[[feedback:prt1]]','[[feedback:checker]]')
+    frozen=instantiate(q)
+    assert 'class="stack-feedback" data-name="checker"' in frozen['question_html']
+    result=grade(q,{'ans':'3'},variant=frozen)
+    assert [result['prts'][key]['score'] for key in ('one','two','checker')]==[1,0,0.5]
+    assert result['score']==0.5
 
 
-def question(source=None):
-    q = import_xml(XML, python_checkers=MODULE)[0]
-    if source is not None:
-        q["python_checkers"] = source
-        q["prts"][0]["nodes"][0]["options"] = config("check")
-        q["qtests"] = []
-    return q
+def test_node_uses_complete_response_and_partial_is_false_predicate():
+    q=question('''def check(response, symbols):
+    if "node" in response:
+        assert "ans" not in response["variables"]
+        assert response["node"]["sans"] == response["answers"]["ans"]
+        assert response["node"]["tans"] == response["variables"]["d"]
+        assert response["node"]["options"] == {"label":"__import__('os')"}
+    return 0.5
+''')
+    q['prts'][0]['nodes'][0]['options']=config('check',label="__import__('os')")
+    result=grade(q,{'ans':'3'})
+    assert result['prts']['prt1']['path'][0]['branch']=='false'
+    assert result['prts']['checker']['score']==0.5
+    assert result['score']==0.25
 
 
-@pytest.mark.parametrize("source,expression", [
-    ("x+sqrt(2)", "isinstance(student, sp.Expr) and student == teacher"),
-    ("matrix([x,sqrt(2)],[1/2,%i])", "isinstance(student, Matrix) and student == teacher"),
-    ("[1,[2,3]]", "isinstance(student, ListValue) and isinstance(student.args[1], ListValue)"),
-    ("{1,1,2}", "isinstance(student, SetValue) and len(student.args)==3"),
-    ("x=2", "isinstance(student, Equation) and student.args[0] == sp.Symbol('x')"),
-    ("x=2 or x=2", "isinstance(student, Logical) and len(student.operands)==2"),
-    ("true", "student is sp.true"),
-])
-def test_immutable_typed_arguments_preserve_held_structure(source, expression):
-    body = "import sympy as sp\nfrom ctm_checkers.stack.checker_api import *\n" + module(expression)["source"]
-    result = answer_test("PythonChecker", source, source, config("check"), python_checkers=descriptor(body))
-    assert result["valid"] and result["correct"]
+def test_wire_keeps_written_tree_and_raw_separately_and_decodes_exact_context():
+    q=question('''def check(response, symbols):
+    assert response["kind"] == "expressions"
+    assert response["raw"] == [" 2(x + 1) "]
+    assert response["inputs"]["ans"]["canonical"] == "2*(x+1)"
+    assert response["answers"]["ans"] == 2*symbols["x"]+2
+    assert response["expressions"] == [response["answers"]["ans"]]
+    assert response["teacher"]["ans"] == 3
+    assert response["variables"]["d"] == 3
+    assert response["variant"] == {"n":7,"id":"seed=1","hash":"1234567890abcdef"}
+    return True
+''')
+    q['inputs'][0]['insertstars']=1
+    q['inputs'][0]['checkanswertype']=False
+    q['variables']='d:3;'
+    frozen=instantiate(q);frozen.update(n=7,id='seed=1',hash='1234567890abcdef')
+    assert grade(q,{'ans':' 2(x + 1) '},variant=frozen)['score']==1
 
 
-@pytest.mark.parametrize("result", ["1", "None", "sp.true", "{'valid':1,'correct':False}",
-    "{'valid':False,'correct':True}", "{'valid':True,'correct':True,'score':1}",
-    "{'valid':True,'correct':True,'note':'x'}", "{'correct':True}",
-    "{'valid':True,'correct':True,'feedback':[]}",
-    "{'valid':True,'correct':True,'assessment':{'columns':['correct']}}"])
-def test_malformed_results_fail_as_author_errors(result):
-    source = descriptor("import sympy as sp\n" + module(result)["source"])
-    with pytest.raises(CheckerError):
-        invoke(source, config("check"), sp.Integer(1), sp.Integer(1))
+def test_wire_accepts_maxima_text_contract_and_only_requires_used_variables():
+    request={'backend':'maxima','checker':source('response["variables"]["a"] == Rational(1,3)'),
+        'inputs':{'ans':{'type':'algebraic','raw':'1/3','canonical':'1/3'}},
+        'teacher':{'ans':'1/3'},'variables':{'a':'1/3','unused':'maxima_only(2)'},
+        'assumptions':{'positive':True},'variant':{'n':1,'id':'moodle=17','hash':'1234567890abcdef'}}
+    assert check(request)['status']=='correct'
+    request['checker']=source('response["variables"]["unused"] == 2')
+    with pytest.raises(CheckerError,match='Cannot decode checker variable unused'):check(request)
+    request['checker']=source('True');request['teacher']['ans']='maxima_only(2)'
+    with pytest.raises(CheckerError):check(request)
 
 
-def test_validation_and_instantiation_do_not_execute_module_or_callback():
-    q = question(descriptor("raise RuntimeError('must never execute')"))
-    frozen = instantiate(q)
-    assert validate(q, {"ans": "3"})["status"] == "valid"
-    assert validate(q, {"ans": "3"}, variant=frozen)["status"] == "valid"
-    with pytest.raises(UnsupportedQuestion, match="must never execute"):
-        preflight(q, [frozen])
+@pytest.mark.parametrize('result', ['None','{}','2',"{'score':float('nan')}","{'valid':1,'correct':True}",
+    "{'valid':False,'score':0.5}","{'assessment':[],'correct':True}"])
+def test_malformed_results_are_author_errors_without_runtime_restart(result):
+    q=question(source(result)); frozen=instantiate(q)
+    response=page_grade({'question':q,'variant':frozen,'answers':{'ans':'3'}})
+    assert response['ok'] is False and response['errorDetail']['kind']=='author'
 
 
-def test_false_model_branch_and_unreachable_guarded_expression():
-    q = question(module("False"))
-    first = q["prts"][0]["nodes"][0]
-    first["false"]["score"] = 0.7
-    second = deepcopy(first)
-    second.update(name="1", teacher="1/0", options=config("explode"))
-    first["true"]["next"] = "1"
-    q["prts"][0]["nodes"].append(second)
-    body = module("False")["source"] + "def explode(a,b,options):\n    raise AssertionError('unreachable')\nCHECKERS['explode']=explode\n"
-    q["python_checkers"] = descriptor(body)
-    frozen = instantiate(q)
-    preflight(q, [frozen])
-    assert grade(q, {"ans": "3"}, variant=frozen)["score"] == 0.7
-    second["options"] = config("missing")
-    with pytest.raises(UnsupportedQuestion, match="Unknown.*missing"):
-        preflight(q, [frozen])
+def test_validation_and_instantiation_do_not_execute_checker_and_namespace_is_fresh():
+    q=question('raise RuntimeError("author broke")\n'+source('True'))
+    frozen=instantiate(q)
+    assert validate(q,{'ans':'3'},variant=frozen)['status']=='valid'
+    with pytest.raises(UnsupportedQuestion,match='author broke'):preflight(q,[frozen])
+    q['checker']='count=0\ndef check(response,symbols):\n    global count\n    count+=1\n    return count == 1'
+    for seed in (1,2,1):assert grade(q,{'ans':'3'},seed)['score']==1
 
 
-def test_registry_state_does_not_leak_between_invocations_or_cards():
-    body = "count=0\ndef check(a,b,options):\n    global count\n    count+=1\n    return count==1\nCHECKERS={'check':check}\n"
-    q = question(descriptor(body))
-    other = question(module("False"))
-    for seed in (1, 2, 1):
-        assert grade(q, {"ans": "3"}, seed)["score"] == 1
-        assert grade(other, {"ans": "3"}, seed)["score"] == 0
-        assert grade(q, {"ans": "3"}, seed)["score"] == 1
+def test_invalid_feedback_has_no_score_or_assessment_and_plain_feedback_is_escaped():
+    text='<img src=x onerror=alert(1)>'
+    q=question(source(repr({'valid':False,'feedback':text})));q['prts']=[]; q['questiontext']=q['questiontext'].replace('[[feedback:prt1]]','[[feedback:checker]]')
+    result=check(wire_request(q,instantiate(q),{'ans':'3'}))
+    assert result=={'valid':False,'feedback':text}
+    assert grade(q,{'ans':'3'})['status']=='invalid'
+    q['checker']=source(repr({'score':0.5,'feedback':text}))
+    result=grade(q,{'ans':'3'})
+    assert '<img' not in result['feedback'] and '&lt;img' in result['feedback']
+    assert result['prts']['checker']['feedbackParts'][0]['message']['args']['text']==text
 
 
-def test_invalid_feedback_and_escaped_grading_feedback_and_quiet():
-    text = "<img src=x onerror=alert(1)>"
-    q = question(module(repr({"valid": False, "correct": False, "feedback": text})))
-    result = grade(q, {"ans": "3"})
-    assert result["status"] == "invalid"
-    assert result["inputs"]["ans"]["feedback"] == text
-    assert result["inputs"]["ans"]["valid"] is False
-    q["python_checkers"] = module(repr({"valid": True, "correct": False, "feedback": text}))
-    result = grade(q, {"ans": "3"})
-    assert "&lt;img" in result["feedback"] and "<img" not in result["feedback"]
-    q["prts"][0]["nodes"][0]["quiet"] = True
-    assert not grade(q, {"ans": "3"})["feedback"]
+def test_matrix_response_and_assessment_are_named_by_input():
+    q=import_xml(ROOT/'examples/stack/course-c-nullspace.xml')[0]
+    q['prts']=[];q['questiontext']=q['questiontext'].replace('[[feedback:result]]','[[feedback:checker]]');q['checker']= '''def check(response,symbols):
+    item=response["inputs"]["ans"]
+    assert item["rows"]==3 and item["cols"]==2
+    assert item["expressions"]==list(item["matrix"])
+    assert item["matrix"]==response["answers"]["ans"]
+    return {"score":1,"assessment":{"ans":{"columns":["correct","dependent"]}}}
+'''
+    result=grade(q,{'ans':'matrix([-2,-3],[1,0],[0,1])'})
+    assert result['inputs']['ans']['assessment']=={'columns':['correct','dependent']}
+    q['checker']=source("{'score':1,'assessment':{'ans':{'columns':['correct']}}}")
+    with pytest.raises(UnsupportedQuestion,match='dimensions'):grade(q,{'ans':'matrix([-2,-3],[1,0],[0,1])'})
 
 
-@pytest.mark.parametrize("mutation", [lambda d: d.update(api_version=2),
-    lambda d: d.update(extra=1), lambda d: d.update(source='x'*65537)])
-def test_descriptor_version_and_bounds(mutation):
-    d = module("True")
-    mutation(d)
-    with pytest.raises(CheckerError):
-        invoke(d, config("check"), sp.Integer(1), sp.Integer(1))
+def test_declarative_tests_replay_actual_grader_and_explicit_invalid_results():
+    from ctm_checkers.stack.authored import run_tests
+    q=question();q['authored_tests']=[
+        {'name':'teacher','answers':{'ans':'d'},'expect':'correct'},
+        {'name':'offset','answers':{'ans':'d+1'},'expect':'wrong'},
+        {'name':'fraction','answers':{'ans':'raw("1/2")'},'expect':'invalid'}]
+    assert len(run_tests(q,instantiate(q)))==3
+    q['authored_tests'][1]['expect']='correct'
+    with pytest.raises(AssertionError,match='offset'):run_tests(q,instantiate(q))
 
 
-@pytest.mark.parametrize("body", ["CHECKERS={'check':lambda a: True}",
-    "def check(a,b): return True\nCHECKERS={'check':check}",
-    "async def check(a,b,options): return True\nCHECKERS={'check':check}",
-    "def check(a,b,options): yield True\nCHECKERS={'check':check}",
-    "from functools import partial\nasync def check(a,b,options): return True\nCHECKERS={'check':partial(check)}",
-    "from functools import partial\ndef check(a,b,options): yield True\nCHECKERS={'check':partial(check)}",
-    "CHECKERS={'check': 3}", "CHECKERS={'a.b': lambda a,b,options: True}",
-    "def check(a,b,options): raise ValueError('author failure')\nCHECKERS={'check':check}"])
-def test_bad_registry_signature_async_generator_and_callback_exception(body):
-    q = question(descriptor(body))
-    with pytest.raises(UnsupportedQuestion, match="PythonChecker"):
-        grade(q, {"ans": "3"})
+def test_registry_interface_is_retired_and_unknown_library_names_fail():
+    with pytest.raises(TypeError):import_xml(XML,python_checkers='checkers.py')
+    for name in ('positive_multiple','a.b','../x.py','__import__(x)',''):
+        with pytest.raises(CheckerError,match='Unknown PythonChecker'):checker_spec(config(name))
+    q=import_xml(XML)[0]
+    with pytest.raises(UnsupportedQuestion,match='block checker'):instantiate(q)
 
 
-@pytest.mark.parametrize("spec,option", [
-    (config("check"), {}),
-    (config("check", space="nullspace"), {"space": "nullspace"}),
-    (config("check", space="nullspace", normalized=True),
-     {"space": "nullspace", "normalized": True}),
-    (config("check", bounds={"min": 1, "max": 4}, labels=["a", "b"]),
-     {"bounds": {"min": 1, "max": 4}, "labels": ["a", "b"]}),
-    (config("check", text="__import__('os')"), {"text": "__import__('os')"}),
-])
-def test_options_are_literal_function_arguments(spec, option):
-    source = module("student == teacher and options == " + repr(option))
-    result = answer_test("PythonChecker", "2", "2", spec,
-                         env={"nullspace": sp.Integer(7)}, python_checkers=source)
-    assert result['valid'] and result['correct']
+def test_backend_continuation_entry_preserves_normalized_results_and_author_boundary():
+    from ctm_checkers.browser import call
+    q=question(source('0.5'))
+    request=wire_request(q,instantiate(q),{'ans':'3'})
+    caller={'_ctm_request':json.dumps(request),'learner':'kept'}
+    result=json.loads(call('stack.check',caller))
+    assert caller=={'learner':'kept'}
+    assert result['ok'] and result['result']['status']=='partial' and result['result']['score']==0.5
+    request['checker']='raise RuntimeError("author continuation failure")\n'+source('True')
+    result=json.loads(call('stack.check',{'_ctm_request':json.dumps(request)}))
+    assert not result['ok'] and result['errorDetail']['kind']=='author'
+    assert 'author continuation failure' in result['error']
 
 
-@pytest.mark.parametrize("spec", [
-    "{", "[]", "null", "{}", '{"checker":"check","unexpected":1}',
-    '{"checker":"check","options":[]}', '{"checker":"check","options":null}',
-    '{"checker":"check","options":{"tolerance":NaN}}',
-])
-def test_checker_configuration_requires_named_json_options(spec):
-    with pytest.raises(CheckerError):
-        invoke(module("True"), spec, sp.Integer(1), sp.Integer(1))
-
-
-def test_matrix_assessment_contract():
-    from ctm_checkers.stack.expressions import evaluate
-    student = evaluate("matrix([x,sqrt(2)],[0,1])")
-    for statuses in (["correct", "dependent"], ["incorrect", "correct"]):
-        d = module(repr({"valid": True, "correct": True, "assessment": {"columns": statuses}}))
-        assert invoke(d, config("check"), student, student)["assessment"]["columns"] == statuses
-    for assessment in ({"columns": ["correct"]}, {"rows": ["correct", "bogus"]},
-                       {"rows": ["correct", "correct"], "columns": ["correct", "correct"]}):
-        with pytest.raises(CheckerError):
-            invoke(module(repr({"valid": True, "correct": False, "assessment": assessment})), config("check"), student, student)
-
-
-def test_source_attachment_and_cli_print_isolation(tmp_path, capsys):
-    source = tmp_path / 'checker.py'
-    source.write_text("print('AUTHOR OUTPUT')\n" + source_descriptor(MODULE)["source"].replace(
-        '    correct =', "    print('CALLBACK OUTPUT')\n    correct ="), encoding='utf-8')
-    output = render(str(XML), "A positive integer multiple (PythonChecker)", "custom", 2, 17, True,
-                    python_checkers=str(source))
-    assert 'AUTHOR OUTPUT' not in output.split('<script')[0]
-    payload = json.loads(output.split('class="stack-sympy-data">')[1].split('</script>')[0])
-    assert set(payload['question']['python_checkers']) == {'api_version','source'}
-    assert str(tmp_path) not in output
-    assert main(['test', '--file', str(XML), '--python-checkers', str(source)]) == 0
-    result = json.loads(capsys.readouterr().out)
-    assert result['passed']
-    assert run_question_tests(question(), seeds=(1,17,47))['passed']
-
-
-def test_checker_filename_is_read_at_build_and_updates_on_the_next_build(tmp_path):
-    source = tmp_path / 'checker.py'
-    source.write_text("def positive_multiple(a,b,options): return True\nCHECKERS={'positive_multiple':positive_multiple}\n")
-    first = import_xml(XML, python_checkers=source)[0]
-    source.write_text("def positive_multiple(a,b,options): return False\nCHECKERS={'positive_multiple':positive_multiple}\n")
-    second = import_xml(XML, python_checkers=source)[0]
-    # A built page carries its selected file contents; rendering again reads
-    # the current file. Authors provide neither a manifest nor a checksum.
-    assert grade(first, {'ans':'3'})['score'] == 1
-    assert grade(second, {'ans':'3'})['score'] == 0
-    assert set(first['python_checkers']) == {'api_version', 'source'}
-
+def test_math_checker_runs_unchanged_on_the_stack_wire_contract():
+    from ctm_checkers.math_exercise.custom import check_custom
+    from ctm_checkers.variants import question_context
+    code='''def check(response, symbols):
+    assert response["variables"]["a"] == Rational(1,3)
+    assert symbols["x"].is_real is True
+    assert response["inputs"] == {} or response["inputs"]["ans"]["type"] == "algebraic"
+    return {"score":1 if response["answers"]["ans"] == response["teacher"]["ans"] else 0.5}
+'''
+    x=sp.Symbol('x',real=True)
+    context=question_context(['ans'],{'a':sp.Rational(1,3),'x':x},{'ans':x+1})
+    math=check_custom({'vars':'x','checker':code,'question_context':context,
+        'response':{'kind':'expressions','raw':['x+1'],'inputs':{}}})
+    stack=check({'checker':code,'backend':'sympy','assumptions':{'real':True},
+        'variables':{'a':'1/3','x':'x'},'teacher':{'ans':'x+1'},
+        'inputs':{'ans':{'type':'algebraic','raw':'x+1','canonical':'(x+1)'}}})
+    assert stack==dict(math,valid=True)
 
 @pytest.mark.parametrize('answer,correct', [
     ('matrix([1,0],[0,1])', True),
@@ -223,10 +204,9 @@ def test_checker_filename_is_read_at_build_and_updates_on_the_next_build(tmp_pat
     ('matrix([1,0,0],[0,1,0])', False),
 ])
 def test_spd_example_checks_symmetry_and_all_leading_principal_minors(answer, correct):
-    source = source_descriptor(ROOT / 'examples/stack/matrix-checkers.py')
-    result = answer_test('PythonChecker', answer, 'true', config('is_hpd'), python_checkers=source)
+    result = answer_test('PythonChecker', answer, 'true', config('is_hpd'))
     assert result['valid'] and result['correct'] is correct
-    opposite = answer_test('PythonChecker', answer, 'false', config('is_hpd'), python_checkers=source)
+    opposite = answer_test('PythonChecker', answer, 'false', config('is_hpd'))
     assert opposite['valid'] and opposite['correct'] is not correct
 
 
@@ -236,8 +216,7 @@ def test_spd_example_checks_symmetry_and_all_leading_principal_minors(answer, co
     'matrix([sqrt(2)*%i,0],[0,1])',
 ])
 def test_spd_example_explains_its_exact_rational_domain(answer, checker):
-    result = answer_test('PythonChecker', answer, 'true', config(checker),
-                         python_checkers=source_descriptor(ROOT / 'examples/stack/matrix-checkers.py'))
+    result = answer_test('PythonChecker', answer, 'true', config(checker))
     assert not result['valid'] and not result['correct']
     assert 'integers or exact fractions' in result['feedback']
 
@@ -245,8 +224,7 @@ def test_spd_example_explains_its_exact_rational_domain(answer, checker):
 @pytest.mark.parametrize('filename', ['symmetric-positive-definite.xml',
                                      'symmetric-positive-definite-prt.xml'])
 def test_spd_xml_and_filename_work_through_build_tests_and_grading(filename):
-    q = import_xml(ROOT / 'examples' / 'stack' / filename,
-                   python_checkers=ROOT / 'examples/stack/matrix-checkers.py')[0]
+    q = import_xml(ROOT / 'examples' / 'stack' / filename)[0]
     preflight(q, [instantiate(q)])
     assert run_question_tests(q, seeds=(1,17,47))['passed']
     assert grade(q, {'ansm':'matrix([2,1],[1,2])'})['score'] == 1
@@ -273,13 +251,11 @@ def test_spd_xml_and_filename_work_through_build_tests_and_grading(filename):
     ('matrix([1,0,0],[0,1,0])', False, False),
 ])
 def test_independent_matrix_properties_and_python_conjunction(answer, symmetric, positive):
-    source = source_descriptor(ROOT / 'examples/stack/matrix-checkers.py')
     for checker, property_value in [('is_hermitian', symmetric),
                                      ('is_positive_definite', positive),
                                      ('is_hpd', symmetric and positive)]:
         for expected in (True, False):
-            result = answer_test('PythonChecker', answer, str(expected).lower(), config(checker),
-                                 python_checkers=source)
+            result = answer_test('PythonChecker', answer, str(expected).lower(), config(checker))
             assert result['valid']
             assert result['correct'] is (property_value == expected)
 
@@ -296,8 +272,7 @@ def test_independent_matrix_properties_and_python_conjunction(answer, symmetric,
     ('matrix([1/2,%i/4],[-%i/4,1])', True, True),
 ])
 def test_prt_composition_awards_separate_marks_and_feedback(answer, symmetric, positive):
-    q = import_xml(ROOT / 'examples/stack/symmetric-positive-definite-prt.xml',
-                   python_checkers=ROOT / 'examples/stack/matrix-checkers.py')[0]
+    q = import_xml(ROOT / 'examples/stack/symmetric-positive-definite-prt.xml')[0]
     result = grade(q, {'ansm': answer})
     assert result['score'] == (int(symmetric) + int(positive)) / 2
     assert result['prts']['symmetry']['score'] == int(symmetric)
@@ -306,122 +281,47 @@ def test_prt_composition_awards_separate_marks_and_feedback(answer, symmetric, p
     assert result['prts']['positivity']['feedback']
 
 
-def test_import_rejects_expressions_and_paths_as_checker_identifiers():
-    for value in ('a.b', '../x.py', '__import__(x)', ''):
-        with pytest.raises(UnsupportedQuestion, match='identifier'):
-            import_xml(XML.read_text().replace(config('positive_multiple')+'</testoptions>', config(value)+'</testoptions>'))
-    with pytest.raises(UnsupportedQuestion, match='direct input'):
-        import_xml(XML.read_text().replace('<sans>ans</sans>', '<sans>ans+1</sans>'))
-    with pytest.raises(UnsupportedQuestion, match='source descriptor'):
-        instantiate(import_xml(XML)[0])
+@pytest.mark.parametrize('term,count,multiplier', [('x', 41, 41), ('2x', 40, 80)])
+def test_canonical_reprinting_keeps_long_admitted_sums_valid(term, count, multiplier):
+    q = question(source(f'response["answers"]["ans"] == {multiplier}*symbols["x"]'))
+    q['inputs'][0].update(insertstars=1, checkanswertype=False)
+    answer = '+'.join([term] * count)
+    frozen = instantiate(q)
+    assert validate(q, {'ans': answer}, variant=frozen)['status'] == 'valid'
+    assert grade(q, {'ans': answer}, variant=frozen)['score'] == 1
 
 
-def test_callback_receives_the_validated_value_without_input_name_rebinding():
-    q = question(module("{'valid':True,'correct':True,'feedback':str(student)}"))
-    # Since S-13 (0.6.0) a student may not type ans, a name of three letters
-    # (STACK: "Forbidden variable or constant: ans."); an input of two letters may.
-    assert grade(q, {'ans': 'ans+1'})['inputs']['ans']['feedback'] == 'Forbidden variable or constant: ans.'
-    q['inputs'][0]['name'] = q['prts'][0]['nodes'][0]['student'] = 'an'
-    q['questiontext'] = q['questiontext'].replace('[[input:ans]]', '[[input:an]]').replace('[[validation:ans]]', '[[validation:an]]')
-    assert grade(q, {'an': 'an+1'})['feedback'] == 'an + 1'
+def test_canonical_decoder_allows_inserted_stars_without_widening_admission():
+    q = question(source('all(item == 12*symbols["x"] for item in response["answers"]["ans"])'))
+    q['qtests'] = []
+    q['inputs'][0].update(type='matrix', insertstars=1, checkanswertype=False,
+        teacher='matrix([1,1,1,1],[1,1,1,1],[1,1,1,1],[1,1,1,1])')
+    entry = '+'.join(['2x'] * 6)
+    answer = 'matrix(' + ','.join('[' + ','.join([entry]*4) + ']' for _ in range(4)) + ')'
+    frozen = instantiate(q)
+    assert validate(q, {'ans': answer}, variant=frozen)['status'] == 'valid'
+    assert grade(q, {'ans': answer}, variant=frozen)['score'] == 1
+    # The 298-token admitted input becomes 394 tokens after explicit stars.
+    from ctm_checkers.stack.expressions import parse, InvalidAnswer
+    with pytest.raises(InvalidAnswer, match='Too many tokens'):
+        parse(answer.replace('2x', '2*x'))
 
 
-def test_model_preflight_uses_author_expression_conversion():
-    q = question(module('True'))
-    q['inputs'][0]['teacher'] = 'diff(x^2,x)'
-    preflight(q, [instantiate(q)])
-
-
-def test_custom_node_keeps_static_branch_feedback_validation():
-    q = question(module('True'))
-    q['prts'][0]['nodes'][0]['false']['feedback'] = '<script>bad()</script>'
-    with pytest.raises(UnsupportedQuestion, match='unsupported HTML'):
-        instantiate(q)
-
-
-@pytest.mark.parametrize('body', [
-    "raise SystemExit(0)",
-    "def check(a,b,options): raise SystemExit(0)\nCHECKERS={'check':check}",
-    "class C:\n    async def __call__(self,a,b,options): return True\nCHECKERS={'check':C()}",
-    "class C:\n    def __call__(self,a,b,options): yield True\nCHECKERS={'check':C()}",
-])
-def test_exit_and_async_callable_objects_are_author_errors(body):
-    q = question(descriptor(body))
-    with pytest.raises(UnsupportedQuestion, match='PythonChecker'):
-        preflight(q, [instantiate(q)])
-
-
-def test_matrix_assessment_attachment_and_quiet_prt_scoring():
-    q = import_xml(ROOT / 'examples/stack/course-c-nullspace.xml')[0]
-    node = q['prts'][0]['nodes'][0]
-    node.update(test='PythonChecker', options=config('check'))
-    q['python_checkers'] = module("{'valid':True,'correct':True,'assessment':{'columns':['correct']*student.cols}}")
-    result = grade(q, {'ans':'matrix([-2],[1],[0])'})
-    assert result['inputs']['ans']['assessment'] == {'columns':['correct']}
-    node['true']['score'] = 0.25
-    node['quiet'] = True
-    result = grade(q, {'ans':'matrix([-2],[1],[0])'})
-    assert result['score'] == 0.25
-    assert 'assessment' not in result['inputs']['ans']
-
-
-def test_finite_values_and_qtest_order():
-    with pytest.raises(CheckerError, match='finite'):
-        invoke(module('True'), config('check'), sp.oo, sp.Integer(1))
-    q = question()
-    assert run_question_tests(q, seeds=(47,17,1))['passed']
-    q['qtests'].reverse()
-    assert run_question_tests(q, seeds=(1,17,47))['passed']
-
-
-@pytest.mark.parametrize('same_input', [False, True])
-@pytest.mark.parametrize('quiet', [False, True])
-def test_invalid_checker_clears_all_earlier_vector_assessments(same_input, quiet):
-    q = import_xml(ROOT / 'examples/stack/course-c-nullspace.xml')[0]
-    first = q['prts'][0]['nodes'][0]
-    first.update(test='PythonChecker', options=config('check'))
-    later = deepcopy(q['prts'][0])
-    later['name'] = 'later'
-    later['nodes'][0].update(options=config('reject'), quiet=quiet)
-    if not same_input:
-        q['inputs'].append({**deepcopy(q['inputs'][0]), 'name': 'other'})
-        later['nodes'][0]['student'] = 'other'
-    q['prts'].append(later)
-    q['python_checkers'] = module("{'valid':True,'correct':True,'assessment':{'columns':['correct']*student.cols}}")
-    q['python_checkers']['source'] += (
-        "\ndef reject(student,teacher,options):\n"
-        "    return {'valid':False,'correct':False,'feedback':'Use <two> columns'}\n"
-        "CHECKERS['reject']=reject\n")
-    result = grade(q, {inp['name']: 'matrix([-2],[1],[0])' for inp in q['inputs']})
-    assert result['status'] == 'invalid'
-    assert result['score'] == 0
-    assert all('assessment' not in detail for detail in result['inputs'].values())
-    rejected = first['student'] if same_input else 'other'
-    assert not result['inputs'][rejected]['valid']
-    assert result['inputs'][rejected]['feedback'] == ('Invalid answer' if quiet else 'Use <two> columns')
-
-
-def test_large_learner_matrix_is_rejected_during_validation_before_checker_execution():
-    q = import_xml(ROOT / 'examples/stack/course-c-nullspace.xml')[0]
-    q['python_checkers'] = descriptor("raise AssertionError('Checker must not execute')")
-    answers = {'ans': 'matrix([((2^100)^100)^100],[0],[0])'}
-    for action in (validate, grade):
-        result = action(q, answers)
-        assert result['status'] == 'invalid'
-        assert 'computation bound' in result['inputs']['ans']['feedback']
-
-
-def test_model_preflight_matches_qtest_lowest_terms_conversion():
-    q = question(module("True"))
-    q["inputs"][0]["teacher"] = "2/4"
-    q["inputs"][0]["requirelowestterms"] = True
-    preflight(q, [instantiate(q)])
-
-
-def test_quiet_invalid_result_suppresses_diagnostic_in_python_result():
-    q = question(module("{'valid':False,'correct':False,'feedback':'hidden diagnostic'}"))
-    q["prts"][0]["nodes"][0]["quiet"] = True
-    result = grade(q, {"ans":"3"})
-    assert result["status"] == "invalid"
-    assert result["feedback"] == result["inputs"]["ans"]["feedback"] == "Invalid answer"
-    assert "hidden diagnostic" not in json.dumps(result)
+def test_maxima_library_continuation_uses_same_entry_and_named_assessment():
+    from ctm_checkers.browser import call
+    request = {'backend': 'maxima', 'checker': '',
+        'inputs': {'ans': {'type': 'matrix', 'raw': 'matrix([-2,-3],[1,0],[0,1])',
+                          'canonical': 'matrix([-2,-3],[1,0],[0,1])'}},
+        'teacher': {'ans': 'matrix([-2,-3],[1,0],[0,1])'},
+        'variables': {'unused': 'maxima_only(2)'},
+        'node': {'sans': 'ans', 'tans': 'matrix([1,2,3],[2,4,6])',
+                 'options': {'checker': 'basis', 'options': {'space': 'nullspace'}}}}
+    response = json.loads(call('stack.check', {'_ctm_request': json.dumps(request)}))
+    result = response['result']
+    assert response['ok'] and result['valid'] and result['status'] == 'correct'
+    assert result['score'] == 1
+    assert result['assessment'] == {'ans': {'columns': ['correct', 'correct']}}
+    assert not set(result) & {'implementation', 'note', 'correct'}
+    request['node']['sans'] = 'missing'
+    response = json.loads(call('stack.check', {'_ctm_request': json.dumps(request)}))
+    assert not response['ok'] and response['errorDetail']['kind'] == 'author'

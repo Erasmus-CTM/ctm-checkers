@@ -27,7 +27,9 @@ def message(*names):
 
 
 def question(name, checkers=None):
-    return import_xml(STACK / name, python_checkers=STACK / checkers if checkers else None)[0]
+    import golden_stack
+    return import_xml(STACK / name, **golden_stack.checker_options(
+        {'python_checkers': 'examples/stack/' + checkers} if checkers else {}))[0]
 
 
 # The leak cases of the stack-sympy audit (probes/leak.py): each answer scored
@@ -194,7 +196,8 @@ def test_golden_answer_rows():
             key = (value["file"], value.get("python_checkers"))
             if key not in questions:
                 checkers = value.get("python_checkers")
-                questions[key] = {q["name"]: q for q in import_xml(ROOT / value["file"], python_checkers=ROOT / checkers if checkers else None)}
+                import golden_stack
+                questions[key] = {q["name"]: q for q in import_xml(ROOT / value["file"], **golden_stack.checker_options(value))}
             q = questions[key][value["question"]]
             if key + (q["name"], value["seed"]) not in variants:
                 variants[key + (q["name"], value["seed"])] = instantiate(q, value["seed"])

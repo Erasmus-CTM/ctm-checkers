@@ -286,8 +286,12 @@ def is_logical(value):
     return isinstance(value, (Logical, Equation)) or value in (sp.true, sp.false)
 
 
-def _tokens(source: str) -> list[tuple[str, str, int, int]]:
-    if not isinstance(source, str) or not source.strip() or len(source) > MAX_CHARS:
+def _tokens(source: str, *, written: bool = False) -> list[tuple[str, str, int, int]]:
+    # A validated written form can add explicit multiplication tokens. This
+    # allowance is used only to decode a backend's canonical text, never to
+    # admit learner input. All mathematical/depth limits remain unchanged.
+    expansion = 2 if written else 1
+    if not isinstance(source, str) or not source.strip() or len(source) > MAX_CHARS * expansion:
         raise InvalidAnswer("Empty or oversized expression")
     out = []
     pos = 0
@@ -307,17 +311,17 @@ def _tokens(source: str) -> list[tuple[str, str, int, int]]:
             raise InvalidAnswer("Number too long")
         out.append((kind, value, match.start(kind), match.end(kind)))
         pos = match.end()
-        if len(out) > MAX_TOKENS:
+        if len(out) > MAX_TOKENS * expansion:
             raise InvalidAnswer("Too many tokens")
     out.append(("end", "", len(source), len(source)))
     return out
 
 
 class _Parser:
-    def __init__(self, source: str, insertstars: int = 0):
+    def __init__(self, source: str, insertstars: int = 0, *, written: bool = False):
         if insertstars not in (0, 1):
             raise Unsupported(f"Unsupported insertstars mode {insertstars!r}")
-        self.tokens = _tokens(source)
+        self.tokens = _tokens(source, written=written)
         self.pos = 0
         self.insertstars = insertstars
 
@@ -419,14 +423,59 @@ UNENCAPSULATED_COMMA = ("A comma in your expression appears in a strange way.  C
                         "You need to use a decimal point, not a comma, in floating point numbers.")
 
 
-def parse(text: str, *, insertstars: int = 0) -> Node:
-    parser = _Parser(text, insertstars)
+def parse(text: str, *, insertstars: int = 0, _written: bool = False) -> Node:
+    parser = _Parser(text, insertstars, written=_written)
     node = parser.expression()
     if parser.tokens[parser.pos][0] != "end":
         if parser.tokens[parser.pos][1] == ",":
             raise InvalidAnswer(UNENCAPSULATED_COMMA)
         raise InvalidAnswer("Unexpected trailing text")
     return node
+
+
+def written_text(node: Node) -> str:
+    """Print the parsed operation tree without evaluating or simplifying it."""
+    def precedence(item):
+        if item.kind == 'logical':
+            return LOGIC_PRECEDENCE[item.value]
+        if item.kind == 'equation':
+            return 6
+        if item.kind == 'unary':
+            return 25
+        if item.kind == 'binary':
+            return {'+': 10, '-': 10, '*': 20, '/': 20, '^': 30, '**': 30}[item.value]
+        return 40
+
+    def child(item, parent, *, equal=False):
+        text = written_text(item)
+        return '(' + text + ')' if precedence(item) < parent or (equal and precedence(item) == parent) else text
+
+    if node.kind in {'number', 'name', 'boolean'}:
+        return node.value
+    if node.kind in {'list', 'set'}:
+        opening, closing = ('[', ']') if node.kind == 'list' else ('{', '}')
+        return opening + ','.join(written_text(c) for c in node.children) + closing
+    if node.kind == 'call':
+        return node.value + '(' + ','.join(written_text(c) for c in node.children) + ')'
+    if node.kind == 'index':
+        return child(node.children[0], 40) + '[' + written_text(node.children[1]) + ']'
+    if node.kind == 'unary':
+        return node.value + child(node.children[0], 25)
+    if node.kind == 'logical' and node.value == 'not':
+        return 'not ' + child(node.children[0], 5)
+    if node.kind in {'binary', 'equation', 'logical'}:
+        operator = '^' if node.value == '**' else node.value
+        if node.kind == 'logical':
+            operator = ' ' + operator + ' '
+        power = node.kind == 'binary' and node.value in ('^', '**')
+        left, right = node.children
+        # Power is right associative; every other binary operator is left
+        # associative. Retain even mathematically redundant grouping because
+        # the written tree, not an algebraically simplified value, is the wire.
+        lhs = child(left, precedence(node), equal=power)
+        rhs = child(right, 25 if power and right.kind == 'unary' else precedence(node), equal=not power)
+        return lhs + operator + rhs
+    raise Unsupported('Cannot print written expression: ' + node.kind)
 
 
 def form_latex(node: Node, env: Mapping[str, Any] | None = None) -> str:

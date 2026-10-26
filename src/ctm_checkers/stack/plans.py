@@ -42,7 +42,11 @@ def validate_plan(question, variant):
                      'generalfeedback_html': str, 'specificfeedback_html': str,
                      'questionnote_html': str}, 'variant')
     require(all(type(key) is str and type(value) is str for key, value in variant['env'].items()), 'variant/env')
-    require(bool(question['inputs']) and bool(question['prts']), 'question')
+    require(bool(question['inputs']) and (bool(question['prts']) or bool(question.get('checker'))), 'question')
+    if question.get('checker'):
+        require(type(question['checker']) is str and number(question.get('checker_value', 1))
+                and question.get('checker_value', 1) > 0, 'checker')
+        require(all(p.get('name') != 'checker' for p in question['prts']), 'checker/name')
     for index, inp in enumerate(question['inputs']):
         where = 'input/' + str(index)
         fields(inp, {'name': str, 'type': str, 'teacher': str, 'boxsize': int,

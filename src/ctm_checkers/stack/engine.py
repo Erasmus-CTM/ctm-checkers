@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import html
 import random
 import re
 from decimal import Decimal, ROUND_HALF_EVEN, localcontext
@@ -119,6 +120,13 @@ def _render(question, field, env, inputs, prts):
                            assumptions=_assumptions(question),
                            form_expression=(lambda expr: _qtest_answer(question, expr, env, preserve_form=True))
                            if not question.get("simplify", True) else None)
+
+
+def _feedback_trees(question):
+    trees = {p['name']: p for p in question['prts']}
+    if question.get('checker'):
+        trees['checker'] = {'name': 'checker', 'value': question.get('checker_value', 1)}
+    return trees
 
 
 def _matrix_input_shape(inp, value, teacher):
@@ -244,7 +252,10 @@ def instantiate(question: dict, seed: int = 1) -> dict:
                         if original_form != frozen_form:
                             raise UnsupportedQuestion(name, where, f"assignment {key} loses unsimplified answer form")
         inputmap = {i["name"]: i for i in question["inputs"]}
-        prtmap = {p["name"]: p for p in question["prts"]}
+        prtmap = _feedback_trees(question)
+        if question.get('checker'):
+            from .check import validate_source
+            validate_source(question['checker'])
         for inp in question["inputs"]:
             where = f"input[{inp['name']}]"
             try:
@@ -305,9 +316,10 @@ def instantiate(question: dict, seed: int = 1) -> dict:
                 if node["test"] == "PythonChecker":
                     # A later node may be guarded by an earlier predicate.
                     # Check syntax, not its potentially unsafe teacher value.
-                    from .checkers import checker_spec, validate_descriptor
-                    checker_spec(node["options"])
-                    validate_descriptor(question.get("python_checkers"))
+                    from .check import checker_spec
+                    checker_name, _ = checker_spec(node["options"])
+                    if checker_name == 'check' and not question.get('checker'):
+                        raise Unsupported('PythonChecker check requires a block checker:')
                     parse(node["student"])
                     parse(node["teacher"])
                     for branch in ("true", "false"):
@@ -692,10 +704,8 @@ def grade(question: dict, answers: Mapping[str, str], seed: int = 1, *, variant:
                 if node["test"] == "EqualComAss" and not question.get("simplify", True):
                     teacher = _qtest_answer(question, teacher, env, preserve_form=True)
                 if node["test"] == "PythonChecker":
-                    from .checkers import invoke
-                    result = invoke(question.get("python_checkers"), node["options"],
-                                    student_values[node["student"]],
-                                    evaluate(teacher, penv, assumptions=assumptions))
+                    from .check import invoke_node
+                    result = invoke_node(question, variant, answers, node, penv)
                 else:
                     result = answer_test(node["test"], tested_student, teacher, node["options"],
                                          env=penv, raw=raw_student or (tested_student if isinstance(tested_student, str) else ""), assumptions=assumptions)
@@ -711,8 +721,9 @@ def grade(question: dict, answers: Mapping[str, str], seed: int = 1, *, variant:
                     detail.pop("assessment", None)
                 return {"status": "invalid", "score": 0.0, "inputs": input_results, "prts": prt_results,
                         "feedback": input_results[node["student"]]["feedback"] if node["test"] == "PythonChecker" else result["feedback"]}
-            if node["test"] == "PythonChecker" and "assessment" in result and not node["quiet"]:
-                input_results[node["student"]]["assessment"] = result["assessment"]
+            if node["test"] == "PythonChecker" and result.get('assessment') and not node["quiet"]:
+                for name, assessment in result['assessment'].items():
+                    input_results[name]['assessment'] = assessment
             branch_name = "true" if result["correct"] else "false"
             branch = node[branch_name]
             score = _branch_score(score, branch)
@@ -721,7 +732,7 @@ def grade(question: dict, answers: Mapping[str, str], seed: int = 1, *, variant:
                 rendered = render_castext(branch["feedback"], penv, question["name"],
                                           f"prt[{prt['name']}]/node[{current}]/{branch_name}feedback",
                                           inputs={i["name"]: i for i in question["inputs"]},
-                                          feedback={p["name"]: p for p in question["prts"]}, assumptions=assumptions,
+                                          feedback=_feedback_trees(question), assumptions=assumptions,
                                           form_expression=(lambda expr: _qtest_answer(question, expr, penv, preserve_form=True))
                                           if not question.get("simplify", True) else None)
                 if rendered:
@@ -742,10 +753,29 @@ def grade(question: dict, answers: Mapping[str, str], seed: int = 1, *, variant:
             prt_results[prt["name"]]["messages"] = messages
         if feedback_parts:
             prt_results[prt["name"]]["feedbackParts"] = feedback_parts
-    total_weight = sum(p["value"] for p in question["prts"])
+    if question.get('checker'):
+        from .check import check, wire_request, CheckerError
+        try:
+            result = check(wire_request(question, variant, answers))
+        except CheckerError as error:
+            raise UnsupportedQuestion(question['name'], 'checker', str(error)) from error
+        if not result['valid']:
+            for detail in input_results.values():
+                detail.pop('assessment', None)
+            return {'status': 'invalid', 'score': 0.0, 'inputs': input_results, 'prts': {}, 'feedback': result['feedback']}
+        for name, assessment in result.get('assessment', {}).items():
+            input_results[name]['assessment'] = assessment
+        text = result['feedback']
+        prt_results['checker'] = dict(score=round(result['score'], 10), feedback=html.escape(text),
+            notes=[], note='', path=[])
+        if text:
+            item = message('stack_answer_feedback', text, text=text)
+            prt_results['checker'].update(messages=[item], feedbackParts=[{'message': item}])
+    trees = list(_feedback_trees(question).values())
+    total_weight = sum(p["value"] for p in trees)
     if total_weight <= 0:
         raise UnsupportedQuestion(question["name"], "prts", "total PRT value must be positive")
-    score = sum(p["value"] * prt_results[p["name"]]["score"] for p in question["prts"]) / total_weight
+    score = sum(p["value"] * prt_results[p["name"]]["score"] for p in trees) / total_weight
     return {"status": "graded", "score": round(score, 10), "inputs": input_results, "prts": prt_results,
             "feedback": " ".join(p["feedback"] for p in prt_results.values() if p["feedback"])}
 
@@ -812,4 +842,12 @@ def run_question_tests(question: dict, seeds=(1,), variants=None) -> dict:
             results.append({"testcase": test["testcase"], "seed": variant["seed"],
                             "passed": bool(checks) and all(c["passed"] for c in checks),
                             "inputs": raw, "checks": checks, "expected": test["expected"], "actual": actual})
+        if question.get('authored_tests'):
+            from .authored import run_tests
+            try:
+                authored = run_tests(question, variant)
+            except (AssertionError, ValueError) as error:
+                raise UnsupportedQuestion(question['name'], 'tests', str(error)) from error
+            results.extend({'testcase': row['name'], 'seed': variant['seed'], 'passed': row['passed'],
+                            'checks': [], 'actual': row['actual']} for row in authored)
     return {"passed": all(r["passed"] for r in results), "results": results}
