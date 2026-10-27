@@ -120,9 +120,44 @@ def current_source(payload):
     return dict(payload,file=name.as_posix(),sourceFile=name.as_posix(),source=source,options=options,question=question)
 
 
-def request(payload):
+def request(payload, *, backend=None):
+    if backend is not None:
+        with backend:
+            return _request(payload, backend=backend)
+    return _request(payload)
+
+
+def _bound_record(record, seed, backend_id, authored=None):
+    """Every generated/replayed proof belongs to this backend and seed."""
+    if not isinstance(record,dict):raise VariantError('STACK backend returned a non-record')
+    grading=record.get('snapshot',{}).get('grading',{})
+    data=record.get('data',{})
+    if grading.get('backend')!=backend_id or data.get('backend')!=backend_id:
+        raise VariantError(f'STACK candidate backend mismatch: expected {backend_id}')
+    if type(seed) is not int or not 1<=seed<=2147483647 or record.get('id')!='seed='+str(seed) or data.get('plan',{}).get('seed')!=seed:
+        raise VariantError(f'STACK candidate seed mismatch: expected seed={seed}')
+    if authored:
+        tests=record.get('tests')
+        proof=tests.get('authored',{}) if isinstance(tests,dict) else {}
+        if not isinstance(proof,dict):proof={}
+        rows=proof.get('results',[])
+        if (proof.get('passed') is not True or not isinstance(rows,list)
+            or [row.get('name') for row in rows if isinstance(row,dict)]!=[case['name'] for case in authored]
+            or any(not isinstance(row,dict) or row.get('passed') is not True for row in rows)):
+            raise VariantError(f'{backend_id} backend omitted passing authored-test evidence for seed={seed}')
+    return record
+
+
+def _request(payload, *, backend=None):
     from ctm_checkers.stack.importer import import_xml
-    from ctm_checkers.stack.variants import seed_record,propose,card_data
+    if backend is None:
+        from ctm_checkers.stack.variants import seed_record,propose,card_data
+        run_seed=supervised_seed
+        backend_id='sympy'
+    else:
+        seed_record,propose,card_data=backend.seed_record,backend.propose,backend.card_data
+        run_seed=backend.seed_record
+        backend_id=backend.id
     if type(payload) is not dict or payload.get('version')!=1:raise VariantError('invalid STACK request/version')
     if not isinstance(payload.get('source'),str):raise VariantError('STACK source is required')
     options,question_text=parse_source(payload['source'])
@@ -135,7 +170,8 @@ def request(payload):
     if action!='resolve':
         payload=current_source(payload);options=payload['options']
     if 'seed' in options:raise VariantError('STACK seed: was removed; generate and review variants instead')
-    if options.get('cas',payload.get('backend','sympy'))!='sympy':raise VariantError('the Maxima variant generator is not available yet; Moodle seeds are backend-owned')
+    if options.get('cas',payload.get('backend','sympy'))!=backend_id:
+        raise VariantError(f'STACK backend mismatch: requested {options.get("cas",payload.get("backend","sympy"))}, active {backend_id}')
     root=Path(payload['projectRoot']).resolve()
     source_file=Path(payload.get('sourceFile',payload.get('file','')))
     if source_file.is_absolute():source_file=source_file.relative_to(root)
@@ -148,14 +184,19 @@ def request(payload):
     if len(xml_bytes)>8*1024*1024:raise VariantError('STACK XML exceeds 8 MiB')
     if 'python-checkers' in options:
         raise VariantError('python-checkers: was removed; use checker: with check(response, symbols)')
-    from ctm_checkers.math_exercise.authored import _tests
-    authored = _tests(options['tests']) if 'tests' in options else None
+    authored=None
+    if 'tests' in options:
+        from ctm_checkers.math_exercise.authored import _tests
+        authored=_tests(options['tests'])
     if 'tests' in options and (not isinstance(authored, list) or not authored):
         raise VariantError('STACK tests: must be a nonempty declarative list')
     if 'checker-value' in options and not options.get('checker'):
         raise VariantError('checker-value requires checker:')
-    questions=[q for q in import_xml(xml,checker=options.get('checker'),
-        checker_value=float(options.get('checker-value',1)),tests=authored) if q['name']==options.get('question')]
+    if authored and backend is not None and not getattr(backend,'supports_authored_tests',False):
+        raise VariantError(f'{backend_id} backend does not support authored tests:')
+    questions=([backend.load_question(xml,options.get('question'),options,authored_tests=authored)] if backend is not None else
+        [q for q in import_xml(xml,checker=options.get('checker'),
+        checker_value=float(options.get('checker-value',1)),tests=authored) if q['name']==options.get('question')])
     if len(questions)!=1:raise VariantError('STACK XML must contain exactly one selected question')
     question=questions[0]
     count=int(options.get('variants',25))
@@ -168,22 +209,35 @@ def request(payload):
     if approval not in ('required','optional') or mode not in ('publish','preview','review'):raise VariantError('invalid approval/render mode')
     if action=='resolve-more' and mode!='review':raise VariantError('resolve-more requires explicit review mode')
     records=[];seen=set();deadline=time.monotonic()+120
+    generated_proofs=set()
+    def checked_seed(q,seed,timeout,*,identity=None):
+        kwargs={} if identity is None else {'identity':identity}
+        record=_bound_record(run_seed(q,seed,timeout,**kwargs),seed,backend_id,authored if backend is not None else None)
+        generated_proofs.add(digest(record))
+        return record
+
     for proposal in value['proposals']:
         tape=proposal['tape']
-        if not isinstance(tape,dict) or set(tape)!={'backend','seed'} or tape['backend']!='sympy':raise VariantError('invalid SymPy STACK replay tape')
+        if not isinstance(tape,dict) or set(tape)!={'backend','seed'} or not isinstance(tape['backend'],str):
+            raise VariantError('invalid '+('SymPy' if backend_id=='sympy' else 'Maxima')+' STACK replay tape')
         seed=tape['seed']
+        _bound_record(proposal['record'],seed,tape['backend'])
+        # A backend move preserves decisions, but never replays old CAS tapes.
+        if tape['backend']!=backend_id:continue
         if seed in seen:continue
         if len(seen)>=1000 or time.monotonic()>deadline:raise VariantError('STACK retained replay exceeded its budget')
-        seen.add(seed);record=supervised_seed(question,seed,min(30,max(.01,deadline-time.monotonic())))
+        seen.add(seed);record=checked_seed(question,seed,min(30,max(.01,deadline-time.monotonic())))
         value=_retain(value,record,tape);records.append(record)
     counters={'replayed':len(records)}
     if action in ('generate','resolve-more') or not records and (approval=='optional' or mode!='publish'):
         start=max(seen,default=0)+1
         generated=propose(question,count,start=start,retained=records,attempt_limit=max(100,count*20),elapsed_limit=max(1,deadline-time.monotonic()),
-            resolve_seed=lambda q,s:supervised_seed(q,s,min(30,max(.01,deadline-time.monotonic()))))
+            resolve_seed=lambda q,s:checked_seed(q,s,min(30,max(.01,deadline-time.monotonic()))))
         counters.update(nextSeed=generated['nextSeed'],skipped=generated['skipped'])
         for record in generated['records']:
-            value=_retain(value,record,{'backend':'sympy','seed':record['data']['plan']['seed']});records.append(record)
+            _bound_record(record,record.get('data',{}).get('plan',{}).get('seed'),backend_id,authored if backend is not None else None)
+            if digest(record) not in generated_proofs:raise VariantError(f'{backend_id} propose must use the verified resolve_seed callback')
+            value=_retain(value,record,{'backend':backend_id,'seed':record['data']['plan']['seed']});records.append(record)
     if action in ('decide','decide-many'):
         selections=[payload.get('decision')] if action=='decide' else payload.get('decisions')
         value=apply_decisions(value,records,selections)
@@ -205,16 +259,20 @@ def request(payload):
             'reviewKey':digest([record['id'],record['hash']])})
     payload_data=card_data(question,[r for r in records if r['id'] in selected['ids']],value['decisions'],identifier=label,
         review=options.get('review')=='true' or mode=='review',
-        identity_verifier=lambda q,s,i:supervised_seed(q,s,min(30,max(.01,deadline-time.monotonic())),identity=i))
+        identity_verifier=lambda q,s,i:checked_seed(q,s,min(30,max(.01,deadline-time.monotonic())),identity=i))
     payload_data['common']['reviewCatalog']=bool(review_catalog)
     payload_data['common']['renderMode']=mode
     mutation=action in ('generate','decide','decide-many')
     if (source_path.read_bytes()!=source_bytes or xml.read_bytes()!=xml_bytes):
         raise VariantError('STACK source/XML/checker changed during resolution')
+    native_runtime=backend.runtime_resources() if backend is not None else None
     if mutation:
         fresh=current_source(payload)
         if fresh['source']!=payload['source']:raise VariantError('STACK source changed before saving')
         token=history.write(path,value,base_hash=payload['baseHash'])
-    return {'version':1,'manifest':value,'baseHash':token,'records':output,'deployableIds':selected['ids'],
+    result={'version':1,'manifest':value,'baseHash':token,'records':output,'deployableIds':selected['ids'],
         'warnings':selected['warnings'],'counters':counters,'payload':payload_data,
         'payloadJSON':json.dumps(payload_data,ensure_ascii=True)}
+    if backend is not None:
+        result['nativeRuntime']=native_runtime
+    return result
