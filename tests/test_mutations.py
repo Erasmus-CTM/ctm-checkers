@@ -39,7 +39,7 @@ MUTATIONS = {
     'exact-unreduced': ('math_exercise/checks.py', 'if not _ms.free_symbols and numeric_not_reduced(request["student"]):', 'if False:', 1,
                         (RECORDED,)),
     'status-threshold': ('core/result.py', 'score >= 1.0 - 1e-9', 'score >= 1.0', 1, (RECORDED,)),
-    'namespace-floor-gcd': ('math_exercise/custom.py', 'log10=math.log10, floor=math.floor, gcd=math.gcd', 'log10=math.log10', 1, (RECORDED,)),
+    'namespace-floor-gcd': ('core/namespace.py', 'log10=math.log10, floor=math.floor, gcd=math.gcd', 'log10=math.log10', 1, (RECORDED,)),
     'dunder-string-modes': ('math_exercise/inputs.py', 'if "student" in request and request.get("mode") not in ("string", "string_ci"):',
                             'if "student" in request:', 1, (RECORDED,)),
     'lowest-terms-numeric': ('math_exercise/checks.py', 'if request["form"] == "lowest_terms" and not _ms.free_symbols:', 'if False:', 1,
@@ -125,7 +125,8 @@ MUTATIONS = {
                                  '        for prt in question.get("prts", [])[:1]:\n            names.update(', 1, (STACK,)),
     'stack-assignment-separators': ('stack/expressions.py', 'for stmt in re.split(r"[;\\n]+", source):',
                                     'for stmt in re.split(r"[;]+", source):', 1, (STACK,)),
-    'stack-s01-teacher-answer-names': ('stack/engine.py', '            _teacher_answer_names(question, inp["name"], teacher, env)\n', '', 1,
+    # Both calls: the question check and the author-teacher validation.
+    'stack-s01-teacher-answer-names': ('stack/engine.py', '            _teacher_answer_names(question, inp["name"], teacher, env)\n', '', 2,
                                        (STACK,)),
     # S-02 (0.5.0): E and I are variables; the frozen variants write Euler's
     # number and the imaginary unit as %e and %i (stack/supplement's constants.xml).
