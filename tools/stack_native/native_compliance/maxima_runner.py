@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 
 
-STACK_SHA = "10d323311b7f39fb7b092dd10ce75f7d8632f525"
+STACK_SHA = "33383047af39c204bf4442802a058f8b918b2b1b"
 INPUT_PREPARATION = "stack-logic-nouns-numeric-default-v2"
 # MP_Operation/MP_FunctionCall::toString(nounify=2), security-map.json.
 LOGIC_NOUNS = {"and": "nounand", "or": "nounor", "not": "nounnot"}

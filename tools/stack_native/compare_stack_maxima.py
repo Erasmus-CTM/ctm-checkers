@@ -18,7 +18,7 @@ from pathlib import Path
 import sympy
 
 
-STACK_SHA = "10d323311b7f39fb7b092dd10ce75f7d8632f525"
+STACK_SHA = "33383047af39c204bf4442802a058f8b918b2b1b"
 TESTS = {"AlgEquiv": 2, "EqualComAss": 2, "FacForm": 3, "SingleFrac": 2, "LowestTerms": 2}
 MARKER = re.compile(r"^\s*STACKREF\|([a-z][a-z0-9_]*)\|(true|false)\|(true|false)\s*$", re.M)
 CASE_ID = re.compile(r"[a-z][a-z0-9_]*\Z")

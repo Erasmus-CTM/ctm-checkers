@@ -177,6 +177,6 @@ def test_the_data_is_stacks():
 
 
 def test_the_data_is_from_the_pinned_stack():
-    assert stack_data.STACK_COMMIT == "10d323311b7f39fb7b092dd10ce75f7d8632f525"
+    assert stack_data.STACK_COMMIT == "33383047af39c204bf4442802a058f8b918b2b1b"
     assert {"alpha", "theta", "pi", "e", "i", "%e", "%i", "inf"} <= stack_data.READABLE
     assert "ln" in stack_data.SHORT_FUNCTIONS and "asin" in stack_data.CALLABLE

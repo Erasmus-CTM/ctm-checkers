@@ -2,10 +2,10 @@
   "schema_version": 1,
   "upstream": {
     "repository": "maths/moodle-qtype_stack",
-    "commit": "10d323311b7f39fb7b092dd10ce75f7d8632f525",
+    "commit": "33383047af39c204bf4442802a058f8b918b2b1b",
     "path": "tests/fixtures/answertestfixtures.class.php",
     "sha256": "db3eac5a85ec2d479b4b78a391995de32b8f956af99fa118791f5c81236b978f",
-    "source_url": "https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/tests/fixtures/answertestfixtures.class.php"
+    "source_url": "https://github.com/maths/moodle-qtype_stack/blob/33383047af39c204bf4442802a058f8b918b2b1b/tests/fixtures/answertestfixtures.class.php"
   },
   "inventory": {
     "total_rows": 2303,
