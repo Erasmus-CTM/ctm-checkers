@@ -33,7 +33,8 @@ All **6,193 existing STACK golden rows reproduce exactly from both source and
 the actual built wheels**. No golden files or expected verdicts were changed.
 Historical policy/evidence links retain their original old-pin provenance.
 
-The upstream native library itself is not byte-identical: assessment.mac
+The upstream native library itself is not byte-identical: 17 Maxima source/test
+files changed, recorded by the audit. Examples include assessment.mac, which
 removes right-associative declarations for nounand/nounor; stackmaxima.mac
 adds display support for unevaluated matrix calls and updates the library
 version to 2026101500. The existing native PHP/Maxima and Pyodide/reference

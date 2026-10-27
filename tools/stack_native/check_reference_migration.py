@@ -71,9 +71,12 @@ def audit(stack):
     after_baseline = json.loads((ROOT / 'examples/stack/corpus/baseline.json').read_bytes())
     for key in ('summary', 'questions', 'timeout_seconds_per_file', 'seed_policy'):
         assert before_baseline[key] == after_baseline[key], 'Corpus replay changed: ' + key
+    changed_maxima = subprocess.check_output(
+        ['git', '-C', str(stack), 'diff', '--name-only', BEFORE, AFTER, '--', 'stack/maxima'], text=True).splitlines()
     return {'schema': 1, 'before': BEFORE, 'after': AFTER, 'base': BASE,
             'identicalSources': records, 'fixtureRows': len(after_fixture['cases']),
-            'corpus': corpus, 'sameCorpusReplay': True, 'passed': True}
+            'corpus': corpus, 'sameCorpusReplay': True,
+            'changedMaximaSourcesAndTests': changed_maxima, 'passed': True}
 
 
 if __name__ == '__main__':
