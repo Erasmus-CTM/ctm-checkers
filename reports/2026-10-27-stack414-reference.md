@@ -29,6 +29,13 @@ known failures, three unsupported imports and eight unsupported instantiations.
 The 162 replay cases, failed checks and complete per-question results are
 unchanged. Only the recorded engine/source fingerprint and environment change.
 
+The legacy-copy guard retains exact byte checks. A frozen 41-file before/after
+hash receipt admits only this migration's 35 exports, four teaching copies,
+corpus manifest and fixture provenance update. Its own digest is fixed in the
+test. Mutations to source, metadata or old capture bytes are rejected. The
+native audit binds all before hashes to the exact checker baseline and all
+new exports to the new upstream commit; teaching-copy models are unchanged.
+
 All **6,193 existing STACK golden rows reproduce exactly from both source and
 the actual built wheels**. No golden files or expected verdicts were changed.
 Historical policy/evidence links retain their original old-pin provenance.

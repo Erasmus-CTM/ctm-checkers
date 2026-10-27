@@ -71,11 +71,27 @@ def audit(stack):
     after_baseline = json.loads((ROOT / 'examples/stack/corpus/baseline.json').read_bytes())
     for key in ('summary', 'questions', 'timeout_seconds_per_file', 'seed_policy'):
         assert before_baseline[key] == after_baseline[key], 'Corpus replay changed: ' + key
+    receipt = json.loads((ROOT / 'tests/stack/native_compliance/reference-migration.json').read_bytes())
+    assert receipt['checkerBase'] == BASE and receipt['before'] == BEFORE and receipt['after'] == AFTER
+    expected_paths = {'examples/stack/corpus/' + row['file'] for row in manifest['questions']}
+    expected_paths |= {'examples/stack/corrected/' + p.name for p in (ROOT / 'examples/stack/corrected').glob('*.xml')}
+    expected_paths |= {'examples/stack/corpus/manifest.json', fixture_path}
+    assert set(receipt['files']) == expected_paths and len(expected_paths) == 41
+    for name, entry in receipt['files'].items():
+        old_bytes, new_bytes = blob(ROOT, BASE, name), (ROOT / name).read_bytes()
+        assert hashlib.sha256(old_bytes).hexdigest() == entry['beforeSha256'], name
+        assert hashlib.sha256(new_bytes).hexdigest() == entry['afterSha256'], name
+        if name.startswith('examples/stack/corrected/'):
+            assert structure(ET.fromstring(old_bytes)) == structure(ET.fromstring(new_bytes)), name
+            assert model(old_bytes) == model(new_bytes), name
+            upstream = ET.fromstring((ROOT / 'examples/stack/corpus' / Path(name).name).read_bytes())
+            corrected = ET.fromstring(new_bytes)
+            assert ET.tostring(corrected.find('question/metadata')) == ET.tostring(upstream.find('question/metadata')), name
     changed_maxima = subprocess.check_output(
         ['git', '-C', str(stack), 'diff', '--name-only', BEFORE, AFTER, '--', 'stack/maxima'], text=True).splitlines()
     return {'schema': 1, 'before': BEFORE, 'after': AFTER, 'base': BASE,
             'identicalSources': records, 'fixtureRows': len(after_fixture['cases']),
-            'corpus': corpus, 'sameCorpusReplay': True,
+            'corpus': corpus, 'sameCorpusReplay': True, 'frozenMigrationFiles': len(expected_paths),
             'changedMaximaSourcesAndTests': changed_maxima, 'passed': True}
 
 
