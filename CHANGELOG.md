@@ -8,6 +8,14 @@ diff (docs/goldens.md).
 
 ## 0.12.0 (Unreleased)
 
+- **Native reference / M4a:** align input-security data, official fixtures,
+  native oracle and the 35-question corpus with STACK 4.14.0 (`3338304`), the
+  source-loaded library of runtime-v3. Input data and all 2,303 fixture rows
+  are unchanged. Corpus XML updates carry upstream metadata only; teaching
+  corrections are preserved. Existing grading goldens are retained and
+  replayed. Prepared backend metadata now reports the new exact STACK pin;
+  source-bound variant hashes require the ordinary review process again.
+
 ### Grading changes
 
 - **H1 / step 6:** STACK `checker:` uses `core/custom.py` and the common
