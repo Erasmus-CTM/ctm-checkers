@@ -19,8 +19,9 @@ def test_only_default_tests_run_automatically():
     for name, workflow in workflows().items():
         events = workflow["on"]
         if name == "test.yml":
-            assert set(events) == {"push", "pull_request", "workflow_dispatch"}
+            assert set(events) == {"push", "pull_request", "schedule", "workflow_dispatch"}
             assert events["push"]["branches"] == ["main"]
+            assert len(events["schedule"]) == 1
         else:
             expected = {"workflow_dispatch", "workflow_call"} if name == "native-stack.yml" else {"workflow_dispatch"}
             assert set(events) == expected
@@ -45,25 +46,30 @@ def test_default_gate_keeps_full_source_wheel_and_release_checks():
     assert "github.event_name == 'workflow_dispatch'" in matrix
     assert "inputs.confirmation == 'broad testing campaign'" in matrix
     assert "'[\"3.9\",\"3.10\",\"3.11\",\"3.12\",\"3.13\"]' || '[\"3.12\"]'" in matrix
+    assert workflows()["test.yml"]["concurrency"]["cancel-in-progress"] == "${{ github.ref != 'refs/heads/main' }}"
     steps = {step.get("name"): step for step in job["steps"]}
     assert steps["Tests (src/)"]["run"] == "pytest -q tests"
     wheel = steps["Tests (the built wheels)"]
     assert "CTM_CHECKERS_WHEEL=" in wheel["run"] and "pytest -q tests" in wheel["run"]
     for name in ["Tests (src/)", "Tests (the built wheels)",
                  "The generated extension folder matches src/; the releases of the base branch are unchanged",
+                 "The built wheels reproduce the golden tables",
                  "The wheels install with pip"]:
         assert "if" not in steps[name]
+    assert steps["The built wheels reproduce the golden tables"]["run"] == \
+        "python tools/golden.py verify --adapter wheel --variants _ci/math-exercise"
     assert steps["A pull request that changes golden rows follows the rules of grading changes (H2, names, version, CHANGELOG)"]["if"] == "github.event_name == 'pull_request'"
 
 
-def test_goldens_mutations_and_duplicate_matrices_are_manual_only():
+def test_legacy_goldens_and_mutations_run_nightly_or_by_campaign_only():
     data = workflows()
     steps = data["test.yml"]["jobs"]["python"]["steps"]
-    broad = [step for step in steps if "golden.py verify" in step.get("run", "")
+    broad = [step for step in steps if "--adapter legacy" in step.get("run", "")
              or "CTM_MUTATION_TESTS=1" in step.get("run", "")]
-    assert len(broad) == 3
+    assert len(broad) == 2
     for step in broad:
-        assert step["if"] == "github.event_name == 'workflow_dispatch' && inputs.confirmation == 'broad testing campaign'"
+        assert step["if"] == ("github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch'"
+                              " && inputs.confirmation == 'broad testing campaign')")
     for name, workflow in data.items():
         if name in {"test.yml", "native-stack.yml"}:
             continue
