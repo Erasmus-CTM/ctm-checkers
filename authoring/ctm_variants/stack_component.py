@@ -143,6 +143,7 @@ def _bound_record(record, seed, backend_id, authored=None):
         rows=proof.get('results',[])
         identity={key:record.get(key) for key in ('id','hash')}
         if (proof.get('passed') is not True or proof.get('candidate')!=identity or not isinstance(rows,list)
+            or len(rows)!=len(authored)
             or [row.get('name') for row in rows if isinstance(row,dict)]!=[case['name'] for case in authored]
             or any(not isinstance(row,dict) or row.get('passed') is not True
                 or row.get('candidate')!=identity or row.get('declaration')!=case
@@ -197,7 +198,7 @@ def _request(payload, *, backend=None):
         raise VariantError('checker-value requires checker:')
     if authored and backend is not None and not getattr(backend,'supports_authored_tests',False):
         raise VariantError(f'{backend_id} backend does not support authored tests:')
-    questions=([backend.load_question(xml,options.get('question'),options,authored_tests=authored)] if backend is not None else
+    questions=([backend.load_question(xml,options.get('question'),options,authored_tests=copy.deepcopy(authored))] if backend is not None else
         [q for q in import_xml(xml,checker=options.get('checker'),
         checker_value=float(options.get('checker-value',1)),tests=authored) if q['name']==options.get('question')])
     if len(questions)!=1:raise VariantError('STACK XML must contain exactly one selected question')

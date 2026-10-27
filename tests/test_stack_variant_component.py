@@ -272,6 +272,7 @@ def test_runtime_resources_are_checked_before_writing_history(tmp_path):
     lambda p:p['results'][0].update(candidate={'id':'seed=2','hash':'0'*16}),
     lambda p:p['results'][0].pop('declaration'),
     lambda p:p['results'][0]['declaration'].update(expect='wrong'),
+    lambda p:p['results'].append(None),
 ])
 def test_native_authored_evidence_is_bound_on_generation_and_replay(tmp_path,mutate):
     p=native_payload(tmp_path);p['source']+='\n#| tests: |\n#|   - name: teacher\n#|     answers: {ans: 1}\n#|     expect: correct'
@@ -305,3 +306,15 @@ def test_malformed_replay_tape_names_the_active_backend(tmp_path,monkeypatch):
     monkeypatch.setattr(history,'load',lambda *_:(broken,generated['baseHash']))
     with pytest.raises(ValueError,match='invalid STACK replay tape for backend maxima'):
         request(dict(p,renderMode='review'),backend=NativeStub())
+
+
+def test_backend_cannot_mutate_the_current_declaration_through_load_question(tmp_path):
+    class MutatingStub(NativeStub):
+        def load_question(self,*args,**kwargs):
+            q=super().load_question(*args,**kwargs)
+            q['tests'][0]['answers']['ans']='changed'
+            return q
+    p=native_payload(tmp_path);p['source']+='\n#| tests: |\n#|   - name: teacher\n#|     answers: {ans: 1}\n#|     expect: correct'
+    p['options'],p['question']=parse_source(p['source'])
+    with pytest.raises(ValueError,match='bound to the current candidate/declarations'):
+        request(dict(p,renderMode='review'),backend=MutatingStub())
