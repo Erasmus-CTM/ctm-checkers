@@ -141,10 +141,13 @@ def _bound_record(record, seed, backend_id, authored=None):
         proof=tests.get('authored',{}) if isinstance(tests,dict) else {}
         if not isinstance(proof,dict):proof={}
         rows=proof.get('results',[])
-        if (proof.get('passed') is not True or not isinstance(rows,list)
+        identity={key:record.get(key) for key in ('id','hash')}
+        if (proof.get('passed') is not True or proof.get('candidate')!=identity or not isinstance(rows,list)
             or [row.get('name') for row in rows if isinstance(row,dict)]!=[case['name'] for case in authored]
-            or any(not isinstance(row,dict) or row.get('passed') is not True for row in rows)):
-            raise VariantError(f'{backend_id} backend omitted passing authored-test evidence for seed={seed}')
+            or any(not isinstance(row,dict) or row.get('passed') is not True
+                or row.get('candidate')!=identity or row.get('declaration')!=case
+                for row,case in zip(rows,authored))):
+            raise VariantError(f'{backend_id} backend omitted passing authored-test evidence bound to the current candidate/declarations for seed={seed}')
     return record
 
 
@@ -219,11 +222,14 @@ def _request(payload, *, backend=None):
     for proposal in value['proposals']:
         tape=proposal['tape']
         if not isinstance(tape,dict) or set(tape)!={'backend','seed'} or not isinstance(tape['backend'],str):
-            raise VariantError('invalid '+('SymPy' if backend_id=='sympy' else 'Maxima')+' STACK replay tape')
+            raise VariantError(f'invalid STACK replay tape for backend {backend_id}')
         seed=tape['seed']
         _bound_record(proposal['record'],seed,tape['backend'])
         # A backend move preserves decisions, but never replays old CAS tapes.
-        if tape['backend']!=backend_id:continue
+        if tape['backend']!=backend_id:
+            if (tape['backend'],backend_id)!=('sympy','maxima'):
+                raise VariantError(f'STACK backend moves are one-way (sympy to maxima): cannot move {tape["backend"]} to {backend_id}; use a new label/history')
+            continue
         if seed in seen:continue
         if len(seen)>=1000 or time.monotonic()>deadline:raise VariantError('STACK retained replay exceeded its budget')
         seen.add(seed);record=checked_seed(question,seed,min(30,max(.01,deadline-time.monotonic())))
