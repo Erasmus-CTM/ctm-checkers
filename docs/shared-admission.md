@@ -69,7 +69,7 @@ S-01 contexts, prototype-property names, controls/Unicode, syntax bounds,
 form-sensitive grouping and seeded expression/malformed-input cases. The
 comparison covers status, exact message, normalized text, AST and canonical
 form; it does not mistake an admission result for a golden grading verdict.
-The dedicated workflow runs Node 22/24 and Chromium/Firefox/WebKit, then
+The manually gated acceptance workflow runs Node 22/24 and Chromium/Firefox/WebKit, then
 publishes comparison counts and the deterministic vector digest. No server,
 CAS, model or external service participates in JS admission tests.
 
@@ -84,3 +84,6 @@ CTM_ADMISSION_BROWSER=all pytest -q tests/stack/test_shared_admission.py
 
 Use `CTM_CHECKERS_WHEEL` as in the normal wheel test job to test installed
 wheel resources. `CTM_ADMISSION_REPORT=/path/to/results` writes audit JSON.
+The default Python 3.12 source/wheel gate includes Node conformance; the
+additional runtime/browser acceptance follows `docs/ci-policy.md` and does
+not add an automatic compatibility matrix.

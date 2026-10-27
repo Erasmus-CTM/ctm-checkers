@@ -1,21 +1,23 @@
 name: Shared STACK admission
 on:
-  pull_request:
-    paths:
-      - 'src/ctm_checkers/stack/**'
-      - 'tools/build.py'
-      - 'tools/stack_native/admission_data.py'
-      - 'tests/stack/test_shared_admission.py'
-      - 'tests/stack/test_input_text.py'
-      - 'tests/golden/stack/**'
-      - '_extensions/ctm-checkers/**'
-      - '.github/workflows/admission.yml'
-  push:
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'AC authorization: enter broad testing campaign'
+        required: true
+        type: string
 permissions:
   contents: read
 jobs:
+  authorize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate acceptance campaign authorization
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: test "$CONFIRMATION" = 'broad testing campaign'
   conformance:
+    needs: authorize
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:

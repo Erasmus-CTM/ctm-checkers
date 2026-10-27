@@ -182,8 +182,10 @@ def test_actual_browser_bundle_admission(vectors, browser_name):
             page = browser.new_page()
             page.add_script_tag(content=payload(vectors)['bundle'])
             # No server, Pyodide, CAS or remote module participates in admission.
-            actual = page.evaluate('(cases) => cases.map(c => CTMCheckersStack.admission.admitExpression(c.raw, c.options))',
-                                   payload(vectors)['cases'])
+            # The wire is JSON. Playwright's object-graph codec has a shallower
+            # reference-chain limit than the admitted flat expression trees.
+            actual = json.loads(page.evaluate('(cases) => JSON.stringify(cases.map(c => CTMCheckersStack.admission.admitExpression(c.raw, c.options)))',
+                                             payload(vectors)['cases']))
             compare(actual, vectors, browser_name)
         finally:
             browser.close()
