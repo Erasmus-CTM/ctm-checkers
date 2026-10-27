@@ -20,7 +20,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 UPSTREAM = ROOT.parent / "stack-upstream"
 SOURCE_PATH = "tests/fixtures/answertestfixtures.class.php"
-COMMIT = "10d323311b7f39fb7b092dd10ce75f7d8632f525"
+COMMIT = "33383047af39c204bf4442802a058f8b918b2b1b"
 REPOSITORY = "maths/moodle-qtype_stack"
 OUTPUT = ROOT / "tests/stack/native_compliance/fixtures.json"
 MAX_SOURCE_BYTES = 2_000_000

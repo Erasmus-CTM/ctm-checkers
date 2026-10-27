@@ -1,7 +1,7 @@
 """STACK's rules for the text of a student's answer (S-13), with STACK's
 messages, before the answer is parsed (expressions.parse).
 
-STACK (10d3233) validates an answer in PHP before Maxima sees it
+STACK (3338304) validates an answer in PHP before Maxima sees it
 (stack/maximaparser/corrective_parser.php, stack/cas/parsingrules/): it
 replaces known Unicode symbols and letters (π: pi, α: alpha, −: -, ×: *),
 rejects other characters outside its ASCII set (x²: "CAS commands may not

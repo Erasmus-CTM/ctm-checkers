@@ -22,7 +22,7 @@ permissions:
 
 env:
   STACK_REPOSITORY: maths/moodle-qtype_stack
-  STACK_COMMIT: 10d323311b7f39fb7b092dd10ce75f7d8632f525
+  STACK_COMMIT: 33383047af39c204bf4442802a058f8b918b2b1b
 
 jobs:
   authorize:
@@ -97,6 +97,17 @@ jobs:
           python -m pip install -r ci/requirements.txt
       - name: The data of STACK's input rules is STACK's (S-13)
         run: python tools/stack_native/stack_input_data.py --stack-source .stack-upstream-reference --check
+      - name: Audit the STACK 4.14 reference migration against original source
+        run: |
+          git fetch --no-tags --depth=1 origin aae41a65ad29cf7db50e3381a6b3a8e962da2fa6
+          git -C .stack-upstream-reference fetch --no-tags --depth=1 origin 10d323311b7f39fb7b092dd10ce75f7d8632f525
+          python tools/stack_native/check_reference_migration.py --stack-source .stack-upstream-reference --out test-results/compliance/reference-migration.json
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: stack-reference-migration
+          path: test-results/compliance/reference-migration.json
+          if-no-files-found: warn
       - name: The golden answers against STACK's own input validation (S-01, S-13; PHP, no Maxima)
         run: python tools/stack_native/check_validation.py --stack-source .stack-upstream-reference --out test-results/compliance/validation.json
       - uses: actions/upload-artifact@v7

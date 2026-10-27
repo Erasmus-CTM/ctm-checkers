@@ -220,6 +220,38 @@ def test_stack_rows_name_files_here_and_course_material_only_in_its_table():
 LEGACY_STACK = os.environ.get('CTM_LEGACY_STACK_SYMPY')
 
 
+def reference_migration_receipt():
+    data = (golden.ROOT / 'tests/stack/native_compliance/reference-migration.json').read_bytes()
+    # A frozen before/after allowance, not a general exemption for metadata or
+    # source changes. The native audit binds every entry to exact Git blobs.
+    assert hashlib.sha256(data).hexdigest() == 'fbef378def0d45b237b71f5de63366fdc60c6f454ffe1c667dbe2dbfd2d83a27'
+    result = json.loads(data)
+    assert result['before'] == '10d323311b7f39fb7b092dd10ce75f7d8632f525'
+    assert result['after'] == '33383047af39c204bf4442802a058f8b918b2b1b'
+    assert len(result['files']) == 41
+    return result['files']
+
+
+def assert_migrated_input(before, after, entry):
+    assert hashlib.sha256(before).hexdigest() == entry['beforeSha256']
+    assert hashlib.sha256(after).hexdigest() == entry['afterSha256']
+
+
+def test_reference_migration_allowance_rejects_changed_source_and_metadata():
+    import re
+    entries = reference_migration_receipt()
+    name = 'examples/stack/corpus/AlgMap-1-5.xml'
+    after = (golden.ROOT / name).read_bytes()
+    before = re.sub(rb'    <prescribedmetadata/>\n    <metadata>.*?    </metadata>\n', b'', after, flags=re.S)
+    assert_migrated_input(before, after, entries[name])
+    for forged in (after + b'\n', after.replace(b'Tony', b'Forged'), after.replace(b'<defaultgrade>1', b'<defaultgrade>2')):
+        assert forged != after
+        with pytest.raises(AssertionError):
+            assert_migrated_input(before, forged, entries[name])
+    with pytest.raises(AssertionError):
+        assert_migrated_input(before + b'\n', after, entries[name])
+
+
 @pytest.mark.skipif(not LEGACY_STACK, reason='needs CTM_LEGACY_STACK_SYMPY (stack-sympy at the commit in tools/pins.json)')
 def test_stack_inputs_are_stack_sympys():
     # examples/stack/ is stack-sympy's questions/ (the STACK question XML has one home here now) and
@@ -229,6 +261,7 @@ def test_stack_inputs_are_stack_sympys():
     # the READMEs name the paths here, and since S-13 (0.6.0) the compliance policy has three
     # more rows in its scope.
     legacy = Path(LEGACY_STACK).resolve()
+    migration = reference_migration_receipt()
     pairs = [(legacy / 'questions', golden.ROOT / 'examples' / 'stack'),
              (legacy / 'tests' / 'native_compliance', golden.ROOT / 'tests' / 'stack' / 'native_compliance'),
              (legacy / 'tests' / 'port_regressions', golden.ROOT / 'tests' / 'stack' / 'port_regressions')]
@@ -250,6 +283,10 @@ def test_stack_inputs_are_stack_sympys():
                         assert functions[node.name] == ast.dump(node), node.name
                 continue
             here = (new / relative).read_bytes()
+            migrated = (new / relative).relative_to(golden.ROOT).as_posix()
+            if migrated in migration:
+                assert_migrated_input(path.read_bytes(), here, migration[migrated])
+                continue
             if relative.as_posix() == 'checkers.py':
                 # H1's scalar example binds the same student/divisor from the
                 # common response, then keeps the original mathematical rule.

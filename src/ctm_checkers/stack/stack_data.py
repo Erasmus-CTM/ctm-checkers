@@ -1,6 +1,6 @@
 """STACK's data for its input rules (S-13).
 
-This is data of STACK (https://github.com/maths/moodle-qtype_stack), commit 10d323311b7f:
+This is data of STACK (https://github.com/maths/moodle-qtype_stack), commit 33383047af39:
 stack/cas/security-map.json, stack/maximaparser/unicode/symbols-stack.json and
 letters-stack.json, changed into Python literals (sorted, one entry a line) by
 tools/stack_native/stack_input_data.py of ctm-checkers (first generated on 21 October
@@ -16,7 +16,7 @@ ctm-checkers is AGPL-3.0-or-later; it combines with this GPL-3.0-or-later data u
 section 13 of both licences. The STACK wheel is distributed under both
 (AGPL-3.0-or-later AND GPL-3.0-or-later)."""
 
-STACK_COMMIT = '10d323311b7f39fb7b092dd10ce75f7d8632f525'
+STACK_COMMIT = '33383047af39c204bf4442802a058f8b918b2b1b'
 
 # Identifiers a student may use as variables or constants (security "s").
 READABLE = frozenset((

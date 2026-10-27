@@ -45,7 +45,7 @@ def validate_manifest(manifest_path: Path = MANIFEST, *, verify_upstream: bool =
     """Check every byte digest and native export field before testing semantics."""
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["repository"] == "maths/moodle-qtype_stack"
-    assert manifest["commit"] == "10d323311b7f39fb7b092dd10ce75f7d8632f525"
+    assert manifest["commit"] == "33383047af39c204bf4442802a058f8b918b2b1b"
     assert manifest["source_base_url"].endswith("/" + manifest["commit"] + "/")
     assert manifest["license"]
     entries = manifest["questions"]

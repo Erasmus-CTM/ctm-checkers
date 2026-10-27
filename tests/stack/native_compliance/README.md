@@ -2,8 +2,8 @@
 
 `fixtures.json` transcribes **all 2,303 rows** of the static
 `stack_answertest_test_data::$rawdata` array from
-[`tests/fixtures/answertestfixtures.class.php`](https://github.com/maths/moodle-qtype_stack/blob/10d323311b7f39fb7b092dd10ce75f7d8632f525/tests/fixtures/answertestfixtures.class.php)
-at upstream commit `10d323311b7f39fb7b092dd10ce75f7d8632f525`. The JSON
+[`tests/fixtures/answertestfixtures.class.php`](https://github.com/maths/moodle-qtype_stack/blob/33383047af39c204bf4442802a058f8b918b2b1b/tests/fixtures/answertestfixtures.class.php)
+at upstream commit `33383047af39c204bf4442802a058f8b918b2b1b`. The JSON
 records the source byte SHA-256, original row order and source line, all seven
 standard positional fields, and any trailing positional fields. The 2,303
 rows span 41 distinct answer-test names. The expected score includes upstream
