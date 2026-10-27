@@ -1,12 +1,16 @@
 name: Tests
 
-# Default PR/main gate: Python 3.12, source and actual-wheel tests, canonical
-# payload/release/changelog checks and pip installation. Explicitly authorized
-# manual campaigns retain all five versions, golden replays and mutations.
+# Default PR/main gate: Python 3.12, source and actual-wheel tests, the built
+# wheels against the golden tables (under a minute), canonical
+# payload/release/changelog checks and pip installation. The nightly run adds
+# the legacy golden replay and the mutations. Explicitly authorized manual
+# campaigns retain all five versions.
 on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: '30 2 * * *'
   workflow_dispatch:
     inputs:
       confirmation:
@@ -19,13 +23,15 @@ permissions:
 
 concurrency:
   group: ctm-checkers-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # A newer push replaces a branch run; every main run completes.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   python:
     name: Python ${{ matrix.python }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # The nightly mutations take about 30 minutes.
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -96,14 +102,13 @@ jobs:
         run: |
           folder="$PWD/_extensions/ctm-checkers"
           CTM_CHECKERS_WHEEL="$folder/$(jq -r .wheel "$folder/checkers.json"):$folder/$(jq -r .parts.stack.wheel "$folder/checkers.json")" pytest -q tests
-      - name: The legacy code reproduces the golden tables
-        if: github.event_name == 'workflow_dispatch' && inputs.confirmation == 'broad testing campaign'
-        run: python tools/golden.py verify --adapter legacy --legacy _ci/math-exercise --stack-legacy _ci/stack-sympy
       - name: The built wheels reproduce the golden tables
-        if: github.event_name == 'workflow_dispatch' && inputs.confirmation == 'broad testing campaign'
         run: python tools/golden.py verify --adapter wheel --variants _ci/math-exercise
+      - name: The legacy code reproduces the golden tables
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.confirmation == 'broad testing campaign')
+        run: python tools/golden.py verify --adapter legacy --legacy _ci/math-exercise --stack-legacy _ci/stack-sympy
       - name: The golden tables fail on mutations of the checks
-        if: github.event_name == 'workflow_dispatch' && inputs.confirmation == 'broad testing campaign'
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.confirmation == 'broad testing campaign')
         run: CTM_MUTATION_TESTS=1 pytest -q -rA tests/test_mutations.py
       - name: The wheels install with pip
         run: |
