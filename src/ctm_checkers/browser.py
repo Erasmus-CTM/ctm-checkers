@@ -32,6 +32,7 @@ CALLS = {
     "stack.grade": ("ctm_checkers.stack.page:grade", None),
     "stack.tests": ("ctm_checkers.stack.page:tests", None),
     "stack.check": ("ctm_checkers.stack.page:check", None),
+    # Named observations must match the current candidate id/hash.
     "stack.test-results": ("ctm_checkers.stack.page:test_results", None),
 }
 

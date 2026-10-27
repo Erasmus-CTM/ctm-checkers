@@ -408,7 +408,12 @@ original and generated results.
 ### Native declarative test result verification
 
 `stack.test-results` accepts `tests` (1–100 shared declarative cases), unique
-input `fields`, and one computed grading `results` mapping per case. It returns
+input `fields`, a current `candidate: {id, hash}`, and one computed grading
+`results` mapping per case. Each result must carry the same candidate, its
+unique declaration `name`, a supported status and a finite numeric score.
+Names/order and candidate identity must match; stale/other-seed/reordered
+observations are rejected. The candidate is echoed in the envelope result and
+every verified case. It returns
 `{passed: true, results: [...]}` in the ordinary STACK envelope after the common
 expectation verifier passes. Assertion/shape failures are author errors. It
 never evaluates authored answer expressions or calls a mathematical grader;

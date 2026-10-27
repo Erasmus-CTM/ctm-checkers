@@ -69,7 +69,7 @@ def check(request):
 
 
 def test_results(request):
-    """Shared expectation contract for already evaluated native test results."""
+    """Verify named, candidate-bound observations using shared expectations."""
     from .native_tests import run as verify
     def run():
         try:return verify(request)
