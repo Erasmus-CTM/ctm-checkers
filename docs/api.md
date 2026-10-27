@@ -404,3 +404,13 @@ expressions still pass strict mathematical AST admission; model/candidate/key
 computation requests never set the learner flag. Python names, strings, dunders
 and attribute access remain excluded. The same grading options determine both
 original and generated results.
+
+### Native declarative test result verification
+
+`stack.test-results` accepts `tests` (1–100 shared declarative cases), unique
+input `fields`, and one computed grading `results` mapping per case. It returns
+`{passed: true, results: [...]}` in the ordinary STACK envelope after the common
+expectation verifier passes. Assertion/shape failures are author errors. It
+never evaluates authored answer expressions or calls a mathematical grader;
+resolving inputs and grading each case belong to the native backend. It is a
+test/evidence operation, not a learner grading endpoint.

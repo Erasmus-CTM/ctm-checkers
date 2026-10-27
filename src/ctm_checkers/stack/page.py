@@ -66,3 +66,13 @@ def check(request):
         except CheckerError as error:
             raise UnsupportedQuestion(request.get('questionName', 'STACK checker'), 'checker', str(error)) from error
     return _envelope(run)
+
+
+def test_results(request):
+    """Shared expectation contract for already evaluated native test results."""
+    from .native_tests import run as verify
+    def run():
+        try:return verify(request)
+        except (ValueError,AssertionError) as error:
+            raise UnsupportedQuestion(request.get('questionName','STACK tests'),'tests',str(error)) from error
+    return _envelope(run)

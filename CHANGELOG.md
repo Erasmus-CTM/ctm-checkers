@@ -8,6 +8,12 @@ diff (docs/goldens.md).
 
 ## 0.12.0 (Unreleased)
 
+- **M4d:** add the result-only `stack.test-results` endpoint. Native backends
+  resolve authored answers and run their actual grader, then pass results to
+  the existing common declarative expectation verifier. The endpoint never
+  evaluates expressions, instantiates questions or grades mathematics.
+  Existing verdicts and grading goldens are unchanged.
+
 - **M4a input admission:** add a pin-bound, synchronous JavaScript expression
   admission API to the STACK payload and actual wheel resources. Node and
   browser workers use the same implementation for Unicode/text rules, the
