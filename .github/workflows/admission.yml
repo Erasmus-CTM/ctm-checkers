@@ -1,0 +1,57 @@
+name: Shared STACK admission
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'AC authorization: enter broad testing campaign'
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  authorize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate acceptance campaign authorization
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: test "$CONFIRMATION" = 'broad testing campaign'
+  conformance:
+    needs: authorize
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+      - run: pip install -r ci/requirements.txt
+      - if: matrix.node == 24
+        run: pip install playwright==1.58.0
+      - if: matrix.node == 24
+        run: python -m playwright install --with-deps chromium firefox webkit
+      - name: Source admission compared with the existing Python boundary
+        env:
+          CTM_ADMISSION_BROWSER: ${{ matrix.node == 24 && 'all' || '' }}
+          CTM_ADMISSION_REPORT: test-results/admission/source
+        run: pytest -q tests/stack/test_shared_admission.py
+      - name: Actual wheel resources and published payload compared with Python
+        env:
+          CTM_ADMISSION_BROWSER: ${{ matrix.node == 24 && 'all' || '' }}
+          CTM_ADMISSION_REPORT: test-results/admission/wheel
+        run: |
+          folder="$PWD/_extensions/ctm-checkers"
+          CTM_CHECKERS_WHEEL="$folder/$(jq -r .wheel "$folder/checkers.json"):$folder/$(jq -r .parts.stack.wheel "$folder/checkers.json")" pytest -q tests/stack/test_shared_admission.py
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: admission-node-${{ matrix.node }}
+          path: test-results/admission
+          if-no-files-found: error

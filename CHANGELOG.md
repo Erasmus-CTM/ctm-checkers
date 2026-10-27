@@ -8,6 +8,14 @@ diff (docs/goldens.md).
 
 ## 0.12.0 (Unreleased)
 
+- **M4a input admission:** add a pin-bound, synchronous JavaScript expression
+  admission API to the STACK payload and actual wheel resources. Node and
+  browser workers use the same implementation for Unicode/text rules, the
+  bounded grammar, diagnostics and canonical written tree. Python remains
+  the active grader and conformance oracle in this slice; no grading golden
+  rows change. CAS/input-option validation and backend adoption are separate.
+  See `docs/shared-admission.md` and the dedicated Node/browser CI evidence.
+
 - **Native reference / M4a:** align input-security data, official fixtures,
   native oracle and the 35-question corpus with STACK 4.14.0 (`3338304`), the
   source-loaded library of runtime-v3. Input data and all 2,303 fixture rows

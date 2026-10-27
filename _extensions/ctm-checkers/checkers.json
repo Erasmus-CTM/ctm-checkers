@@ -9,9 +9,9 @@
  "parts": {
   "stack": {
    "name": "ctm-checkers-stack",
-   "dependency": "0.12.0.dev0+2cc72681",
+   "dependency": "0.12.0.dev0+ff4c655b",
    "wheel": "ctm_checkers_stack-0.12.0.dev0-py3-none-any.whl",
-   "sha256": "2cc726813747d03a15d65330a579a8bc0162f70c9b9d81a4ed7a94876a5186ae",
+   "sha256": "ff4c655bb4b4ee7e6ba36a973fa5be680e55c3b09448e3cea2553a32fb5a84bd",
    "script": "ctm-checkers-stack.js"
   }
  },
