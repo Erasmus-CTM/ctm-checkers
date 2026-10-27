@@ -54,7 +54,7 @@ def test_legacy_seed_and_unavailable_backend_are_explicit_errors(tmp_path):
     p['source']+='\n#| seed: 17';p['options'],p['question']=parse_source(p['source'])
     with pytest.raises(ValueError,match='seed: was removed'):request(p)
     p=payload(tmp_path)
-    with pytest.raises(ValueError,match='Maxima variant generator'):request(dict(p,backend='maxima'))
+    with pytest.raises(ValueError,match='backend mismatch: requested maxima, active sympy'):request(dict(p,backend='maxima'))
 
 
 def test_candidate_deadline_is_a_build_failure(tmp_path):
@@ -145,3 +145,118 @@ def test_assigned_identity_checker_keeps_the_per_seed_deadline():
 ''')[0]
     with pytest.raises(ValueError,match='time budget'):
         supervised_seed(q,1,timeout=.05,identity={'n':1,'id':'seed=1','hash':'0'*16})
+
+class NativeStub:
+    id='maxima'
+    supports_authored_tests=True
+    def __init__(self,mutate=None,resource_failure=False):
+        self.seeds=[];self.mutate=mutate;self.resource_failure=resource_failure
+    def __enter__(self):return self
+    def __exit__(self,*args):pass
+    def load_question(self,source,title,options,*,authored_tests=None):
+        self.authored=authored_tests
+        return {'source':source.read_text(),'tests':authored_tests}
+    def seed_record(self,question,seed,timeout=30,*,identity=None):
+        from ctm_variants.model import candidate,snapshot
+        self.seeds.append(seed)
+        row=candidate('seed='+str(seed),snapshot([str(seed)],{'ans':'1'},
+            {'component':'ctm-stack','backend':self.id}),data={'backend':self.id,'plan':{'seed':seed}},
+            tests={'passed':True,'authored':{'passed':True,'results':[
+                {'name':case['name'],'passed':True} for case in question['tests'] or []]}})
+        if self.mutate:self.mutate(row)
+        return row
+    def propose(self,question,count,*,start,resolve_seed,**kwargs):
+        return {'records':[resolve_seed(question,start)],'skipped':[],'nextSeed':start+1}
+    def card_data(self,question,records,entries,*,identifier,identity_verifier,**kwargs):
+        from ctm_variants.model import classify
+        rows=classify(entries,records)['entries'];out=[]
+        for record in records:
+            row=next((r for r in rows if r['candidate']==record),None)
+            n=row['entry']['n'] if row and row['state'] in ('current','moved') else None
+            identity={'n':n,'id':record['id'],'hash':record['hash']}
+            assert identity_verifier(question,record['data']['plan']['seed'],identity)['hash']==record['hash']
+            out.append(dict(identity,proposal=n is None))
+        return {'common':{},'variants':out}
+    def runtime_resources(self):
+        if self.resource_failure:raise ValueError('runtime resources unavailable')
+        return {'root':'stub-runtime'}
+
+
+def native_payload(tmp_path):
+    p=payload(tmp_path);p['source']+='\n#| cas: maxima\n#| variants: 1'
+    p['options'],p['question']=parse_source(p['source'])
+    (tmp_path/'page.qmd').write_text('```{.stack-question}\n'+p['source']+'\n```\n')
+    return p
+
+
+def test_native_backend_generate_decide_publish_with_authored_test_evidence(tmp_path):
+    p=native_payload(tmp_path);p['source']+='\n#| tests: |\n#|   - name: native teacher\n#|     answers: {ans: 1}\n#|     expect: correct'
+    p['options'],p['question']=parse_source(p['source'])
+    (tmp_path/'page.qmd').write_text('```{.stack-question}\n'+p['source']+'\n```\n')
+    stub=NativeStub();generated=request(dict(p,action='generate',baseHash=None,renderMode='review'),backend=stub)
+    assert stub.authored[0]['name']=='native teacher'
+    first=generated['records'][0]
+    approved=request(dict(p,action='decide',baseHash=generated['baseHash'],decision={
+        'id':first['id'],'hash':first['hash'],'status':'approved'}),backend=NativeStub())
+    published=request(p,backend=NativeStub())
+    assert published['payload']['variants']==approved['payload']['variants']
+    assert published['payload']['variants'][0]['n']==1
+    assert published['nativeRuntime']['root']=='stub-runtime'
+
+
+@pytest.mark.parametrize('mutate,message',[
+    (lambda r:r['data'].update(backend='sympy'),'backend mismatch'),
+    (lambda r:r['snapshot']['grading'].update(backend='sympy'),'backend mismatch'),
+    (lambda r:r['data']['plan'].update(seed=2),'seed mismatch'),
+])
+def test_native_backend_record_bindings_reject_generated_and_replayed_proofs(tmp_path,mutate,message):
+    p=native_payload(tmp_path)
+    with pytest.raises(ValueError,match=message):
+        request(dict(p,action='generate',baseHash=None,renderMode='review'),backend=NativeStub(mutate))
+    assert not (tmp_path/p['manifest']).exists()
+    good=request(dict(p,action='generate',baseHash=None,renderMode='review'),backend=NativeStub())
+    stored=(tmp_path/p['manifest']).read_bytes()
+    with pytest.raises(ValueError,match=message):request(dict(p,renderMode='review'),backend=NativeStub(mutate))
+    assert (tmp_path/p['manifest']).read_bytes()==stored
+
+
+def test_backend_move_keeps_history_never_replays_other_backend_and_needs_approval(tmp_path):
+    p=payload(tmp_path);p['source']+='\n#| variants: 1';p['options'],p['question']=parse_source(p['source'])
+    (tmp_path/'page.qmd').write_text('```{.stack-question}\n'+p['source']+'\n```\n')
+    generated=request(dict(p,action='generate',baseHash=None,renderMode='review'))
+    first=generated['records'][0]
+    approved=request(dict(p,action='decide',baseHash=generated['baseHash'],decision={
+        'id':first['id'],'hash':first['hash'],'status':'approved'}))
+    old=copy.deepcopy(approved['manifest'])
+    p['source']+='\n#| cas: maxima';p['options'],p['question']=parse_source(p['source'])
+    (tmp_path/'page.qmd').write_text('```{.stack-question}\n'+p['source']+'\n```\n')
+    stub=NativeStub()
+    with pytest.raises(ValueError,match='at least one current approved'):request(p,backend=stub)
+    assert stub.seeds==[]
+    new=request(dict(p,action='generate',renderMode='review',baseHash=approved['baseHash']),backend=NativeStub())
+    assert new['manifest']['decisions']==old['decisions'] and new['manifest']['events']==old['events']
+    assert new['manifest']['proposals'][:len(old['proposals'])]==old['proposals']
+    assert new['records'][0]['hash']!=first['hash'] and new['records'][0]['status']=='undecided'
+    with pytest.raises(ValueError,match='at least one current approved'):request(p,backend=NativeStub())
+    row=new['records'][0]
+    decided=request(dict(p,action='decide',baseHash=new['baseHash'],decision={
+        'id':row['id'],'hash':row['hash'],'status':'approved'}),backend=NativeStub())
+    assert decided['payload']['variants'][0]['n']==1
+    assert decided['manifest']['events'][-1]['before']==old['decisions']
+    assert decided['manifest']['decisions'][0]['snapshot']['grading']['backend']=='maxima'
+
+
+def test_native_backend_must_support_tests_and_supply_per_candidate_evidence(tmp_path):
+    p=native_payload(tmp_path);p['source']+='\n#| tests: |\n#|   - name: teacher\n#|     answers: {ans: 1}\n#|     expect: correct'
+    p['options'],p['question']=parse_source(p['source'])
+    unsupported=NativeStub();unsupported.supports_authored_tests=False
+    with pytest.raises(ValueError,match='does not support authored tests'):request(dict(p,renderMode='review'),backend=unsupported)
+    with pytest.raises(ValueError,match='omitted passing authored-test evidence'):
+        request(dict(p,renderMode='review'),backend=NativeStub(lambda r:r.update(tests={})))
+
+
+def test_runtime_resources_are_checked_before_writing_history(tmp_path):
+    p=native_payload(tmp_path)
+    with pytest.raises(ValueError,match='runtime resources unavailable'):
+        request(dict(p,action='generate',baseHash=None,renderMode='review'),backend=NativeStub(resource_failure=True))
+    assert not (tmp_path/p['manifest']).exists()
