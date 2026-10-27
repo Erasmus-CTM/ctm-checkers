@@ -4,8 +4,9 @@ from ctm_checkers.stack.page import test_results as verify
 
 def payload(status='correct',score=1):
     identity={'id':'seed=1','hash':'a'*16}
-    return {'candidate':identity,'tests':[{'name':'teacher','answers':{'ans':'x+x'},'expect':'correct'}],
-        'fields':['ans'],'results':[{'name':'teacher','candidate':identity,'status':status,'score':score}]}
+    declaration={'name':'teacher','answers':{'ans':'x+x'},'expect':'correct'}
+    return {'candidate':identity,'tests':[declaration],
+        'fields':['ans'],'results':[{'name':'teacher','candidate':identity,'declaration':declaration,'status':status,'score':score}]}
 
 
 def test_native_expectations_use_the_shared_verdict_contract():
@@ -42,7 +43,7 @@ def test_named_results_echo_the_candidate_identity():
 def test_reordered_missing_stale_and_other_seed_observations_are_rejected():
     import copy
     request=payload();request['tests'].append(dict(request['tests'][0],name='second'))
-    request['results'].append(dict(request['results'][0],name='second'))
+    request['results'].append(dict(request['results'][0],name='second',declaration=request['tests'][1]))
     assert verify(request)['ok']
     reordered=copy.deepcopy(request);reordered['results'].reverse()
     assert not verify(reordered)['ok']
@@ -62,4 +63,11 @@ def test_reordered_missing_stale_and_other_seed_observations_are_rejected():
 ])
 def test_result_shapes_fail_closed(change):
     request=payload();request['results'][0].update(change)
+    assert not verify(request)['ok']
+
+
+def test_a_changed_declaration_cannot_reuse_an_old_observation():
+    import copy
+    request=payload();request['results'][0]['declaration']=copy.deepcopy(request['tests'][0])
+    request['tests'][0]['answers']['ans']='x+x+1'
     assert not verify(request)['ok']

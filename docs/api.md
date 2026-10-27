@@ -410,7 +410,7 @@ original and generated results.
 `stack.test-results` accepts `tests` (1–100 shared declarative cases), unique
 input `fields`, a current `candidate: {id, hash}`, and one computed grading
 `results` mapping per case. Each result must carry the same candidate, its
-unique declaration `name`, a supported status and a finite numeric score.
+unique declaration `name`, the complete current `declaration`, a supported status and a finite numeric score.
 Names/order and candidate identity must match; stale/other-seed/reordered
 observations are rejected. The candidate is echoed in the envelope result and
 every verified case. It returns

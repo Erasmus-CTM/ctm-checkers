@@ -36,8 +36,8 @@ def run(request):
     names=[case.get('name') if isinstance(case,dict) else None for case in tests]
     if any(not isinstance(name,str) or not name for name in names) or len(set(names))!=len(names):
         raise ValueError('Native authored tests require unique nonempty names')
-    for name,actual in zip(names,results):
-        if not isinstance(actual,dict) or actual.get('name')!=name or actual.get('candidate')!=identity:
+    for declaration,name,actual in zip(tests,names,results):
+        if not isinstance(actual,dict) or actual.get('name')!=name or actual.get('candidate')!=identity or actual.get('declaration')!=declaration:
             raise ValueError('Native test name/order or candidate identity differs from the current request')
         _verdict(actual)
         details=actual.get('fields',{})
@@ -50,4 +50,4 @@ def run(request):
         actual=results[index];index+=1
         return actual
     outcomes=run_declarative(tests,grade,fields=fields,resolve=lambda value:value)
-    return {'passed':True,'candidate':dict(identity),'results':[dict(row,candidate=dict(identity)) for row in outcomes]}
+    return {'passed':True,'candidate':dict(identity),'results':[dict(row,candidate=dict(identity),declaration=declaration) for row,declaration in zip(outcomes,tests)]}
