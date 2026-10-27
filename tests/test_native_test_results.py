@@ -71,3 +71,18 @@ def test_a_changed_declaration_cannot_reuse_an_old_observation():
     request=payload();request['results'][0]['declaration']=copy.deepcopy(request['tests'][0])
     request['tests'][0]['answers']['ans']='x+x+1'
     assert not verify(request)['ok']
+
+
+@pytest.mark.parametrize('actual,expected,passed',[
+    ('empty','empty',True),('empty','invalid',False),('empty','wrong',False),
+    ('error','invalid',True),('error','wrong',False),('invalid','invalid',True),
+])
+def test_empty_and_error_follow_the_shared_expectation_contract(actual,expected,passed):
+    request=payload(actual,0);request['tests'][0]['expect']=expected
+    assert verify(request)['ok'] is passed
+
+
+@pytest.mark.parametrize('status',['empty','error'])
+def test_empty_and_error_still_require_zero_numeric_scores(status):
+    request=payload(status,1);request['tests'][0]['expect']='invalid'
+    assert not verify(request)['ok']

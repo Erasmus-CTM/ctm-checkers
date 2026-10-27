@@ -161,8 +161,11 @@ class NativeStub:
         self.seeds.append(seed)
         row=candidate('seed='+str(seed),snapshot([str(seed)],{'ans':'1'},
             {'component':'ctm-stack','backend':self.id}),data={'backend':self.id,'plan':{'seed':seed}},
-            tests={'passed':True,'authored':{'passed':True,'results':[
-                {'name':case['name'],'passed':True} for case in question['tests'] or []]}})
+            tests={'passed':True})
+        identity={key:row[key] for key in ('id','hash')}
+        row['tests']['authored']={'passed':True,'candidate':identity,'results':[
+            {'name':case['name'],'declaration':copy.deepcopy(case),'candidate':dict(identity),'passed':True}
+            for case in question['tests'] or []]}
         if self.mutate:self.mutate(row)
         return row
     def propose(self,question,count,*,start,resolve_seed,**kwargs):
@@ -260,3 +263,58 @@ def test_runtime_resources_are_checked_before_writing_history(tmp_path):
     with pytest.raises(ValueError,match='runtime resources unavailable'):
         request(dict(p,action='generate',baseHash=None,renderMode='review'),backend=NativeStub(resource_failure=True))
     assert not (tmp_path/p['manifest']).exists()
+
+
+@pytest.mark.parametrize('mutate',[
+    lambda p:p.pop('candidate'),
+    lambda p:p['candidate'].update(hash='0'*16),
+    lambda p:p['results'][0].pop('candidate'),
+    lambda p:p['results'][0].update(candidate={'id':'seed=2','hash':'0'*16}),
+    lambda p:p['results'][0].pop('declaration'),
+    lambda p:p['results'][0]['declaration'].update(expect='wrong'),
+    lambda p:p['results'].append(None),
+])
+def test_native_authored_evidence_is_bound_on_generation_and_replay(tmp_path,mutate):
+    p=native_payload(tmp_path);p['source']+='\n#| tests: |\n#|   - name: teacher\n#|     answers: {ans: 1}\n#|     expect: correct'
+    p['options'],p['question']=parse_source(p['source'])
+    (tmp_path/'page.qmd').write_text('```{.stack-question}\n'+p['source']+'\n```\n')
+    poison=lambda row:mutate(row['tests']['authored'])
+    with pytest.raises(ValueError,match='bound to the current candidate/declarations'):
+        request(dict(p,action='generate',baseHash=None,renderMode='review'),backend=NativeStub(poison))
+    good=request(dict(p,action='generate',baseHash=None,renderMode='review'),backend=NativeStub())
+    before=(tmp_path/p['manifest']).read_bytes()
+    with pytest.raises(ValueError,match='bound to the current candidate/declarations'):
+        request(dict(p,renderMode='review'),backend=NativeStub(poison))
+    assert (tmp_path/p['manifest']).read_bytes()==before
+
+
+def test_maxima_history_cannot_move_back_to_sympy(tmp_path):
+    p=native_payload(tmp_path)
+    request(dict(p,action='generate',baseHash=None,renderMode='review'),backend=NativeStub())
+    before=(tmp_path/p['manifest']).read_bytes()
+    p['source']=p['source'].replace('#| cas: maxima','')
+    p['options'],p['question']=parse_source(p['source'])
+    with pytest.raises(ValueError,match='one-way.*cannot move maxima to sympy'):
+        request(dict(p,renderMode='review'))
+    assert (tmp_path/p['manifest']).read_bytes()==before
+
+
+def test_malformed_replay_tape_names_the_active_backend(tmp_path,monkeypatch):
+    p=native_payload(tmp_path)
+    generated=request(dict(p,action='generate',baseHash=None,renderMode='review'),backend=NativeStub())
+    broken=copy.deepcopy(generated['manifest']);broken['proposals'][0]['tape']={'bad':1}
+    monkeypatch.setattr(history,'load',lambda *_:(broken,generated['baseHash']))
+    with pytest.raises(ValueError,match='invalid STACK replay tape for backend maxima'):
+        request(dict(p,renderMode='review'),backend=NativeStub())
+
+
+def test_backend_cannot_mutate_the_current_declaration_through_load_question(tmp_path):
+    class MutatingStub(NativeStub):
+        def load_question(self,*args,**kwargs):
+            q=super().load_question(*args,**kwargs)
+            q['tests'][0]['answers']['ans']='changed'
+            return q
+    p=native_payload(tmp_path);p['source']+='\n#| tests: |\n#|   - name: teacher\n#|     answers: {ans: 1}\n#|     expect: correct'
+    p['options'],p['question']=parse_source(p['source'])
+    with pytest.raises(ValueError,match='bound to the current candidate/declarations'):
+        request(dict(p,renderMode='review'),backend=MutatingStub())

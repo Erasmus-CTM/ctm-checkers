@@ -18,13 +18,25 @@ SymPy. A native implementation provides:
 Every candidate must have `snapshot.grading.backend == data.backend == id`,
 `record.id == "seed=" + seed` and `data.plan.seed == seed`. The component checks
 these for retained, generated, replayed and identity-verified records. A backend
-change leaves other-backend tapes unreplayed and preserves proposals/decision
+change from SymPy to Maxima leaves other-backend tapes unreplayed and preserves proposals/decision
 history. Those decisions classify as gone/changed and cannot approve new CAS
-content (variant decisions 12/20).
+content (variant decisions 12/20). This move is one-way: returning a Maxima
+history to SymPy (or another backend move) fails before publication/writing. Use
+a new label/history to intentionally author a different backend.
 
 If authored tests are selected (decision 19), native records must include
-`tests.authored = {passed: true, results: [{name, passed: true}, ...]}` in declared
-order, one result per declaration. The backend runs the real grader for each
+`tests.authored = {passed: true, candidate: {id, hash}, results:
+[{name, declaration, candidate: {id, hash}, passed: true}, ...]}` in declared
+order, one result per declaration. Both identities must exactly equal the
+record's `{id, hash}` and each declaration must equal the current parsed test,
+as emitted by `stack.test-results`. A passing name alone is not evidence.
+The backend runs the real grader for each
 candidate; this evidence never substitutes for mathematical grading. Shared
 expectation verification and candidate/name binding are described in
 `docs/api.md` (`stack.test-results`).
+
+Observation statuses are `correct`, `wrong`, `partial`, `invalid`, `empty`, and
+`error`. Scores are finite numbers in [0,1]; invalid/empty/error have score 0.
+`expect: empty` matches empty input. In accordance with the shared declarative
+contract, `expect: invalid` also matches `error`, but neither matches `wrong`.
+Backends normalize their other detailed mathematical verdicts to this vocabulary.

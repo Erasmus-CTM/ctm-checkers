@@ -15,14 +15,14 @@ def _identity(value):
 
 
 def _verdict(value, *, field=False):
-    if not isinstance(value,dict) or value.get('status') not in {'correct','wrong','partial','invalid'}:
+    if not isinstance(value,dict) or value.get('status') not in {'correct','wrong','partial','invalid','empty','error'}:
         raise ValueError('Native test result has an invalid status')
-    score=value.get('score',0 if field and value['status']=='invalid' else None)
+    score=value.get('score',0 if field and value['status'] in {'invalid','empty','error'} else None)
     if type(score) not in (int,float) or not math.isfinite(score) or not 0<=score<=1:
         raise ValueError('Native test result needs a finite numeric score in [0,1]')
     status=value['status']
     if (status=='correct' and score<1-1e-9 or status=='wrong' and score>1e-9
-        or status=='partial' and not 0<score<1 or status=='invalid' and score!=0):
+        or status=='partial' and not 0<score<1 or status in {'invalid','empty','error'} and score!=0):
         raise ValueError('Native test result status differs from its score')
 
 
