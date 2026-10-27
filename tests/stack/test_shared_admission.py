@@ -187,6 +187,23 @@ def test_actual_browser_bundle_admission(vectors, browser_name):
             actual = json.loads(page.evaluate('(cases) => JSON.stringify(cases.map(c => CTMCheckersStack.admission.admitExpression(c.raw, c.options)))',
                                              payload(vectors)['cases']))
             compare(actual, vectors, browser_name)
+            worker_text = page.evaluate('''async ({bundle, cases}) => {
+              const url = URL.createObjectURL(new Blob([bundle, `
+                self.onmessage = event => self.postMessage(JSON.stringify(
+                  event.data.map(c => CTMCheckersStack.admission.admitExpression(c.raw, c.options))));
+              `], {type: 'text/javascript'}));
+              const worker = new Worker(url);
+              let timer;
+              try {
+                return await new Promise((resolve, reject) => {
+                  timer = setTimeout(() => reject(new Error('Admission worker timed out')), 30000);
+                  worker.onmessage = event => resolve(event.data);
+                  worker.onerror = event => reject(new Error(event.message));
+                  worker.postMessage(cases);
+                });
+              } finally { clearTimeout(timer); worker.terminate(); URL.revokeObjectURL(url); }
+            }''', dict(bundle=payload(vectors)['bundle'], cases=payload(vectors)['cases']))
+            compare(json.loads(worker_text), vectors, 'worker-' + browser_name)
         finally:
             browser.close()
 

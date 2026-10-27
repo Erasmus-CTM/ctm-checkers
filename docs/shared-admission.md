@@ -69,7 +69,8 @@ S-01 contexts, prototype-property names, controls/Unicode, syntax bounds,
 form-sensitive grouping and seeded expression/malformed-input cases. The
 comparison covers status, exact message, normalized text, AST and canonical
 form; it does not mistake an admission result for a golden grading verdict.
-The manually gated acceptance workflow runs Node 22/24 and Chromium/Firefox/WebKit, then
+The manually gated acceptance workflow runs Node 22/24 and Chromium/Firefox/WebKit
+(both page and actual dedicated-worker contexts), then
 publishes comparison counts and the deterministic vector digest. No server,
 CAS, model or external service participates in JS admission tests.
 
