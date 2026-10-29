@@ -69,6 +69,11 @@ def parse_math(text, variables=''):
             if isinstance(node.op, ast.Pow):
                 if not right.is_number or abs(right) > 100:
                     raise ValueError('Generated exponent is out of bounds')
+                # Each exponent is bounded, but nested powers of exact numbers
+                # still grow: bound the size of the exact result.
+                if isinstance(left, sp.Rational) and right.is_number and (
+                        max(abs(left.p).bit_length(), left.q.bit_length()) * abs(right) > 4096):
+                    raise ValueError('Generated number is too large')
                 return left ** right
             if isinstance(node.op, ast.Add): return left + right
             if isinstance(node.op, ast.Sub): return left - right
@@ -88,6 +93,8 @@ def parse_math(text, variables=''):
                 raise ValueError('Scalar function requires scalar arguments')
             if name in ('factorial', 'binomial') and any(not v.is_Integer or not 0 <= v <= 100 for v in values):
                 raise ValueError('Combinatorial argument is out of bounds')
+            if name == 'gamma' and values[0].is_number and not abs(values[0]) <= 100:
+                raise ValueError('Gamma argument is out of bounds')
             return _FUNCTIONS[name](*values)
         raise ValueError('Unsupported generated syntax or mathematical name')
 
@@ -159,3 +166,87 @@ def admit_generated(request):
     for text in raw:
         (admit_learner if request.get('learner') is True else parse_math)(text, request.get('vars', ''))
     return {'status': 'admitted'}
+
+
+def parse_givens(text):
+    """An exercise's givens (math-exercise's `givens`): one `name = expression`
+    per line, in the restricted grammar. Returns {name: text} in order."""
+    if not isinstance(text, str) or len(text) > 16384:
+        raise ValueError('givens must be text')
+    givens = {}
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        name, equals, value = line.partition('=')
+        name = name.strip()
+        if (not equals or not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{0,31}', name) or '__' in name
+                or name in givens or name in _FUNCTIONS or name in _CONSTANTS or not value.strip()):
+            raise ValueError('givens: write one "name = expression" per line with distinct names: ' + line.strip())
+        givens[name] = value.strip()
+    if not 1 <= len(givens) <= 16:
+        raise ValueError('givens: give one to sixteen values')
+    return givens
+
+
+def givens_context(text, variables, fields):
+    """The exact question context of an exercise with `givens` (no variants)."""
+    from ..variants import question_context
+    local = symbols(variables)
+    values = {}
+    for name, value in parse_givens(text).items():
+        if name in local:
+            raise ValueError('givens: ' + name + ' is also a variable in vars')
+        values[name] = parse_math(value, variables)
+    return question_context(fields, values, {field: None for field in fields})
+
+
+def bind_data(request):
+    """Bind generated givens to the variables an authored checker declared.
+
+    `names` are the variables the author opened to generation (math-exercise's
+    `similar-data`); `data` maps each of them to model text. The original
+    values come from the exact question `context` (variants) or from the
+    exercise's `givens` text with its `fields`. The text is
+    interpreted by parse_math, never as Python source, and must keep the kind of
+    the original value: an exact real number stays a number, an expression in
+    the exercise's variables stays a non-constant expression. Matrix variables
+    keep their own data contract. The original teacher answers belong to the
+    original problem, so the bound context carries none. Returns the bound
+    question context and the LaTeX of each bound value for the question text.
+    """
+    from ..variants import decode_context, question_context
+    names, data = request.get('names'), request.get('data')
+    if (type(names) is not list or not 1 <= len(names) <= 8 or len(set(names)) != len(names)
+            or any(type(name) is not str for name in names)):
+        raise ValueError('Invalid declared data names')
+    if type(data) is not dict or set(data) != set(names):
+        raise ValueError('Supply exactly the declared data: ' + ', '.join(names))
+    variables = request.get('vars', '')
+    local = set(symbols(variables).values())
+    context = request.get('context')
+    if context is None:
+        context = givens_context(request.get('givens'), variables, request.get('fields'))
+    fields, values, _, _ = decode_context(context)
+    # Symbols in the original values keep their assumptions in the bound ones.
+    originals = {symbol.name: symbol for value in values.values() if isinstance(value, sp.Basic)
+                 for symbol in value.free_symbols}
+    latex = {}
+    for name in names:
+        original = values.get(name)
+        if not isinstance(original, sp.Expr):
+            raise ValueError(name + ' is not a declared number or expression variable')
+        text = data[name]
+        if type(text) is not str:
+            raise ValueError(name + ' must be mathematical text')
+        value = parse_math(text, variables)
+        if not isinstance(value, sp.Expr):
+            raise ValueError(name + ' must be one number or expression')
+        if original.free_symbols:
+            if not value.free_symbols or not value.free_symbols <= local:
+                raise ValueError(name + ' must be an expression in ' + (variables or 'the declared variables'))
+        elif not (value.is_number and value.is_real is True and value.is_finite is True):
+            raise ValueError(name + ' must be an exact real number')
+        values[name] = value.xreplace({s: originals[s.name] for s in value.free_symbols if s.name in originals})
+        # \ln: in school mathematics \log often means the base-10 logarithm.
+        latex[name] = sp.latex(values[name], ln_notation=True)
+    return {'context': question_context(fields, values, {field: None for field in fields}), 'latex': latex}

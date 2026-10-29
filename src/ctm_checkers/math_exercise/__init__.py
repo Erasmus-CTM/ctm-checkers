@@ -6,6 +6,7 @@ _EXPORTS = {
     'check': 'checks',
     'compute_key': 'keys',
     'admit_generated': 'generated',
+    'bind_data': 'generated',
     'check_custom': 'custom',
     'namespace': 'custom',
     'symbols': 'custom',

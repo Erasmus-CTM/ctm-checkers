@@ -366,8 +366,35 @@ like every component.
 `{recipe, answer, vars, mode}` and returns `{key, computed: true}`. It raises on
 an invalid recipe, a missing component or disagreement with the model answer.
 Comparison uses the existing `math_exercise.check`; authored grading is unchanged.
+In `numeric` mode the request may carry the field's `tolerance`, `decplaces` or
+`sigfigs` (strings, as in `check`), and the model's answer is compared with the
+computed key under that precision.
 `math_exercise.admit_generated` and `generated: true` on `check`/`check_custom`
 apply the same restricted mathematical admission to model-derived answers.
+
+`math_exercise.bind_data(request)` (also a browser call) binds generated givens
+to an authored custom checker. The request is `{context, names, data, vars}`
+(or `{givens, fields, names, data, vars}`, see below): the original exact
+question context, the variables the author opened to
+generation (math-exercise's `similar-data`), model text for exactly those names
+and the exercise's variables. Each text goes through the same restricted
+grammar and must keep the kind of the original value: an exact real number
+stays a finite real number; an expression stays a non-constant expression in
+the declared variables (with the original Symbols and their assumptions).
+Values outside the exact-value codec, for example `cot`, are rejected. It
+returns `{context, latex}`: the bound context (`variant: null`, teacher answers
+`null`, since they belong to the original problem) and the LaTeX of each bound
+value for the question text (natural logarithms as `\ln`). Matrix variables
+keep their own contract.
+
+`givens` (math-exercise's option of that name) give a custom checker exact data
+without variants: one `name = expression` per line, in the same restricted
+grammar, with names distinct from `vars`, functions and constants. A
+`check_custom` request with `givens` and no `question_context` builds the exact
+context itself (fields from `fields`, or numbered), so the checker reads
+`response['variables']` as with variants; the declarative test runner passes
+the exercise's givens the same way, and legacy `test(check, symbols)` tests get
+them in each response that has no `variables` of its own.
 
 Arguments are explicit SymPy mathematical text (`2*x`, `sin(x)`), interpreted
 with a positive AST grammar. Declared variables and a curated set of mathematical
