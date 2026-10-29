@@ -69,6 +69,11 @@ def parse_math(text, variables=''):
             if isinstance(node.op, ast.Pow):
                 if not right.is_number or abs(right) > 100:
                     raise ValueError('Generated exponent is out of bounds')
+                # Each exponent is bounded, but nested powers of exact numbers
+                # still grow: bound the size of the exact result.
+                if isinstance(left, sp.Rational) and right.is_number and (
+                        max(abs(left.p).bit_length(), left.q.bit_length()) * abs(right) > 4096):
+                    raise ValueError('Generated number is too large')
                 return left ** right
             if isinstance(node.op, ast.Add): return left + right
             if isinstance(node.op, ast.Sub): return left - right
@@ -88,6 +93,8 @@ def parse_math(text, variables=''):
                 raise ValueError('Scalar function requires scalar arguments')
             if name in ('factorial', 'binomial') and any(not v.is_Integer or not 0 <= v <= 100 for v in values):
                 raise ValueError('Combinatorial argument is out of bounds')
+            if name == 'gamma' and values[0].is_number and not abs(values[0]) <= 100:
+                raise ValueError('Gamma argument is out of bounds')
             return _FUNCTIONS[name](*values)
         raise ValueError('Unsupported generated syntax or mathematical name')
 

@@ -163,3 +163,14 @@ def test_bind_data_rejects_other_givens(names, data, reason):
     context = question_context(['y'], {'h': x*sp.log(x), 'x0': sp.E, 'A': sp.Matrix([[1, 2]])}, {'y': 2*x - sp.E})
     with pytest.raises(ValueError, match=reason):
         bind_data({'names': names, 'data': data, 'context': context, 'vars': 'x'})
+
+
+@pytest.mark.parametrize('text', ['(((9**100)**100)**100)**100', '((2^100)^100)^100', 'gamma(10**9)', 'gamma(-10**9)', 'Rational(1, 3**100)**100'])
+def test_parse_math_bounds_growing_numbers(text):
+    with pytest.raises(ValueError):
+        parse_math(text, 'x')
+
+
+@pytest.mark.parametrize('text', ['2^100', '(1/3)^20', 'gamma(5)', 'gamma(x)', 'x^(2^5)', 'E^100'])
+def test_parse_math_keeps_ordinary_powers(text):
+    parse_math(text, 'x')
