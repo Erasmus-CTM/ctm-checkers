@@ -210,6 +210,8 @@ def run_question(options, base, *, variables=None, teacher=None, variant=None):
             request = {"vars": defaults["vars"], "response": literal(response), "checker": options["checker"]}
             if context is not None:
                 request["question_context"] = context
+            elif options.get("givens"):
+                request.update(givens=options["givens"], fields=fields)
             try:
                 admit(request)
                 result = check_custom(request)

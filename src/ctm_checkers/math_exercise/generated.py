@@ -168,11 +168,45 @@ def admit_generated(request):
     return {'status': 'admitted'}
 
 
+def parse_givens(text):
+    """An exercise's givens (math-exercise's `givens`): one `name = expression`
+    per line, in the restricted grammar. Returns {name: text} in order."""
+    if not isinstance(text, str) or len(text) > 16384:
+        raise ValueError('givens must be text')
+    givens = {}
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        name, equals, value = line.partition('=')
+        name = name.strip()
+        if (not equals or not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{0,31}', name) or '__' in name
+                or name in givens or name in _FUNCTIONS or name in _CONSTANTS or not value.strip()):
+            raise ValueError('givens: write one "name = expression" per line with distinct names: ' + line.strip())
+        givens[name] = value.strip()
+    if not 1 <= len(givens) <= 16:
+        raise ValueError('givens: give one to sixteen values')
+    return givens
+
+
+def givens_context(text, variables, fields):
+    """The exact question context of an exercise with `givens` (no variants)."""
+    from ..variants import question_context
+    local = symbols(variables)
+    values = {}
+    for name, value in parse_givens(text).items():
+        if name in local:
+            raise ValueError('givens: ' + name + ' is also a variable in vars')
+        values[name] = parse_math(value, variables)
+    return question_context(fields, values, {field: None for field in fields})
+
+
 def bind_data(request):
     """Bind generated givens to the variables an authored checker declared.
 
     `names` are the variables the author opened to generation (math-exercise's
-    `similar-data`); `data` maps each of them to model text. The text is
+    `similar-data`); `data` maps each of them to model text. The original
+    values come from the exact question `context` (variants) or from the
+    exercise's `givens` text with its `fields`. The text is
     interpreted by parse_math, never as Python source, and must keep the kind of
     the original value: an exact real number stays a number, an expression in
     the exercise's variables stays a non-constant expression. Matrix variables
@@ -189,7 +223,10 @@ def bind_data(request):
         raise ValueError('Supply exactly the declared data: ' + ', '.join(names))
     variables = request.get('vars', '')
     local = set(symbols(variables).values())
-    fields, values, _, _ = decode_context(request.get('context'))
+    context = request.get('context')
+    if context is None:
+        context = givens_context(request.get('givens'), variables, request.get('fields'))
+    fields, values, _, _ = decode_context(context)
     # Symbols in the original values keep their assumptions in the bound ones.
     originals = {symbol.name: symbol for value in values.values() if isinstance(value, sp.Basic)
                  for symbol in value.free_symbols}

@@ -8,6 +8,15 @@ diff (docs/goldens.md).
 
 ## 0.12.0 (Unreleased)
 
+- **Generated keys:** in `numeric` mode `compute_key` compares the model's
+  answer with the computed key under the field's tolerance, decimal places or
+  significant figures (passed in the request). Before, a rounded answer such
+  as 0.61 for 6.0/9.81 was rejected even in a field with 2 % tolerance.
+- **Givens:** `check_custom`, `bind_data` and the declarative runner accept an
+  exercise's `givens` (`name = expression` lines in the restricted grammar) and
+  build the exact question context from them, so a custom checker can read its
+  data without variants.
+
 - **Similar problems:** add `math_exercise.bind_data` (also a browser call).
   It binds model-proposed givens to the number and expression variables that
   an authored custom checker declares open to generation, through the

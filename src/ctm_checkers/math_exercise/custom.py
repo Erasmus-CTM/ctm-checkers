@@ -32,6 +32,12 @@ def check_custom(request):
             raise ValueError("mode custom requires a checker")
         _local = build_locals(request["vars"])
         context = None
+        if "question_context" not in request and request.get("givens"):
+            # An exercise's givens without variants (math-exercise's `givens`).
+            from .generated import givens_context
+            raw = request["response"].get("raw", []) if isinstance(request.get("response"), dict) else []
+            request = dict(request, question_context=givens_context(
+                request["givens"], request["vars"], request.get("fields") or [str(n) for n in range(1, len(raw) + 1)]))
         if "question_context" in request:
             from ..variants import decode_context
             context = decode_context(request["question_context"])

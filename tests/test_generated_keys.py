@@ -174,3 +174,66 @@ def test_parse_math_bounds_growing_numbers(text):
 @pytest.mark.parametrize('text', ['2^100', '(1/3)^20', 'gamma(5)', 'gamma(x)', 'x^(2^5)', 'E^100'])
 def test_parse_math_keeps_ordinary_powers(text):
     parse_math(text, 'x')
+
+
+GIVENS_CHECKER = '''def check(response, symbols):
+    x = symbols["x"]
+    h, x0 = response["variables"]["h"], response["variables"]["x0"]
+    line = diff(h, x).subs(x, x0)*(x - x0) + h.subs(x, x0)
+    return {"score": 1 if simplify(response["expressions"][0] - line) == 0 else 0}
+'''
+
+
+def test_givens_give_a_custom_checker_its_data_without_variants():
+    from ctm_checkers.math_exercise import check_custom
+    request = {'checker': GIVENS_CHECKER, 'vars': 'x', 'givens': 'h = x*log(x)\nx0 = E\n'}
+    grade = lambda answer: check_custom(dict(request, response={'kind': 'expressions', 'raw': [answer]}))['score']
+    assert grade('2*x-E') == 1 and grade('x') == 0
+
+
+def test_bind_data_binds_to_givens():
+    from ctm_checkers.math_exercise import bind_data
+    from ctm_checkers.variants import decode_context
+    bound = bind_data({'givens': 'h = x*log(x)\nx0 = E', 'fields': ['Tangent'], 'names': ['h', 'x0'],
+                       'data': {'h': 'x^2*log(x)', 'x0': '1'}, 'vars': 'x'})
+    fields, values, teacher, _ = decode_context(bound['context'])
+    assert fields == ['Tangent'] and teacher == {'Tangent': None}
+    assert str(values['h']) == 'x**2*log(x)' and values['x0'] == 1
+
+
+@pytest.mark.parametrize('givens,reason', [
+    ('h x*log(x)', 'one "name = expression"'),
+    ('h = 1\nh = 2', 'distinct names'),
+    ('log = 1', 'one "name = expression"'),
+    ('x = 2', 'also a variable'),
+    ('', 'one to sixteen'),
+    ("h = __import__('os')", 'Unsupported'),
+    ('h = x.__class__', 'Unsupported'),
+])
+def test_givens_reject_other_text(givens, reason):
+    from ctm_checkers.math_exercise.generated import givens_context
+    with pytest.raises(ValueError, match=reason):
+        givens_context(givens, 'x', ['Tangent'])
+
+
+def test_declarative_tests_see_the_givens():
+    from ctm_checkers.math_exercise import run_question
+    options = {'mode': 'custom', 'vars': 'x', 'checker': GIVENS_CHECKER, 'givens': 'h = x*log(x)\nx0 = E',
+               'field-labels': 'Tangent', 'question': 'Tangent: _[2*x-E]',
+               'tests': [{'name': 'right', 'answers': ['raw("2*x - E")'], 'expect': 'correct'},
+                         {'name': 'wrong', 'answers': ['raw("x")'], 'expect': 'wrong'}]}
+    run_question(options, '.')
+
+
+def test_numeric_keys_use_the_field_precision():
+    recipe = {'op': 'value', 'expr': '6.0/9.81'}
+    key = lambda answer, **precision: compute_key({'recipe': recipe, 'answer': answer, 'vars': '', 'mode': 'numeric', **precision})
+    assert key('0.61', tolerance='2%')['key'] == str(compute_key({'recipe': recipe, 'answer': '6.0/9.81', 'vars': '', 'mode': 'numeric'})['key'])
+    assert key('0.6116', sigfigs='3')['computed']
+    assert key('0.612', decplaces='2')['computed']
+    with pytest.raises(ValueError, match='disagrees'):
+        key('0.61')                      # no precision: as close as before
+    with pytest.raises(ValueError, match='disagrees'):
+        key('0.65', tolerance='2%')
+    with pytest.raises(ValueError, match='precision'):
+        key('0.61', tolerance=0.02)

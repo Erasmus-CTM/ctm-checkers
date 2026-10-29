@@ -87,6 +87,16 @@ def compute_key(request):
     else: key = str(value)
     admitted = dict(student=request.get('answer'), correct=key, vars=variables, mode=request.get('mode', 'equivalent'))
     admit_generated_check(admitted)
-    checked = check({**dict(reject='', tolerance='', decplaces='', sigfigs='', form='', partial_credit=False, form_credit=0.5), **admitted, 'generated': True})
+    # A numeric field compares the model's answer with the computed key under
+    # the field's own precision (tolerance, decimal places or significant
+    # figures), as it compares a student's answer.
+    precision = {}
+    if admitted['mode'] == 'numeric':
+        for name in ('tolerance', 'decplaces', 'sigfigs'):
+            value = request.get(name, '')
+            if not isinstance(value, str) or len(value) > 64:
+                raise ValueError('Invalid numeric precision: ' + name)
+            precision[name] = value
+    checked = check({**dict(reject='', tolerance='', decplaces='', sigfigs='', form='', partial_credit=False, form_credit=0.5), **precision, **admitted, 'generated': True})
     if checked.get('status') != 'correct': raise ValueError('Computed key disagrees with model answer')
     return {'key': key, 'computed': True}
