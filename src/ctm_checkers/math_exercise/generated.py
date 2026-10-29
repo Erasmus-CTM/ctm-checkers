@@ -203,5 +203,6 @@ def bind_data(request):
         elif not (value.is_number and value.is_real is True and value.is_finite is True):
             raise ValueError(name + ' must be an exact real number')
         values[name] = value.xreplace({s: originals[s.name] for s in value.free_symbols if s.name in originals})
-        latex[name] = sp.latex(values[name])
+        # \ln: in school mathematics \log often means the base-10 logarithm.
+        latex[name] = sp.latex(values[name], ln_notation=True)
     return {'context': question_context(fields, values, {field: None for field in fields}), 'latex': latex}

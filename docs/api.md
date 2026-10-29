@@ -380,7 +380,8 @@ the declared variables (with the original Symbols and their assumptions).
 Values outside the exact-value codec, for example `cot`, are rejected. It
 returns `{context, latex}`: the bound context (`variant: null`, teacher answers
 `null`, since they belong to the original problem) and the LaTeX of each bound
-value for the question text. Matrix variables keep their own contract.
+value for the question text (natural logarithms as `\ln`). Matrix variables
+keep their own contract.
 
 Arguments are explicit SymPy mathematical text (`2*x`, `sin(x)`), interpreted
 with a positive AST grammar. Declared variables and a curated set of mathematical

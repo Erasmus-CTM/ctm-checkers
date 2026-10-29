@@ -135,7 +135,7 @@ def test_bind_data_binds_declared_givens_with_their_kinds():
     assert values['h'] == x**2*sp.log(x) and values['x0'] == sp.Rational(1, 2) and values['k'] == 2
     assert values['h'].free_symbols == {x}          # the original Symbol, assumptions included
     assert teacher == {'y': None} and variant is None
-    assert bound['latex'] == {'h': sp.latex(x**2*sp.log(x)), 'x0': r'\frac{1}{2}'}
+    assert bound['latex'] == {'h': r'x^{2} \ln{\left(x \right)}', 'x0': r'\frac{1}{2}'}
     # Through the browser entry with the same request.
     assert json.loads(call('math_exercise.bind_data', {'_ctm_request': json.dumps(request)}))['latex'] == bound['latex']
 
