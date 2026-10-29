@@ -8,6 +8,15 @@ diff (docs/goldens.md).
 
 ## 0.12.0 (Unreleased)
 
+- **Similar problems:** add `math_exercise.bind_data` (also a browser call).
+  It binds model-proposed givens to the number and expression variables that
+  an authored custom checker declares open to generation, through the
+  restricted generated-mathematics grammar and the exact-value codec, keeping
+  each value's kind and the original Symbols. math-exercise's `similar-data`
+  uses it so a generated problem can change the givens of a custom-checked
+  exercise (for example the function and point of a tangent problem).
+  Existing verdicts and grading goldens are unchanged.
+
 - **M4d:** add the result-only `stack.test-results` endpoint. Native backends
   resolve authored answers and run their actual grader, then pass results to
   the existing common declarative expectation verifier. The endpoint never

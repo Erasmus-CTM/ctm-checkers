@@ -159,3 +159,49 @@ def admit_generated(request):
     for text in raw:
         (admit_learner if request.get('learner') is True else parse_math)(text, request.get('vars', ''))
     return {'status': 'admitted'}
+
+
+def bind_data(request):
+    """Bind generated givens to the variables an authored checker declared.
+
+    `names` are the variables the author opened to generation (math-exercise's
+    `similar-data`); `data` maps each of them to model text. The text is
+    interpreted by parse_math, never as Python source, and must keep the kind of
+    the original value: an exact real number stays a number, an expression in
+    the exercise's variables stays a non-constant expression. Matrix variables
+    keep their own data contract. The original teacher answers belong to the
+    original problem, so the bound context carries none. Returns the bound
+    question context and the LaTeX of each bound value for the question text.
+    """
+    from ..variants import decode_context, question_context
+    names, data = request.get('names'), request.get('data')
+    if (type(names) is not list or not 1 <= len(names) <= 8 or len(set(names)) != len(names)
+            or any(type(name) is not str for name in names)):
+        raise ValueError('Invalid declared data names')
+    if type(data) is not dict or set(data) != set(names):
+        raise ValueError('Supply exactly the declared data: ' + ', '.join(names))
+    variables = request.get('vars', '')
+    local = set(symbols(variables).values())
+    fields, values, _, _ = decode_context(request.get('context'))
+    # Symbols in the original values keep their assumptions in the bound ones.
+    originals = {symbol.name: symbol for value in values.values() if isinstance(value, sp.Basic)
+                 for symbol in value.free_symbols}
+    latex = {}
+    for name in names:
+        original = values.get(name)
+        if not isinstance(original, sp.Expr):
+            raise ValueError(name + ' is not a declared number or expression variable')
+        text = data[name]
+        if type(text) is not str:
+            raise ValueError(name + ' must be mathematical text')
+        value = parse_math(text, variables)
+        if not isinstance(value, sp.Expr):
+            raise ValueError(name + ' must be one number or expression')
+        if original.free_symbols:
+            if not value.free_symbols or not value.free_symbols <= local:
+                raise ValueError(name + ' must be an expression in ' + (variables or 'the declared variables'))
+        elif not (value.is_number and value.is_real is True and value.is_finite is True):
+            raise ValueError(name + ' must be an exact real number')
+        values[name] = value.xreplace({s: originals[s.name] for s in value.free_symbols if s.name in originals})
+        latex[name] = sp.latex(values[name])
+    return {'context': question_context(fields, values, {field: None for field in fields}), 'latex': latex}

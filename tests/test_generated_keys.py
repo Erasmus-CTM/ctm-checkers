@@ -121,3 +121,45 @@ def test_generated_learner_grading_options_match_original(changes):
     request=dict(student='1',correct='1',vars='x',mode='equivalent',reject='',tolerance='',decplaces='',sigfigs='',form='',partial_credit=False,form_credit=.5)
     request.update(changes)
     assert check({**request,'generated':True,'learner':True}) == check(request)
+
+
+def test_bind_data_binds_declared_givens_with_their_kinds():
+    import sympy as sp
+    from ctm_checkers.math_exercise import bind_data
+    from ctm_checkers.variants import decode_context, question_context
+    x = sp.Symbol('x', positive=True)
+    context = question_context(['y'], {'h': x*sp.log(x), 'x0': sp.E, 'k': sp.Integer(2)}, {'y': 2*x - sp.E})
+    request = {'names': ['h', 'x0'], 'data': {'h': 'x^2*log(x)', 'x0': '1/2'}, 'context': context, 'vars': 'x e'}
+    bound = bind_data(request)
+    fields, values, teacher, variant = decode_context(bound['context'])
+    assert values['h'] == x**2*sp.log(x) and values['x0'] == sp.Rational(1, 2) and values['k'] == 2
+    assert values['h'].free_symbols == {x}          # the original Symbol, assumptions included
+    assert teacher == {'y': None} and variant is None
+    assert bound['latex'] == {'h': sp.latex(x**2*sp.log(x)), 'x0': r'\frac{1}{2}'}
+    # Through the browser entry with the same request.
+    assert json.loads(call('math_exercise.bind_data', {'_ctm_request': json.dumps(request)}))['latex'] == bound['latex']
+
+
+@pytest.mark.parametrize('names,data,reason', [
+    (['h', 'x0'], {'h': 'x*log(x)'}, 'Supply exactly'),
+    (['h'], {'h': 'x', 'x0': '1'}, 'Supply exactly'),
+    (['k2'], {'k2': '1'}, 'not a declared'),
+    (['h', 'x0'], {'h': '3', 'x0': '1'}, 'expression in'),
+    (['h', 'x0'], {'h': 'x*log(x)', 'x0': 'x'}, 'exact real number'),
+    (['h', 'x0'], {'h': 'x*log(x)', 'x0': 'I'}, 'exact real number'),
+    (['h', 'x0'], {'h': 'x*log(x)', 'x0': 'oo'}, 'exact real number'),
+    (['h', 'x0'], {'h': 'y*log(y)', 'x0': '1'}, 'Unsupported'),
+    (['h', 'x0'], {'h': '__import__("os")', 'x0': '1'}, 'Unsupported'),
+    (['h', 'x0'], {'h': 'x.__class__', 'x0': '1'}, 'Unsupported'),
+    (['h', 'x0'], {'h': 'cot(x)', 'x0': '1'}, 'unsupported exact value'),
+    (['h', 'x0'], {'h': ['x'], 'x0': '1'}, 'mathematical text'),
+    (['A'], {'A': '1'}, 'not a declared'),
+])
+def test_bind_data_rejects_other_givens(names, data, reason):
+    import sympy as sp
+    from ctm_checkers.math_exercise import bind_data
+    from ctm_checkers.variants import question_context
+    x = sp.Symbol('x')
+    context = question_context(['y'], {'h': x*sp.log(x), 'x0': sp.E, 'A': sp.Matrix([[1, 2]])}, {'y': 2*x - sp.E})
+    with pytest.raises(ValueError, match=reason):
+        bind_data({'names': names, 'data': data, 'context': context, 'vars': 'x'})

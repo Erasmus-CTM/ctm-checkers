@@ -369,6 +369,19 @@ Comparison uses the existing `math_exercise.check`; authored grading is unchange
 `math_exercise.admit_generated` and `generated: true` on `check`/`check_custom`
 apply the same restricted mathematical admission to model-derived answers.
 
+`math_exercise.bind_data(request)` (also a browser call) binds generated givens
+to an authored custom checker. The request is `{context, names, data, vars}`:
+the original exact question context, the variables the author opened to
+generation (math-exercise's `similar-data`), model text for exactly those names
+and the exercise's variables. Each text goes through the same restricted
+grammar and must keep the kind of the original value: an exact real number
+stays a finite real number; an expression stays a non-constant expression in
+the declared variables (with the original Symbols and their assumptions).
+Values outside the exact-value codec, for example `cot`, are rejected. It
+returns `{context, latex}`: the bound context (`variant: null`, teacher answers
+`null`, since they belong to the original problem) and the LaTeX of each bound
+value for the question text. Matrix variables keep their own contract.
+
 Arguments are explicit SymPy mathematical text (`2*x`, `sin(x)`), interpreted
 with a positive AST grammar. Declared variables and a curated set of mathematical
 functions/constants are admitted; Python source, attributes, strings, arbitrary
