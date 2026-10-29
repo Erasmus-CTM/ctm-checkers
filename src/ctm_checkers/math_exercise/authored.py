@@ -28,6 +28,18 @@ def _legacy_question(options, base):
     symbols = {k: v for k, v in build_locals(options.get('vars', '')).items()
                if isinstance(v, Symbol)}
     exec(options['checker'], scope)
+    if str(options.get('givens', '')).strip():
+        # The exercise's givens reach the checker as on the page, unless a
+        # test supplies its own variables.
+        from ..variants import decode_context
+        from .generated import givens_context
+        _, values, _, _ = decode_context(givens_context(options['givens'], options.get('vars', ''), ['1']))
+        authored = scope['check']
+        def check(response, symbols):
+            if isinstance(response, dict) and 'variables' not in response:
+                response = dict(response, variables=dict(values))
+            return authored(response, symbols)
+        scope['check'] = check
     run_tests(None, symbols, options['tests'], namespace=scope, base=base)
 
 

@@ -393,7 +393,8 @@ grammar, with names distinct from `vars`, functions and constants. A
 `check_custom` request with `givens` and no `question_context` builds the exact
 context itself (fields from `fields`, or numbered), so the checker reads
 `response['variables']` as with variants; the declarative test runner passes
-the exercise's givens the same way.
+the exercise's givens the same way, and legacy `test(check, symbols)` tests get
+them in each response that has no `variables` of its own.
 
 Arguments are explicit SymPy mathematical text (`2*x`, `sin(x)`), interpreted
 with a positive AST grammar. Declared variables and a curated set of mathematical

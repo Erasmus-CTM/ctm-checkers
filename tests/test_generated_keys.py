@@ -237,3 +237,15 @@ def test_numeric_keys_use_the_field_precision():
         key('0.65', tolerance='2%')
     with pytest.raises(ValueError, match='precision'):
         key('0.61', tolerance=0.02)
+
+
+def test_legacy_tests_see_the_givens():
+    from ctm_checkers.math_exercise import run_question
+    tests = ("def test(check, symbols):\n"
+             "    x = symbols['x']\n"
+             "    assert check({'expressions': [2*x - E]}, symbols)['score'] == 1\n"
+             "    assert check({'expressions': [x]}, symbols)['score'] == 0\n")
+    options = {'mode': 'custom', 'vars': 'x', 'checker': GIVENS_CHECKER, 'givens': 'h = x*log(x)\nx0 = E', 'tests': tests}
+    run_question(options, '.')
+    with pytest.raises(AssertionError):
+        run_question(dict(options, givens='h = x\nx0 = 1'), '.')
