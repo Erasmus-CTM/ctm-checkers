@@ -2,6 +2,7 @@
 import json
 
 import pytest
+import sympy as sp
 
 from ctm_checkers.browser import call
 from ctm_checkers.math_exercise import compute_key
@@ -199,6 +200,19 @@ def test_bind_data_binds_to_givens():
     fields, values, teacher, _ = decode_context(bound['context'])
     assert fields == ['Tangent'] and teacher == {'Tangent': None}
     assert str(values['h']) == 'x**2*log(x)' and values['x0'] == 1
+
+
+def test_givens_read_ln_and_e_as_a_model_writes_them():
+    from ctm_checkers.math_exercise import bind_data
+    from ctm_checkers.variants import decode_context
+    # 3c declares e as a variable so that learners may type it; in a given it
+    # is still Euler's number.
+    bound = bind_data({'givens': 'h = x*log(x)\nx0 = E', 'fields': ['Tangent'], 'names': ['h', 'x0'],
+                       'data': {'h': 'x^2*ln(x)', 'x0': 'e'}, 'vars': 'x, e'})
+    _, values, _, _ = decode_context(bound['context'])
+    assert str(values['h']) == 'x**2*log(x)' and values['x0'] == sp.E
+    assert bound['latex'] == {'h': 'x^{2} \\ln{\\left(x \\right)}', 'x0': 'e'}
+    assert parse_math('ln(x)', 'x') == parse_math('log(x)', 'x')
 
 
 @pytest.mark.parametrize('givens,reason', [

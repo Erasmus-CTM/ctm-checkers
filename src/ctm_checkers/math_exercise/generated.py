@@ -15,7 +15,7 @@ from .parsing import split_top
 
 _FUNCTIONS = {name: getattr(sp, name) for name in (
     'sin cos tan cot sec csc asin acos atan acot asec acsc atan2 sinh cosh tanh asinh acosh atanh '
-    'exp log sqrt Abs sign floor ceiling factorial binomial gamma erf '
+    'exp log ln sqrt Abs sign floor ceiling factorial binomial gamma erf '
     'conjugate re im Min Max Eq Rational Matrix').split()}
 _CONSTANTS = {'pi': sp.pi, 'E': sp.E, 'I': sp.I, 'oo': sp.oo, 'inf': sp.oo}
 _MODES = {'equivalent', 'exact', 'numeric', 'string', 'string_ci', 'set'}
@@ -241,6 +241,9 @@ def bind_data(request):
         value = parse_math(text, variables)
         if not isinstance(value, sp.Expr):
             raise ValueError(name + ' must be one number or expression')
+        # In a given, e is Euler's number, also where the exercise declares e
+        # as a variable so that learners may type it.
+        value = value.xreplace({s: sp.E for s in value.free_symbols if s.name == 'e'})
         if original.free_symbols:
             if not value.free_symbols or not value.free_symbols <= local:
                 raise ValueError(name + ' must be an expression in ' + (variables or 'the declared variables'))

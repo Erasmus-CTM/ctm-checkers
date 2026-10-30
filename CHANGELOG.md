@@ -8,6 +8,10 @@ diff (docs/goldens.md).
 
 ## 0.12.0 (Unreleased)
 
+- **Generated mathematics:** `parse_math` accepts `ln` as the natural
+  logarithm, and `bind_data` reads `e` in a generated given as Euler's number,
+  also where the exercise declares `e` as a variable for learners. A model
+  writing `x^2*ln(x)` or `x0 = e` for a logarithms exercise was rejected.
 - **Generated keys:** in `numeric` mode `compute_key` compares the model's
   answer with the computed key under the field's tolerance, decimal places or
   significant figures (passed in the request). Before, a rounded answer such
