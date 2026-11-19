@@ -34,6 +34,32 @@ def parse_tolerance(spec, ref):
     return float(spec)
 
 
+# GR-1: |student - key| <= tolerance is decided in decimal arithmetic. The
+# answer and the key are read as their 15-significant-digit decimals (the
+# reading round_places uses), the tolerance as written (an absolute value or
+# a percentage of the key). In binary floating point 1.1 - 1 is
+# 0.10000000000000009, so an answer exactly on an inclusive boundary was
+# rejected (on one side only). A value that is not finite falls back to the
+# floating-point comparison.
+def within_tolerance(sv, cv, spec):
+    from decimal import Decimal, InvalidOperation, localcontext
+    try:
+        s = Decimal(format(float(sv), '.15g'))
+        c = Decimal(format(float(cv), '.15g'))
+        text = spec.strip()
+        if text.endswith("%"):
+            tol = abs(c) * Decimal(text[:-1].strip()) / 100
+        else:
+            tol = Decimal(text)
+        if not (s.is_finite() and c.is_finite() and tol.is_finite()):
+            raise ValueError("not finite")
+        with localcontext() as ctx:
+            ctx.prec = 80
+            return abs(s - c) <= tol
+    except (InvalidOperation, ValueError, OverflowError, TypeError):
+        return abs(sv - cv) <= parse_tolerance(spec, cv)
+
+
 def _exact_real(value):
     import sympy as sp
     if type(value) is int:

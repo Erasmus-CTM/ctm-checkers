@@ -1,0 +1,73 @@
+"""GR-1: numeric mode's tolerance is inclusive on both sides of the key.
+
+The extended audit of 30 October 2026 (ctm-assessment
+docs/audit-2026-11-extended, appendix-grading.md) reproduced that
+`abs(sv - cv) <= tolerance` in binary floating point rejected 6 of 20 exact
+absolute 0.1 boundaries around the keys 1..10 (1.1 - 1 is
+0.10000000000000009), and the same asymmetry at 10 %. AGPL-3.0-or-later.
+"""
+import os
+import pathlib
+import sys
+import unittest
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path[:0] = (os.environ.get("CTM_CHECKERS_WHEEL") or str(ROOT / "src")).split(os.pathsep)
+from ctm_checkers.math_exercise.checks import check
+from ctm_checkers.math_exercise.numeric import within_tolerance
+
+BASE = dict(reject='', tolerance='', decplaces='', sigfigs='', form='',
+            partial_credit=False, form_credit=0.5, vars='', mode='numeric')
+
+
+def status(student, correct, tolerance, **extra):
+    return check({**BASE, **extra, 'student': student, 'correct': correct, 'tolerance': tolerance})['status']
+
+
+class InclusiveToleranceTests(unittest.TestCase):
+    def test_absolute_boundaries_around_integer_keys(self):
+        for key in range(1, 11):
+            for sign in ('+', '-'):
+                with self.subTest(key=key, sign=sign):
+                    self.assertEqual(status(f'{key}{sign}0.1', str(key), '0.1'), 'correct')
+                    self.assertEqual(status(f'{key}{sign}0.1000001', str(key), '0.1'), 'wrong')
+
+    def test_percentage_boundaries_and_negative_keys(self):
+        self.assertEqual(status('1.1', '1', '10%'), 'correct')
+        self.assertEqual(status('0.9', '1', '10%'), 'correct')
+        self.assertEqual(status('-1.1', '-1', '10%'), 'correct')
+        self.assertEqual(status('-0.9', '-1', '10 %'), 'correct')
+        self.assertEqual(status('-1.1000001', '-1', '10%'), 'wrong')
+        self.assertEqual(status('110', '100', '10%'), 'correct')
+        self.assertEqual(status('110.0001', '100', '10%'), 'wrong')
+
+    def test_zero_tolerance_and_zero_key(self):
+        self.assertEqual(status('0', '0', '0%'), 'correct')
+        self.assertEqual(status('0', '0', '0'), 'correct')
+        self.assertEqual(status('1e-12', '0', '0%'), 'wrong')
+        self.assertEqual(status('2/4', '0.5', '0'), 'correct')
+
+    def test_computed_answers_and_keys(self):
+        # The key and the answer are read at 15 significant digits, as
+        # round_places reads them, so 1.05*1.9 is 1.995.
+        self.assertEqual(status('2.095', '1.05*1.9', '0.1'), 'correct')
+        self.assertEqual(status('pi', '3.14', '0.0016'), 'correct')
+        self.assertEqual(status('pi', '3.14', '0.0015'), 'wrong')
+
+    def test_not_finite_and_invalid(self):
+        self.assertEqual(status('oo', '1', '0.1'), 'wrong')
+        self.assertEqual(status('1', '1', 'abc'), 'error')
+        self.assertFalse(within_tolerance(float('inf'), 1.0, '0.1'))
+        self.assertTrue(within_tolerance(1.0, 1.0, 'inf'))
+
+    def test_compute_key_uses_the_same_rule(self):
+        from ctm_checkers.math_exercise.keys import compute_key
+        request = {'recipe': {'op': 'value', 'expr': '1'}, 'answer': '1.1', 'vars': '',
+                   'mode': 'numeric', 'tolerance': '0.1'}
+        self.assertEqual(compute_key(request), {'key': '1', 'computed': True})
+        with self.assertRaises(ValueError):
+            compute_key({**request, 'answer': '1.1000001'})
+
+
+if __name__ == '__main__':
+    unittest.main()

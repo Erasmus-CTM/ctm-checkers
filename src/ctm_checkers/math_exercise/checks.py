@@ -4,7 +4,7 @@ math-exercise 0.10.0's _math_check; the request's fields replace the
 _math_* globals that the page set)."""
 from sympy import cancel, expand, factor, simplify, together
 
-from .numeric import parse_tolerance, round_places, sigfigs_round
+from .numeric import round_places, sigfigs_round, within_tolerance
 from .parsing import TRANSFORMATIONS, build_locals, numeric_not_reduced, parse_expr, split_top
 
 
@@ -24,7 +24,7 @@ def num_equal(sv, cv, request):
         n = int(request["sigfigs"])
         return sigfigs_round(sv, n) == sigfigs_round(cv, n)
     if request["tolerance"].strip():
-        return abs(sv - cv) <= parse_tolerance(request["tolerance"], cv)
+        return within_tolerance(sv, cv, request["tolerance"])
     return abs(sv - cv) <= 1e-8 * max(1.0, abs(cv))
 
 

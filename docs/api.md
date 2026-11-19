@@ -133,9 +133,20 @@ student's answer by these rules and S-01, or the test fails as invalid.
 Statuses: `correct`, `partial`, `wrong`, `not_exact`, `not_form`, `rejected`,
 `error` (`core.result.STATUSES`).
 
-Admission (math-exercise's calls): a learner string that contains `__` stops the call
-with `ValueError("SyntaxError: unsupported input")` before anything runs. The
-learner strings are the answer (`student`, unless `mode` is `string` or
+Admission (math-exercise's calls): each learner string is tokenized, never
+evaluated, before SymPy parses it. It stops the call with
+`ValueError("SyntaxError: unsupported input")` before anything runs when it
+contains `__`, a string literal, a comment, attribute access (`x.func`),
+assignment (`=`, `:=`), `lambda`, a comprehension or conditional expression,
+or a name of parse_expr's namespace that is not mathematics: Python's builtins
+other than `abs`, `min`, `max`, `pow`, `round`, `sum` and `divmod`, and SymPy's
+non-mathematical helpers (`sympify`, `lambdify`, `preview`, `var`, ...). SymPy's
+functions, classes and constants, the exercise's `vars` (also when SymPy or
+Python defines the name) and names the namespace does not define (they become
+symbols) are admitted, as are numbers and the operators of mathematical notation
+(`+ - * / ** ^ ! % // ( ) [ ] { } ,`, comparisons, `& | ~`). Text Python cannot
+tokenize is left to parse_expr, which reports the syntax error (A-01 of the
+30 Oct audit; before 0.12.0 only `__` was refused). The learner strings are the answer (`student`, unless `mode` is `string` or
 `string_ci`, which are never evaluated) and the response's `raw` values and
 those of its `inputs`. Author data (answer keys, checkers) is not restricted.
 

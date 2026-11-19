@@ -8,6 +8,28 @@ diff (docs/goldens.md).
 
 ## 0.12.0 (Unreleased)
 
+### Grading changes
+
+- **GR-1 (30 Oct audit, critical):** in `numeric` mode a tolerance is now
+  inclusive on both sides of the key. `|answer - key| <= tolerance` is decided
+  in decimal arithmetic on the 15-significant-digit values (the reading
+  `round_places` uses) and the tolerance as written, absolute or a percentage
+  of the key. In binary floating point `1.1 - 1` is `0.10000000000000009`, so
+  `1.1` was wrong and `0.9` correct for key 1 and tolerance 0.1 (6 of the 20
+  boundaries around the keys 1..10). `compute_key` follows the same rule.
+  Test: `tests/test_tolerance_boundary.py`. Golden diff: no row changes (no
+  recorded request lies on a boundary); 9,500 of 9,500 rows reproduce.
+
+### Security
+
+- **A-01 / M3:** learner answers are admitted by token, never evaluated (see
+  "Admission" in docs/api.md). Before, only `__` was refused, so an answer
+  box could run `eval`, `getattr`, string literals and attribute access in
+  the grading interpreter, also in exam builds. Verdicts are unchanged: all
+  619 distinct learner strings of the golden tables and the umbrella's parity
+  answers are admitted, and the 9,500 golden rows reproduce. Test:
+  `tests/test_learner_admission.py`.
+
 - **Generated mathematics:** `parse_math` accepts `ln` as the natural
   logarithm, and `bind_data` reads `e` in a generated given as Euler's number,
   also where the exercise declares `e` as a variable for learners. A model
