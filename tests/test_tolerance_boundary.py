@@ -69,5 +69,36 @@ class InclusiveToleranceTests(unittest.TestCase):
             compute_key({**request, 'answer': '1.1000001'})
 
 
+class ExactToleranceTests(unittest.TestCase):
+    """Audit of 20 Nov 2026: reading values at 15 significant digits loosened
+    keys of more than 15 digits (finding 3) and still rejected exact rational
+    boundaries (finding 4). The comparison is now exact."""
+
+    def test_more_than_fifteen_digits_is_not_loosened(self):
+        self.assertEqual(status('1234567890123459', '1234567890123456', '1'), 'wrong')
+        self.assertEqual(status('1234567890123457', '1234567890123456', '1'), 'correct')
+        self.assertEqual(status('100000000000000400000', '1e20', '1'), 'wrong')
+        self.assertEqual(status('factorial(20)+1000', 'factorial(20)', '0'), 'wrong')
+        self.assertEqual(status('1.100000000000004', '1', '0.1'), 'wrong')
+
+    def test_exact_rational_boundaries(self):
+        self.assertEqual(status('41/30', '2/3', '0.7'), 'correct')
+        self.assertEqual(status('1/3+1/10', '1/3', '30%'), 'correct')
+        self.assertEqual(status('1/3+1/10+1/10^30', '1/3', '30%'), 'wrong')
+
+    def test_irrational_values(self):
+        self.assertEqual(status('sqrt(2)', '1.414', '0.0003'), 'correct')
+        self.assertEqual(status('sqrt(2)', '1.414', '0.0002'), 'wrong')
+
+    def test_huge_literals_do_not_build_huge_rationals(self):
+        import time
+        start = time.monotonic()
+        # A huge tolerance (author data) is not turned into a billion-digit
+        # rational. (An answer such as 1e999999999 already hangs SymPy's own
+        # parse, before and after this change: Stop ends that check.)
+        self.assertEqual(status('1', '1', '1e999999999%'), 'correct')
+        self.assertLess(time.monotonic() - start, 5)
+
+
 if __name__ == '__main__':
     unittest.main()

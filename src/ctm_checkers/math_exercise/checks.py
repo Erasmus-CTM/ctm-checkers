@@ -4,7 +4,7 @@ math-exercise 0.10.0's _math_check; the request's fields replace the
 _math_* globals that the page set)."""
 from sympy import cancel, expand, factor, simplify, together
 
-from .numeric import round_places, sigfigs_round, within_tolerance
+from .numeric import exact_within_tolerance, round_places, sigfigs_round, within_tolerance
 from .parsing import TRANSFORMATIONS, build_locals, numeric_not_reduced, parse_expr, split_top
 
 
@@ -16,7 +16,7 @@ def canon_form(expr, form):
     return expr
 
 
-def num_equal(sv, cv, request):
+def num_equal(sv, cv, request, exact=None):
     if request["decplaces"].strip():
         n = int(request["decplaces"])
         return round_places(sv, n) == round_places(cv, n)
@@ -24,7 +24,8 @@ def num_equal(sv, cv, request):
         n = int(request["sigfigs"])
         return sigfigs_round(sv, n) == sigfigs_round(cv, n)
     if request["tolerance"].strip():
-        return within_tolerance(sv, cv, request["tolerance"])
+        decided = exact() if exact else None
+        return within_tolerance(sv, cv, request["tolerance"]) if decided is None else decided
     return abs(sv - cv) <= 1e-8 * max(1.0, abs(cv))
 
 
@@ -71,7 +72,8 @@ def check(request):
             sv, cv = complex(_ms.evalf()), complex(_mc.evalf())
             if abs(sv.imag) > 1e-9 or abs(cv.imag) > 1e-9:
                 return {"status": "wrong", "score": 0.0}
-            ok = num_equal(sv.real, cv.real, request)
+            ok = num_equal(sv.real, cv.real, request, exact=lambda: exact_within_tolerance(
+                request["student"], request["correct"], request["tolerance"], _local))
             return {"status": "correct" if ok else "wrong", "score": 1.0 if ok else 0.0}
 
         _d  = simplify(_ms - _mc)

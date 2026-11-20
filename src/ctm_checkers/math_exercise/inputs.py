@@ -80,10 +80,16 @@ def admit_text(text, variables=''):
     if '__' in text or len(text) > 4096:
         raise ValueError("SyntaxError: unsupported input")
     declared = set(variables.replace(',', ' ').split()) if isinstance(variables, str) else set()
+    # The text parse_expr tokenizes is s.strip(): check exactly that. Text that
+    # does not tokenize is refused (fail closed). Before, it was left to
+    # parse_expr, but a leading control character such as "\x0b" made the raw
+    # text untokenizable while its stripped form, which parse_expr evaluates,
+    # was not (audit of 20 Nov, finding 1); a set answer is also parsed part by
+    # part, so an unbalanced remainder hid the parts before it.
     try:
-        tokens = list(tokenize.generate_tokens(io.StringIO(text).readline))
-    except (tokenize.TokenError, IndentationError, SyntaxError):
-        return  # parse_expr reports the syntax error, as before; nothing ran
+        tokens = list(tokenize.generate_tokens(io.StringIO(text.strip()).readline))
+    except (tokenize.TokenError, IndentationError, SyntaxError, ValueError):
+        raise ValueError("SyntaxError: unsupported input") from None
     if len(tokens) > 2048:
         raise ValueError("SyntaxError: unsupported input")
     namespace = _namespace_names()

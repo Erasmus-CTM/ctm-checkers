@@ -24,7 +24,7 @@ ANSWERS = [
     "(2x+1)/(x(x+1))", "x^2 + 2*x + 1", "sqrt(4), -2", "{1, 2}, 3", "[1, 2], 3", "Matrix([1, 2])",
     "3.14", "1e-3", "1,5", "2 x", "-x(2-x)(x+2)", "atan2(y,x)", "5+5*I", "pi*9", "exp(5)", "ln(x)",
     "abs(x)", "Abs(x)", "oo", "inf", "5!", "factorial(5)", "diff(x^2, x)", "integrate(x, x)",
-    "sin x", "theta", "alpha + beta", "N/l", "e", "x +", "abc def", "1 < x",
+    "sin x", "theta", "alpha + beta", "N/l", "e", "x +", "abc def", "1 < x", " x + 1 ", "x\n",
 ]
 
 
@@ -34,6 +34,21 @@ class LearnerAdmissionTests(unittest.TestCase):
             with self.subTest(text=text):
                 with self.assertRaises(ValueError):
                     admit_text(text, 'x y')
+
+    def test_text_that_only_tokenizes_once_stripped_is_refused(self):
+        # Audit of 20 Nov 2026, finding 1: parse_expr evaluates s.strip(); a
+        # leading or trailing control character made the raw text fail to
+        # tokenize, and the admission let it through.
+        payload = "eval('setattr(eval(chr(95)), 1, 1)')"
+        for text in ["\x0b" + payload, "\x1c" + payload, payload + "\x1f", "\x0c\x0b" + payload,
+                     payload + ", (", "(" + payload]:
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                admit_text(text, 'x')
+        import builtins
+        before = set(dir(builtins))
+        with self.assertRaises(ValueError):
+            admit({'student': "\x0b" + payload, 'mode': 'equivalent', 'vars': 'x'})
+        self.assertEqual(set(dir(builtins)), before)
 
     def test_mathematical_notation_is_admitted(self):
         for text in ANSWERS:

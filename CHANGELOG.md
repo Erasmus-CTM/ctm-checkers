@@ -11,14 +11,18 @@ diff (docs/goldens.md).
 ### Grading changes
 
 - **GR-1 (30 Oct audit, critical):** in `numeric` mode a tolerance is now
-  inclusive on both sides of the key. `|answer - key| <= tolerance` is decided
-  in decimal arithmetic on the 15-significant-digit values (the reading
-  `round_places` uses) and the tolerance as written, absolute or a percentage
-  of the key. In binary floating point `1.1 - 1` is `0.10000000000000009`, so
-  `1.1` was wrong and `0.9` correct for key 1 and tolerance 0.1 (6 of the 20
-  boundaries around the keys 1..10). `compute_key` follows the same rule.
-  Test: `tests/test_tolerance_boundary.py`. Golden diff: no row changes (no
-  recorded request lies on a boundary); 9,500 of 9,500 rows reproduce.
+  inclusive on both sides of the key, decided exactly: the answer and the key
+  are parsed again with decimal literals as rationals (1.1 is 11/10) and
+  compared with the tolerance as written, absolute or a percentage of the
+  key; an irrational difference is compared at 60 digits. In binary floating
+  point `1.1 - 1` is `0.10000000000000009`, so `1.1` was wrong and `0.9`
+  correct for key 1 and tolerance 0.1. A first version read values at 15
+  significant digits, which loosened keys of more than 15 digits; the internal
+  audit of 20 Nov found it, the exact comparison replaces it. Literals of more
+  than 64 digits or exponents, and values that are not finite real numbers,
+  keep the floating-point comparison. `compute_key` follows the same rule.
+  Test: `tests/test_tolerance_boundary.py`. Golden diff: no row changes;
+  9,500 of 9,500 rows reproduce.
 
 ### Security
 
@@ -27,8 +31,12 @@ diff (docs/goldens.md).
   box could run `eval`, `getattr`, string literals and attribute access in
   the grading interpreter, also in exam builds. Verdicts are unchanged: all
   619 distinct learner strings of the golden tables and the umbrella's parity
-  answers are admitted, and the 9,500 golden rows reproduce. Test:
-  `tests/test_learner_admission.py`.
+  answers are admitted, and the 9,500 golden rows reproduce. The text checked
+  is the stripped text that parse_expr evaluates, and text that does not
+  tokenize is refused: the internal audit of 20 Nov ran Python through a first
+  version with one leading control character (`\x0b`). Not addressed:
+  answers whose evaluation is slow (`9^9^9^9`); the page's Stop ends such a
+  check. Test: `tests/test_learner_admission.py`.
 
 - **Generated mathematics:** `parse_math` accepts `ln` as the natural
   logarithm, and `bind_data` reads `e` in a generated given as Euler's number,
